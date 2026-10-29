@@ -1,0 +1,24 @@
+{
+  "name": "prism",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PRISM - a top-down geometric dungeon roguelike shooter",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "eslint": "^9.13.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.10.0",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}
