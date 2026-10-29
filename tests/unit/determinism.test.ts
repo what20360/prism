@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { TRAINING_ROOM } from '../../src/content/rooms'
 import type { Intent } from '../../src/core/controller'
@@ -18,6 +19,7 @@ function runScript(seed: number): string {
   const world = createWorld({
     seed,
     room: TRAINING_ROOM,
+    economy: DEFAULT_ECONOMY,
     playerAttrs: PLAYER_BASE_ATTRS,
     playerSpawn: { x: 960, y: 540 },
   })
@@ -43,8 +45,6 @@ describe('determinism', () => {
   })
 
   it('does not depend on wall-clock time', () => {
-    const first = runScript(42)
-    const second = runScript(42)
-    expect(first).toBe(second)
+    expect(runScript(42)).toBe(runScript(42))
   })
 })

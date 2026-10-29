@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import type { Intent } from '../../src/core/controller'
 import { step } from '../../src/core/simulation'
@@ -9,12 +10,14 @@ const EMPTY_ROOM: RoomTemplate = {
   id: 'empty',
   bounds: { x: 0, y: 0, width: 1920, height: 1080 },
   walls: [],
+  spawns: [],
 }
 
 function makeWorld(spawnX: number, spawnY: number, room: RoomTemplate = EMPTY_ROOM) {
   return createWorld({
     seed: 1,
     room,
+    economy: DEFAULT_ECONOMY,
     playerAttrs: PLAYER_BASE_ATTRS,
     playerSpawn: { x: spawnX, y: spawnY },
   })
@@ -64,7 +67,6 @@ describe('movement', () => {
     expect(blocked.pos.x).toBeLessThanOrEqual(400 - PLAYER_BASE_ATTRS.radius)
     expect(blocked.pos.x).toBeGreaterThan(370)
 
-    // Sliding: pushing right + down must still allow vertical movement.
     run(world, { move: { x: 1, y: 1 } }, 30)
     expect(getPlayer(world).pos.y).toBeGreaterThan(540)
   })

@@ -1,4 +1,5 @@
 import './style.css'
+import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { TRAINING_ROOM } from '../content/rooms'
 import { createKeyboardInput } from '../input/keyboard'
@@ -14,6 +15,7 @@ const input = createKeyboardInput(window)
 const game = createGame({
   seed: 20261029,
   room: TRAINING_ROOM,
+  economy: DEFAULT_ECONOMY,
   playerAttrs: PLAYER_BASE_ATTRS,
   playerSpawn: { x: 960, y: 540 },
   input,
@@ -21,6 +23,10 @@ const game = createGame({
 })
 
 game.start()
+
+if (import.meta.env.DEV) {
+  ;(window as Window & { __prism?: typeof game }).__prism = game
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

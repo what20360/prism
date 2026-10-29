@@ -3,6 +3,8 @@ import { normalize } from '../core/math'
 
 export interface IntentSource {
   read(): Intent
+  /** True once per press of the restart key. */
+  consumeRestart(): boolean
   dispose(): void
 }
 
@@ -19,9 +21,14 @@ const MOVE_KEYS = new Set([
 
 export function createKeyboardInput(target: Window): IntentSource {
   const pressed = new Set<string>()
+  let restartRequested = false
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (!MOVE_KEYS.has(event.code)) return
+    if (event.code === 'KeyR') {
+      restartRequested = true
+      return
+    }
+    if (!MOVE_KEYS.has(event.code) && event.code !== 'KeyE') return
     pressed.add(event.code)
     event.preventDefault()
   }
@@ -47,7 +54,16 @@ export function createKeyboardInput(target: Window): IntentSource {
     if (pressed.has('KeyW') || pressed.has('ArrowUp')) y -= 1
     if (pressed.has('KeyS') || pressed.has('ArrowDown')) y += 1
 
-    return { move: normalize({ x, y }) }
+    return {
+      move: normalize({ x, y }),
+      placeMine: pressed.has('KeyE'),
+    }
+  }
+
+  const consumeRestart = (): boolean => {
+    const requested = restartRequested
+    restartRequested = false
+    return requested
   }
 
   const dispose = (): void => {
@@ -56,5 +72,5 @@ export function createKeyboardInput(target: Window): IntentSource {
     target.removeEventListener('blur', onBlur)
   }
 
-  return { read, dispose }
+  return { read, consumeRestart, dispose }
 }

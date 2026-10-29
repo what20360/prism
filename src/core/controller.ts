@@ -7,6 +7,8 @@ import type { Vec2 } from './types'
 export interface Intent {
   /** Normalized movement direction, or ZERO when idle. */
   readonly move: Vec2
+  /** Hold-to-place; the simulation applies its own cooldown and stock limit. */
+  readonly placeMine?: boolean
 }
 
 export const NO_INTENT: Intent = Object.freeze({
