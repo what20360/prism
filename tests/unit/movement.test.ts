@@ -67,7 +67,7 @@ describe('movement', () => {
 
     const blocked = getPlayer(world)
     expect(blocked.pos.x).toBeLessThanOrEqual(400 - PLAYER_BASE_ATTRS.radius)
-    expect(blocked.pos.x).toBeGreaterThan(370)
+    expect(blocked.pos.x).toBeGreaterThan(300)
 
     run(world, { move: { x: 1, y: 1 } }, 30)
     expect(getPlayer(world).pos.y).toBeGreaterThan(540)

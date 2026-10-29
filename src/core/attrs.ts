@@ -38,6 +38,8 @@ export interface AttrSet {
   deflectWindowSeconds: number
   deflectCooldownSeconds: number
   reflectDamageMult: number
+  /** Passive deflections per second; each costs one charge (max 1). */
+  passiveDeflectRate: number
 }
 
 export type AttrKey = keyof AttrSet

@@ -7,10 +7,10 @@ import { applyDamage } from './damage'
 export const MINE_FUSE_TICKS = Math.round(0.08 * TICK_RATE)
 export const MINE_PLACE_COOLDOWN_TICKS = TICK_RATE * 2
 export const MAX_MINES_PER_TEAM = 3
-export const MINE_BODY_RADIUS = 14
-export const MINE_TRIGGER_RADIUS = 36
-export const MINE_BLAST_RADIUS = 90
-export const MINE_SLOW_RADIUS = 36
+export const MINE_BODY_RADIUS = 30
+export const MINE_TRIGGER_RADIUS = 80
+export const MINE_BLAST_RADIUS = 200
+export const MINE_SLOW_RADIUS = 80
 export const MINE_SLOW_FACTOR = 0.6
 export const MINE_DAMAGE = 30
 

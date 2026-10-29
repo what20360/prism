@@ -11,7 +11,16 @@ export interface Renderer {
   dispose(): void
 }
 
-const GRID_SIZE = 128
+const GRID_SIZE = 256
+/** World units visible vertically; the horizontal span follows the aspect ratio. */
+const VIEW_HEIGHT = 1080
+
+interface Camera {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const ctx = canvas.getContext('2d')
@@ -32,48 +41,84 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   window.addEventListener('resize', resize)
   resize()
 
-  const drawGrid = (bounds: Rect): void => {
+  const clamp = (value: number, min: number, max: number): number =>
+    value < min ? min : value > max ? max : value
+
+  /** Camera follows the player and is clamped inside the arena. */
+  const computeCamera = (snapshot: Snapshot, aspect: number): Camera => {
+    const viewWidth = VIEW_HEIGHT * aspect
+    const viewHeight = VIEW_HEIGHT
+    const { bounds } = snapshot
+    const player = snapshot.actors.find((actor) => actor.team === 'player')
+
+    let centerX = player ? player.x : bounds.x + bounds.width / 2
+    let centerY = player ? player.y : bounds.y + bounds.height / 2
+
+    centerX =
+      viewWidth >= bounds.width
+        ? bounds.x + bounds.width / 2
+        : clamp(centerX, bounds.x + viewWidth / 2, bounds.x + bounds.width - viewWidth / 2)
+    centerY =
+      viewHeight >= bounds.height
+        ? bounds.y + bounds.height / 2
+        : clamp(centerY, bounds.y + viewHeight / 2, bounds.y + bounds.height - viewHeight / 2)
+
+    return {
+      x: centerX - viewWidth / 2,
+      y: centerY - viewHeight / 2,
+      width: viewWidth,
+      height: viewHeight,
+    }
+  }
+
+  const drawGrid = (camera: Camera): void => {
     ctx.strokeStyle = COLORS.grid
-    ctx.lineWidth = 1
+    ctx.lineWidth = 2
     ctx.beginPath()
-    for (let x = bounds.x; x <= bounds.x + bounds.width; x += GRID_SIZE) {
-      ctx.moveTo(x, bounds.y)
-      ctx.lineTo(x, bounds.y + bounds.height)
+
+    const startX = Math.floor(camera.x / GRID_SIZE) * GRID_SIZE
+    const endX = camera.x + camera.width
+    for (let x = startX; x <= endX; x += GRID_SIZE) {
+      ctx.moveTo(x, camera.y)
+      ctx.lineTo(x, camera.y + camera.height)
     }
-    for (let y = bounds.y; y <= bounds.y + bounds.height; y += GRID_SIZE) {
-      ctx.moveTo(bounds.x, y)
-      ctx.lineTo(bounds.x + bounds.width, y)
+
+    const startY = Math.floor(camera.y / GRID_SIZE) * GRID_SIZE
+    const endY = camera.y + camera.height
+    for (let y = startY; y <= endY; y += GRID_SIZE) {
+      ctx.moveTo(camera.x, y)
+      ctx.lineTo(camera.x + camera.width, y)
     }
+
     ctx.stroke()
   }
 
   const drawRoom = (bounds: Rect, walls: readonly Rect[]): void => {
-    ctx.lineWidth = 2
+    ctx.lineWidth = 4
     ctx.strokeStyle = COLORS.roomBorder
-    ctx.strokeRect(bounds.x + 0.5, bounds.y + 0.5, bounds.width - 1, bounds.height - 1)
+    ctx.strokeRect(bounds.x + 2, bounds.y + 2, bounds.width - 4, bounds.height - 4)
 
     for (const wall of walls) {
       ctx.fillStyle = COLORS.wallFill
       ctx.strokeStyle = COLORS.wallStroke
       ctx.fillRect(wall.x, wall.y, wall.width, wall.height)
-      ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.width - 1, wall.height - 1)
+      ctx.strokeRect(wall.x + 1, wall.y + 1, wall.width - 2, wall.height - 2)
     }
   }
 
   const drawMine = (mine: MineView): void => {
     const color = mine.team === 'player' ? COLORS.mineOwn : COLORS.mineEnemy
 
-    // Slow field and blast radius must always be visible (requirements 5.6.2).
     ctx.beginPath()
     ctx.arc(mine.x, mine.y, mine.slowRadius, 0, Math.PI * 2)
     ctx.fillStyle = COLORS.mineField
     ctx.fill()
 
     ctx.beginPath()
-    ctx.setLineDash([8, 8])
+    ctx.setLineDash([18, 14])
     ctx.arc(mine.x, mine.y, mine.blastRadius, 0, Math.PI * 2)
     ctx.strokeStyle = COLORS.mineBlast
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = 3
     ctx.stroke()
     ctx.setLineDash([])
 
@@ -83,7 +128,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.fillStyle = armed ? COLORS.mineArmed : color
     ctx.fill()
     ctx.strokeStyle = color
-    ctx.lineWidth = 2
+    ctx.lineWidth = 4
     ctx.stroke()
   }
 
@@ -117,7 +162,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     ctx.fillStyle = fill
     ctx.fill()
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 5
     ctx.strokeStyle = stroke
     ctx.stroke()
 
@@ -130,18 +175,18 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     if (actor.shield > 0) {
       ctx.beginPath()
-      ctx.arc(actor.x, actor.y, r + 6, 0, Math.PI * 2)
+      ctx.arc(actor.x, actor.y, r + 12, 0, Math.PI * 2)
       ctx.strokeStyle = 'rgba(140, 200, 255, 0.6)'
-      ctx.lineWidth = 2
+      ctx.lineWidth = 4
       ctx.stroke()
     }
 
     if (actor.deflectActive) {
       ctx.beginPath()
-      ctx.arc(actor.x, actor.y, r + 12, 0, Math.PI * 2)
+      ctx.arc(actor.x, actor.y, r + 22, 0, Math.PI * 2)
       ctx.strokeStyle = actor.deflectLevel >= 2 ? '#ffd166' : '#8af5ff'
-      ctx.lineWidth = 3
-      ctx.setLineDash([10, 6])
+      ctx.lineWidth = 5
+      ctx.setLineDash([18, 12])
       ctx.stroke()
       ctx.setLineDash([])
     }
@@ -150,9 +195,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const width = r * 2.6
       const ratio = Math.max(0, actor.hp / actor.maxHp)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'
-      ctx.fillRect(actor.x - width / 2, actor.y - r - 14, width, 5)
+      ctx.fillRect(actor.x - width / 2, actor.y - r - 26, width, 9)
       ctx.fillStyle = stroke
-      ctx.fillRect(actor.x - width / 2, actor.y - r - 14, width * ratio, 5)
+      ctx.fillRect(actor.x - width / 2, actor.y - r - 26, width * ratio, 9)
     }
   }
 
@@ -164,12 +209,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (effect.kind === 'coreHit') color = COLORS.fxCore
     else if (effect.kind === 'explosion') color = COLORS.fxExplosion
     else if (effect.kind === 'death') color = COLORS.fxDeath
+    else if (effect.kind === 'reflect') color = COLORS.fxCore
+    else if (effect.kind === 'deflect') color = COLORS.playerBullet
+    else if (effect.kind === 'revive') color = COLORS.mineArmed
 
     ctx.beginPath()
     ctx.arc(effect.x, effect.y, effect.radius * (0.4 + progress * 0.8), 0, Math.PI * 2)
     ctx.strokeStyle = color
     ctx.globalAlpha = alpha
-    ctx.lineWidth = 2
+    ctx.lineWidth = 4
     ctx.stroke()
     ctx.globalAlpha = 1
   }
@@ -177,35 +225,51 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (snapshot: Snapshot, debug: RenderDebug): void => {
     const player = snapshot.actors.find((actor) => actor.team === 'player')
 
-    ctx.font = '16px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.font = '18px ui-monospace, SFMono-Regular, Menlo, monospace'
     ctx.textBaseline = 'top'
     ctx.fillStyle = COLORS.hudText
-    ctx.fillText(`tick ${snapshot.tick}   fps ${debug.fps.toFixed(0)}`, 20, 18)
+    ctx.fillText(`tick ${snapshot.tick}   fps ${debug.fps.toFixed(0)}`, 24, 20)
 
-    if (player) {
-      ctx.fillStyle = COLORS.hudAccent
-      ctx.fillText(`HP ${Math.ceil(player.hp)}/${player.maxHp}`, 20, 44)
-      if (player.shield > 0) {
-        ctx.fillStyle = COLORS.hudText
-        ctx.fillText(`SHIELD ${Math.ceil(player.shield)}`, 20, 66)
-      }
+    if (!player) return
+
+    ctx.fillStyle = COLORS.hudAccent
+    ctx.fillText(`HP ${Math.ceil(player.hp)}/${player.maxHp}`, 24, 52)
+
+    let line = 80
+    if (player.shield > 0) {
       ctx.fillStyle = COLORS.hudText
-      ctx.fillText(`SHARDS ${Math.floor(snapshot.shards)}`, 20, player.shield > 0 ? 88 : 66)
-      ctx.fillText(`KILLS ${snapshot.stats.kills}   CORE ${snapshot.stats.coreHits}`, 20, player.shield > 0 ? 110 : 88)
-      if (snapshot.stats.chain > 1) {
-        ctx.fillStyle = COLORS.hudWarn
-        ctx.fillText(`CHAIN x${snapshot.stats.chain}`, 20, player.shield > 0 ? 132 : 110)
-      }
-      if (player.deflectLevel > 0) {
-        ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
-        const state = player.deflectActive ? 'ACTIVE' : player.deflectReady ? 'READY' : 'COOLDOWN'
-        ctx.fillText(`DEFLECT ${state}`, 20, player.shield > 0 ? 154 : 132)
-      }
+      ctx.fillText(`SHIELD ${Math.ceil(player.shield)}`, 24, line)
+      line += 28
+    }
+
+    ctx.fillStyle = COLORS.hudText
+    ctx.fillText(`SHARDS ${Math.floor(snapshot.shards)}`, 24, line)
+    line += 28
+    ctx.fillText(`KILLS ${snapshot.stats.kills}   CORE ${snapshot.stats.coreHits}`, 24, line)
+    line += 28
+
+    if (snapshot.stats.chain > 1) {
+      ctx.fillStyle = COLORS.hudWarn
+      ctx.fillText(`CHAIN x${snapshot.stats.chain}`, 24, line)
+      line += 28
+    }
+
+    if (player.passiveDeflectRate > 0) {
+      const ready = player.deflectCharge >= 1
+      ctx.fillStyle = ready ? COLORS.hudWarn : COLORS.hudText
+      ctx.fillText(`DEFLECT ${ready ? 'READY' : `${Math.floor(player.deflectCharge * 100)}%`}`, 24, line)
+      line += 28
+    }
+
+    if (player.deflectLevel > 0) {
+      ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
+      const state = player.deflectActive ? 'ACTIVE' : player.deflectReady ? 'READY' : 'COOLDOWN'
+      ctx.fillText(`SKILL ${state}`, 24, line)
     }
 
     if (snapshot.roomCleared && !snapshot.gameOver) {
       ctx.fillStyle = COLORS.hudWarn
-      ctx.fillText('ROOM CLEAR', viewportWidth - 140, 18)
+      ctx.fillText('ROOM CLEAR', viewportWidth - 160, 20)
     }
   }
 
@@ -215,30 +279,29 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     ctx.textAlign = 'center'
     ctx.fillStyle = COLORS.enemyStroke
-    ctx.font = '48px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.font = '56px ui-monospace, SFMono-Regular, Menlo, monospace'
     ctx.fillText('GAME OVER', viewportWidth / 2, viewportHeight / 2 - 24)
 
     ctx.fillStyle = COLORS.hudText
-    ctx.font = '18px ui-monospace, SFMono-Regular, Menlo, monospace'
-    ctx.fillText('按 R 重新开始', viewportWidth / 2, viewportHeight / 2 + 30)
+    ctx.font = '20px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.fillText('按 R 重新开始', viewportWidth / 2, viewportHeight / 2 + 34)
     ctx.textAlign = 'left'
   }
 
   const draw = (snapshot: Snapshot, debug: RenderDebug): void => {
-    const { bounds } = snapshot
-    const scale = Math.min(viewportWidth / bounds.width, viewportHeight / bounds.height)
-    const offsetX = (viewportWidth - bounds.width * scale) / 2
-    const offsetY = (viewportHeight - bounds.height * scale) / 2
+    const aspect = viewportWidth / viewportHeight
+    const camera = computeCamera(snapshot, aspect)
+    const scale = viewportWidth / camera.width
 
     ctx.fillStyle = COLORS.background
     ctx.fillRect(0, 0, viewportWidth, viewportHeight)
 
     ctx.save()
-    ctx.translate(offsetX, offsetY)
     ctx.scale(scale, scale)
+    ctx.translate(-camera.x, -camera.y)
 
-    drawGrid(bounds)
-    drawRoom(bounds, snapshot.walls)
+    drawGrid(camera)
+    drawRoom(snapshot.bounds, snapshot.walls)
     for (const mine of snapshot.mines) drawMine(mine)
     for (const projectile of snapshot.projectiles) drawProjectile(projectile)
     for (const actor of snapshot.actors) {

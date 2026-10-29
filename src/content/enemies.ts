@@ -12,7 +12,7 @@ export interface EnemyType {
 const ZERO_ATTRS: AttrSet = {
   maxHp: 30,
   speed: 0,
-  radius: 16,
+  radius: 34,
   coreRadiusMult: 0.45,
 
   armor: 0,
@@ -25,7 +25,7 @@ const ZERO_ATTRS: AttrSet = {
   bulletSpeed: 0,
   range: 0,
   pierce: 1,
-  bulletSize: 6,
+  bulletSize: 10,
   blastRadius: 0,
   penetration: 0,
   multishot: 1,
@@ -39,9 +39,10 @@ const ZERO_ATTRS: AttrSet = {
   shardGain: 1,
 
   deflectLevel: 0,
-  deflectWindowSeconds: 0.2,
+  deflectWindowSeconds: 0.25,
   deflectCooldownSeconds: 6,
   reflectDamageMult: 1.5,
+  passiveDeflectRate: 0,
 }
 
 function enemyAttrs(overrides: Partial<AttrSet>): AttrSet {
@@ -53,13 +54,13 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   drifter: {
     tier: 'normal',
     behavior: 'chase',
-    contactDamage: 8,
+    contactDamage: 6,
     hasCore: false,
     attrs: enemyAttrs({
-      maxHp: 30,
-      speed: 135,
-      radius: 16,
-      damage: 8,
+      maxHp: 20,
+      speed: 150,
+      radius: 34,
+      damage: 6,
     }),
   },
 
@@ -69,15 +70,15 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
     contactDamage: 0,
     hasCore: false,
     attrs: enemyAttrs({
-      maxHp: 40,
+      maxHp: 30,
       armor: 20,
       speed: 0,
-      radius: 18,
+      radius: 40,
       damage: 10,
-      fireRate: 0.8,
-      bulletSpeed: 450,
-      range: 700,
-      bulletSize: 6,
+      fireRate: 0.6,
+      bulletSpeed: 380,
+      range: 900,
+      bulletSize: 10,
     }),
   },
 }

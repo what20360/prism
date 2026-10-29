@@ -220,6 +220,65 @@ describe('deflect and reflect', () => {
 
     expect(tryActivateDeflect(world, player)).toBe(false)
   })
+
+  it('passive deflection spends a charge and turns the bullet aside', () => {
+    const world = makeWorld()
+    const player = getPlayer(world)
+    setAttrs(player, { passiveDeflectRate: 1, deflectLevel: 0 })
+    player.deflectCharge = 1
+
+    world.projectiles.push({
+      id: 502,
+      ownerId: 0,
+      team: 'enemy',
+      pos: { x: player.pos.x, y: player.pos.y },
+      prevPos: { x: player.pos.x, y: player.pos.y },
+      vel: { x: 380, y: 0 },
+      radius: 10,
+      damage: 10,
+      penetration: 0,
+      pierceLeft: 1,
+      innerMult: 1.5,
+      travelLeft: 500,
+      hitIds: [],
+    })
+
+    step(world, new Map())
+
+    const deflected = world.projectiles[0]
+    expect(deflected?.team).toBe('enemy')
+    expect(deflected?.vel.x).toBeCloseTo(0, 6)
+    expect(deflected?.vel.y).toBeCloseTo(380, 6)
+    expect(player.hp).toBe(player.attrs.maxHp)
+    expect(player.deflectCharge).toBeLessThan(1)
+  })
+
+  it('passive deflection needs a full charge', () => {
+    const world = makeWorld()
+    const player = getPlayer(world)
+    setAttrs(player, { passiveDeflectRate: 0.1, deflectLevel: 0 })
+    player.deflectCharge = 0
+
+    world.projectiles.push({
+      id: 503,
+      ownerId: 0,
+      team: 'enemy',
+      pos: { x: player.pos.x, y: player.pos.y },
+      prevPos: { x: player.pos.x, y: player.pos.y },
+      vel: { x: 380, y: 0 },
+      radius: 10,
+      damage: 10,
+      penetration: 0,
+      pierceLeft: 1,
+      innerMult: 1.5,
+      travelLeft: 500,
+      hitIds: [],
+    })
+
+    step(world, new Map())
+
+    expect(player.hp).toBeLessThan(player.attrs.maxHp)
+  })
 })
 
 describe('revives', () => {

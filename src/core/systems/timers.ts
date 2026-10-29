@@ -15,6 +15,10 @@ export function updateTimers(world: World): void {
     if (actor.deflectWindowTicks > 0) actor.deflectWindowTicks -= 1
     if (actor.deflectCooldownTicks > 0) actor.deflectCooldownTicks -= 1
 
+    if (actor.attrs.passiveDeflectRate > 0 && actor.deflectCharge < 1) {
+      actor.deflectCharge = Math.min(1, actor.deflectCharge + actor.attrs.passiveDeflectRate / TICK_RATE)
+    }
+
     actor.outOfCombatTicks += 1
 
     if (actor.alive && actor.attrs.shieldRegen > 0 && actor.outOfCombatTicks > REGEN_DELAY_TICKS) {

@@ -49,28 +49,35 @@ export function resolveHits(world: World): void {
   world.projectiles = survivors
 }
 
-/** An active deflect window transfers ownership of the bullet mid-flight. */
+/** Deflection: passive charge spends on a side turn, active window converts ownership. */
 function tryDeflect(world: World, projectile: Projectile, target: Actor): boolean {
-  if (target.deflectWindowTicks <= 0) return false
-  if (target.attrs.deflectLevel <= 0) return false
   if (projectile.team === target.team) return false
 
-  projectile.team = target.team
-  projectile.ownerId = target.id
-  projectile.hitIds.length = 0
-  projectile.travelLeft = Math.max(projectile.travelLeft, 500)
-
-  let kind: EffectKind = 'deflect'
-  if (target.attrs.deflectLevel >= 2) {
+  if (target.deflectWindowTicks > 0 && target.attrs.deflectLevel > 0) {
+    projectile.team = target.team
+    projectile.ownerId = target.id
+    projectile.hitIds.length = 0
+    projectile.travelLeft = Math.max(projectile.travelLeft, 500)
     projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
-    projectile.damage *= target.attrs.reflectDamageMult
-    kind = 'reflect'
-  } else {
-    projectile.vel = { x: -projectile.vel.y, y: projectile.vel.x }
+
+    let kind: EffectKind = 'deflect'
+    if (target.attrs.deflectLevel >= 2) {
+      projectile.damage *= target.attrs.reflectDamageMult
+      kind = 'reflect'
+    }
+
+    world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
+    return true
   }
 
-  world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
-  return true
+  if (target.attrs.passiveDeflectRate > 0 && target.deflectCharge >= 1) {
+    target.deflectCharge -= 1
+    projectile.vel = { x: -projectile.vel.y, y: projectile.vel.x }
+    world.effects.push({ kind: 'deflect', x: projectile.pos.x, y: projectile.pos.y, radius: 30, ttl: 12 })
+    return true
+  }
+
+  return false
 }
 
 /** True when the shot's flight line passes within `radius` of the target centre. */

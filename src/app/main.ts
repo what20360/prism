@@ -20,7 +20,7 @@ const game: Game = createGame({
   economy: DEFAULT_ECONOMY,
   registry: CARD_REGISTRY,
   playerAttrs: PLAYER_BASE_ATTRS,
-  playerSpawn: { x: 960, y: 540 },
+  playerSpawn: { x: 1600, y: 900 },
   input,
   renderer,
   onPauseChange: (paused) => {
