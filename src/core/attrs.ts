@@ -30,7 +30,17 @@ export interface AttrSet {
   innerDamageMult: number
   revives: number
   chainCap: number
+
+  /** Multiplier applied to every shard gain (card: 棱晶收益加成). */
+  shardGain: number
+
+  deflectLevel: number
+  deflectWindowSeconds: number
+  deflectCooldownSeconds: number
+  reflectDamageMult: number
 }
+
+export type AttrKey = keyof AttrSet
 
 /**
  * mitigation = armor / (100 + armor)
@@ -45,4 +55,8 @@ export function armorToMitigation(armor: number): number {
 export function resolveDamage(raw: number, armor: number, penetration: number): number {
   const effectiveArmor = Math.max(0, armor - penetration)
   return Math.max(0, raw * (1 - armorToMitigation(effectiveArmor)))
+}
+
+export function shieldCap(attrs: AttrSet): number {
+  return attrs.maxHp * attrs.shieldCapMult
 }

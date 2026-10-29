@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import type { AttrSet } from '../../src/core/attrs'
@@ -29,6 +30,7 @@ function makeWorld(options: { enemies?: EnemySpawnSpec[]; playerAttrs?: Partial<
     seed: 1,
     room: { ...EMPTY_ROOM, spawns: options.enemies ?? [] },
     economy: DEFAULT_ECONOMY,
+    registry: CARD_REGISTRY,
     playerAttrs: { ...PLAYER_BASE_ATTRS, ...options.playerAttrs },
     playerSpawn: { x: 300, y: 540 },
   })

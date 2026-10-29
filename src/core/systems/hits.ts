@@ -1,5 +1,5 @@
 import { distance, distanceToRay } from '../collision'
-import type { Actor, Projectile, World } from '../world'
+import type { Actor, EffectKind, Projectile, World } from '../world'
 import { applyDamage } from './damage'
 import { firstMineBodyHit, removeMine } from './mines'
 
@@ -17,6 +17,11 @@ export function resolveHits(world: World): void {
 
     const target = firstActorHit(world, projectile)
     if (target) {
+      if (tryDeflect(world, projectile, target)) {
+        survivors.push(projectile)
+        continue
+      }
+
       const coreRadius = target.hasCore ? target.radius * target.attrs.coreRadiusMult : 0
       // A bullet stops at the outer shell, so the inner core is only reachable
       // when the shot is aimed through it AND a pierce layer remains (docs 5.6.1).
@@ -42,6 +47,30 @@ export function resolveHits(world: World): void {
   }
 
   world.projectiles = survivors
+}
+
+/** An active deflect window transfers ownership of the bullet mid-flight. */
+function tryDeflect(world: World, projectile: Projectile, target: Actor): boolean {
+  if (target.deflectWindowTicks <= 0) return false
+  if (target.attrs.deflectLevel <= 0) return false
+  if (projectile.team === target.team) return false
+
+  projectile.team = target.team
+  projectile.ownerId = target.id
+  projectile.hitIds.length = 0
+  projectile.travelLeft = Math.max(projectile.travelLeft, 500)
+
+  let kind: EffectKind = 'deflect'
+  if (target.attrs.deflectLevel >= 2) {
+    projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
+    projectile.damage *= target.attrs.reflectDamageMult
+    kind = 'reflect'
+  } else {
+    projectile.vel = { x: -projectile.vel.y, y: projectile.vel.x }
+  }
+
+  world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
+  return true
 }
 
 /** True when the shot's flight line passes within `radius` of the target centre. */

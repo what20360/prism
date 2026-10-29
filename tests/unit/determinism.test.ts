@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { TRAINING_ROOM } from '../../src/content/rooms'
@@ -20,6 +21,7 @@ function runScript(seed: number): string {
     seed,
     room: TRAINING_ROOM,
     economy: DEFAULT_ECONOMY,
+    registry: CARD_REGISTRY,
     playerAttrs: PLAYER_BASE_ATTRS,
     playerSpawn: { x: 960, y: 540 },
   })

@@ -1,4 +1,4 @@
-import type { EnemyBehavior, EnemyTier, RoomPhase, World } from './world'
+import type { EffectKind, EnemyBehavior, EnemyTier, RoomPhase, World } from './world'
 import type { Rect, Team } from './types'
 
 export interface ActorView {
@@ -15,6 +15,9 @@ export interface ActorView {
   readonly maxHp: number
   readonly shield: number
   readonly alive: boolean
+  readonly deflectLevel: number
+  readonly deflectActive: boolean
+  readonly deflectReady: boolean
 }
 
 export interface ProjectileView {
@@ -38,7 +41,7 @@ export interface MineView {
 }
 
 export interface EffectView {
-  readonly kind: 'hit' | 'coreHit' | 'explosion' | 'death'
+  readonly kind: EffectKind
   readonly x: number
   readonly y: number
   readonly radius: number
@@ -85,6 +88,9 @@ export function toSnapshot(world: World): Snapshot {
       maxHp: actor.attrs.maxHp,
       shield: actor.shield,
       alive: actor.alive,
+      deflectLevel: actor.attrs.deflectLevel,
+      deflectActive: actor.deflectWindowTicks > 0,
+      deflectReady: actor.attrs.deflectLevel > 0 && actor.deflectCooldownTicks <= 0,
     })
   }
 

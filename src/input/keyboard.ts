@@ -5,6 +5,8 @@ export interface IntentSource {
   read(): Intent
   /** True once per press of the restart key. */
   consumeRestart(): boolean
+  /** True once per press of the upgrade panel key. */
+  consumePanelToggle(): boolean
   dispose(): void
 }
 
@@ -19,16 +21,24 @@ const MOVE_KEYS = new Set([
   'ArrowRight',
 ])
 
+const ACTION_KEYS = new Set(['KeyE', 'KeyJ'])
+
 export function createKeyboardInput(target: Window): IntentSource {
   const pressed = new Set<string>()
   let restartRequested = false
+  let panelToggleRequested = false
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.code === 'KeyR') {
       restartRequested = true
       return
     }
-    if (!MOVE_KEYS.has(event.code) && event.code !== 'KeyE') return
+    if (event.code === 'Tab') {
+      panelToggleRequested = true
+      event.preventDefault()
+      return
+    }
+    if (!MOVE_KEYS.has(event.code) && !ACTION_KEYS.has(event.code)) return
     pressed.add(event.code)
     event.preventDefault()
   }
@@ -57,6 +67,7 @@ export function createKeyboardInput(target: Window): IntentSource {
     return {
       move: normalize({ x, y }),
       placeMine: pressed.has('KeyE'),
+      skill: pressed.has('KeyJ') ? 0 : undefined,
     }
   }
 
@@ -66,11 +77,17 @@ export function createKeyboardInput(target: Window): IntentSource {
     return requested
   }
 
+  const consumePanelToggle = (): boolean => {
+    const requested = panelToggleRequested
+    panelToggleRequested = false
+    return requested
+  }
+
   const dispose = (): void => {
     target.removeEventListener('keydown', onKeyDown)
     target.removeEventListener('keyup', onKeyUp)
     target.removeEventListener('blur', onBlur)
   }
 
-  return { read, consumeRestart, dispose }
+  return { read, consumeRestart, consumePanelToggle, dispose }
 }

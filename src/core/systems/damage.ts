@@ -1,11 +1,13 @@
-import { resolveDamage } from '../attrs'
+import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
-import type { Actor, World } from '../world'
+import type { EffectKind, Actor, World } from '../world'
 import { tryGetPlayer } from '../world'
 import { breakChain, offenseShards, registerKill, takenShards } from './rewards'
 
 const IFRAME_TICKS = Math.round(0.5 * TICK_RATE)
+const REVIVE_IFRAME_TICKS = Math.round(2 * TICK_RATE)
+const REVIVE_CLEAR_RADIUS = 260
 
 export interface DamageEvent {
   readonly targetId: number
@@ -18,7 +20,7 @@ export interface DamageEvent {
 
 /**
  * The only place hp, shield and shard rewards change.
- * Order: armor -> iframes -> shield -> hp -> rewards -> death.
+ * Order: armor -> iframes -> shield -> hp -> rewards -> lifesteal -> death.
  */
 export function applyDamage(world: World, event: DamageEvent): void {
   const target = world.actors.get(event.targetId)
@@ -38,29 +40,25 @@ export function applyDamage(world: World, event: DamageEvent): void {
   const overkill = Math.max(0, toHp - hpBefore)
 
   target.hp = Math.max(0, target.hp - toHp)
+  target.outOfCombatTicks = 0
 
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
 
   if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
     world.stats.damageDealt += effectiveDamage
-    world.shards += offenseShards(world, target.tier, effectiveDamage, overkill, player)
+    world.shards += offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain
     world.score += effectiveDamage + overkill * world.economy.overflowRate
+    applyLifesteal(player, effectiveDamage)
   } else if (target.team === 'player') {
     world.stats.damageTaken += event.raw
-    world.shards += takenShards(world, event.raw)
+    world.shards += takenShards(world, event.raw) * target.attrs.shardGain
     world.score += event.raw * 0.5
     world.playerTookHit = true
     breakChain(world)
   }
 
-  world.effects.push({
-    kind: event.isCore ? 'coreHit' : 'hit',
-    x: target.pos.x,
-    y: target.pos.y,
-    radius: 26,
-    ttl: 10,
-  })
+  pushEffect(world, event.isCore ? 'coreHit' : 'hit', target.pos.x, target.pos.y, 26)
 
   if (hpLost > 0 && target.team === 'player') {
     target.iframesTicks = IFRAME_TICKS
@@ -71,22 +69,53 @@ export function applyDamage(world: World, event: DamageEvent): void {
   }
 }
 
-function killActor(world: World, target: Actor, player: Actor | undefined): void {
-  target.alive = false
-  world.effects.push({
-    kind: 'death',
-    x: target.pos.x,
-    y: target.pos.y,
-    radius: target.radius * 2,
-    ttl: 18,
-  })
+/** Lifesteal heals, shield steal fills the shield up to its cap. */
+function applyLifesteal(player: Actor, damage: number): void {
+  if (damage <= 0) return
 
+  if (player.attrs.lifesteal > 0) {
+    player.hp = Math.min(player.attrs.maxHp, player.hp + damage * player.attrs.lifesteal)
+  }
+
+  const shieldGain = damage * player.attrs.shieldSteal
+  if (shieldGain > 0) {
+    player.shield = Math.min(shieldCap(player.attrs), player.shield + shieldGain)
+  }
+}
+
+function killActor(world: World, target: Actor, player: Actor | undefined): void {
   if (target.team === 'player') {
+    const revivesLeft = Math.max(0, Math.floor(target.attrs.revives) - world.revivesUsed)
+    if (revivesLeft > 0) {
+      world.revivesUsed += 1
+      target.hp = Math.max(1, Math.round(target.attrs.maxHp * 0.5))
+      target.iframesTicks = REVIVE_IFRAME_TICKS
+      target.shield = 0
+      clearNearbyProjectiles(world, target.pos.x, target.pos.y, REVIVE_CLEAR_RADIUS)
+      breakChain(world)
+      pushEffect(world, 'revive', target.pos.x, target.pos.y, REVIVE_CLEAR_RADIUS)
+      return
+    }
+
+    target.alive = false
     world.gameOver = true
+    pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
     return
   }
 
+  target.alive = false
+  pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
   if (player) registerKill(world, player)
+}
+
+function clearNearbyProjectiles(world: World, x: number, y: number, radius: number): void {
+  world.projectiles = world.projectiles.filter(
+    (projectile) => distance(projectile.pos, { x, y }) > radius,
+  )
+}
+
+function pushEffect(world: World, kind: EffectKind, x: number, y: number, radius: number): void {
+  world.effects.push({ kind, x, y, radius, ttl: 18 })
 }
 
 /** Melee contact damage from chasing enemies, gated by the player's iframes. */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import type { Intent } from '../../src/core/controller'
@@ -18,6 +19,7 @@ function makeWorld(spawnX: number, spawnY: number, room: RoomTemplate = EMPTY_RO
     seed: 1,
     room,
     economy: DEFAULT_ECONOMY,
+    registry: CARD_REGISTRY,
     playerAttrs: PLAYER_BASE_ATTRS,
     playerSpawn: { x: spawnX, y: spawnY },
   })

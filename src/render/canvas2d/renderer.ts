@@ -136,6 +136,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.stroke()
     }
 
+    if (actor.deflectActive) {
+      ctx.beginPath()
+      ctx.arc(actor.x, actor.y, r + 12, 0, Math.PI * 2)
+      ctx.strokeStyle = actor.deflectLevel >= 2 ? '#ffd166' : '#8af5ff'
+      ctx.lineWidth = 3
+      ctx.setLineDash([10, 6])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
     if (actor.hp < actor.maxHp) {
       const width = r * 2.6
       const ratio = Math.max(0, actor.hp / actor.maxHp)
@@ -185,6 +195,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (snapshot.stats.chain > 1) {
         ctx.fillStyle = COLORS.hudWarn
         ctx.fillText(`CHAIN x${snapshot.stats.chain}`, 20, player.shield > 0 ? 132 : 110)
+      }
+      if (player.deflectLevel > 0) {
+        ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
+        const state = player.deflectActive ? 'ACTIVE' : player.deflectReady ? 'READY' : 'COOLDOWN'
+        ctx.fillText(`DEFLECT ${state}`, 20, player.shield > 0 ? 154 : 132)
       }
     }
 

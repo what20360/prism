@@ -8,7 +8,6 @@ export function tierRateFor(world: World, tier: EnemyTier): number {
 export function chainMultiplier(world: World, player: Actor): number {
   return Math.min(player.attrs.chainCap, 1 + 0.1 * Math.max(0, world.stats.chain - 1))
 }
-
 /** Shards earned from damaging an enemy, including partial overkill. */
 export function offenseShards(
   world: World,

@@ -9,6 +9,8 @@ export interface Intent {
   readonly move: Vec2
   /** Hold-to-place; the simulation applies its own cooldown and stock limit. */
   readonly placeMine?: boolean
+  /** Index of the skill slot to activate this tick (0 = first slot). */
+  readonly skill?: number
 }
 
 export const NO_INTENT: Intent = Object.freeze({

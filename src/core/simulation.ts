@@ -6,6 +6,7 @@ import { tryPlaceMine, updateMines } from './systems/mines'
 import { updateMovement } from './systems/movement'
 import { updateProjectiles } from './systems/projectiles'
 import { updateRoom } from './systems/room'
+import { tryActivateDeflect } from './systems/skills'
 import { updateTimers } from './systems/timers'
 import { updateWeapons } from './systems/weapons'
 import type { EntityId } from './types'
@@ -17,7 +18,7 @@ import type { World } from './world'
  * Stage numbering follows docs/architecture.md 5.4; order is behaviour.
  */
 export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void {
-  if (world.gameOver) return
+  if (world.gameOver || world.paused) return
 
   // 1-2. collect and apply intents
   for (const [id, intent] of intents) {
@@ -25,6 +26,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
     if (!actor || !actor.alive) continue
     actor.intent = intent
     if (intent.placeMine) tryPlaceMine(world, actor)
+    if (intent.skill === 0) tryActivateDeflect(world, actor)
   }
 
   // 3. timers

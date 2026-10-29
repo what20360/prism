@@ -180,12 +180,14 @@ interface World {
 
 ```ts
 interface AttrSet {
-  maxHp: number; speed: number; armor: number; shield: number; shieldCapMult: number;
+  maxHp: number; speed: number; radius: number; coreRadiusMult: number;
+  armor: number; shield: number; shieldCapMult: number; shieldRegen: number;
   damage: number; fireRate: number; bulletSpeed: number; range: number;
   pierce: number; bulletSize: number; blastRadius: number; penetration: number;
-  multishot: number; lifesteal: number; shieldSteal: number; shieldRegen: number;
-  innerDamageMult: number; innerRadiusMult: number; revives: number;
-  chainCap: number; aimMode: AimMode;
+  multishot: number; lifesteal: number; shieldSteal: number;
+  innerDamageMult: number; revives: number; chainCap: number; shardGain: number;
+  deflectLevel: number; deflectWindowSeconds: number;
+  deflectCooldownSeconds: number; reflectDamageMult: number;
 }
 ```
 

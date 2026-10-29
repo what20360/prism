@@ -1,4 +1,5 @@
 import type { AttrSet } from './attrs'
+import type { CardRegistry, Purchase } from './cards'
 import { NO_INTENT, type Intent } from './controller'
 import type { EconomyRates } from './economy'
 import { createRng, type Rng } from './rng'
@@ -15,7 +16,8 @@ export interface Actor {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
-  readonly attrs: AttrSet
+  /** Replaced wholesale when the card pipeline re-resolves. */
+  attrs: AttrSet
 
   pos: Vec2
   radius: number
@@ -26,12 +28,17 @@ export interface Actor {
   fireCooldownTicks: number
   iframesTicks: number
   mineCooldownTicks: number
+  deflectWindowTicks: number
+  deflectCooldownTicks: number
+  /** Ticks since last taking damage, used for shield regeneration. */
+  outOfCombatTicks: number
 }
 
 export interface Projectile {
   readonly id: EntityId
-  readonly ownerId: EntityId
-  readonly team: Team
+  /** Mutable: deflect/reflect transfers ownership mid-flight. */
+  ownerId: EntityId
+  team: Team
   pos: Vec2
   /** Position at the start of the current tick, used for swept core-hit tests. */
   prevPos: Vec2
@@ -63,7 +70,7 @@ export interface Mine {
   fuseTicks: number | null
 }
 
-export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death'
+export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death' | 'deflect' | 'reflect' | 'revive'
 
 export interface Effect {
   readonly kind: EffectKind
@@ -95,10 +102,13 @@ export interface World {
   readonly rng: Rng
   readonly room: RoomState
   readonly economy: EconomyRates
+  readonly registry: CardRegistry
+  readonly basePlayerAttrs: AttrSet
   readonly actors: Map<EntityId, Actor>
   projectiles: Projectile[]
   mines: Mine[]
   effects: Effect[]
+  purchases: Purchase[]
   nextEntityId: EntityId
   shards: number
   score: number
@@ -106,6 +116,8 @@ export interface World {
   roomCleared: boolean
   playerTookHit: boolean
   gameOver: boolean
+  paused: boolean
+  revivesUsed: number
 }
 
 export interface RoomTemplate {
@@ -128,6 +140,7 @@ export interface CreateWorldOptions {
   readonly seed: number
   readonly room: RoomTemplate
   readonly economy: EconomyRates
+  readonly registry: CardRegistry
   readonly playerAttrs: AttrSet
   readonly playerSpawn: Vec2
 }
@@ -143,10 +156,13 @@ export function createWorld(options: CreateWorldOptions): World {
       walls: options.room.walls,
     },
     economy: options.economy,
+    registry: options.registry,
+    basePlayerAttrs: options.playerAttrs,
     actors: new Map(),
     projectiles: [],
     mines: [],
     effects: [],
+    purchases: [],
     nextEntityId: 1,
     shards: 0,
     score: 0,
@@ -162,6 +178,8 @@ export function createWorld(options: CreateWorldOptions): World {
     roomCleared: false,
     playerTookHit: false,
     gameOver: false,
+    paused: false,
+    revivesUsed: 0,
   }
 
   createActor(world, {
@@ -212,6 +230,9 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     fireCooldownTicks: 0,
     iframesTicks: 0,
     mineCooldownTicks: 0,
+    deflectWindowTicks: 0,
+    deflectCooldownTicks: 0,
+    outOfCombatTicks: 0,
   }
 
   world.actors.set(id, actor)

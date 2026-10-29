@@ -28,4 +28,10 @@ export const PLAYER_BASE_ATTRS: AttrSet = {
   innerDamageMult: 1.5,
   revives: 0,
   chainCap: 2,
+  shardGain: 1,
+
+  deflectLevel: 0,
+  deflectWindowSeconds: 0.2,
+  deflectCooldownSeconds: 6,
+  reflectDamageMult: 1.5,
 }
