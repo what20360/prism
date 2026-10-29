@@ -7,7 +7,9 @@ import type { EntityId, Rect, Team, Vec2 } from './types'
 
 export type RoomPhase = 'idle' | 'entered' | 'combat' | 'cleared' | 'exited'
 export type EnemyTier = 'normal' | 'elite' | 'boss'
-export type EnemyBehavior = 'chase' | 'turret'
+export type EnemyBehavior = 'chase' | 'turret' | 'boss'
+
+export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
 
 export interface Actor {
   readonly id: EntityId
@@ -26,6 +28,10 @@ export interface Actor {
   alive: boolean
   intent: Intent
   fireCooldownTicks: number
+  /** Boss phase (1 or 2); unused for regular enemies. */
+  phase: number
+  /** Cooldown for boss-only special attacks. */
+  specialCooldownTicks: number
   iframesTicks: number
   mineCooldownTicks: number
   deflectWindowTicks: number
@@ -82,8 +88,11 @@ export interface Effect {
 
 export interface RoomState {
   phase: RoomPhase
+  kind: RoomKind
   readonly bounds: Rect
-  readonly walls: readonly Rect[]
+  walls: readonly Rect[]
+  /** Opens once the room is cleared; null while fighting. */
+  exit: Rect | null
 }
 
 export interface RunStats {
@@ -115,16 +124,21 @@ export interface World {
   stats: RunStats
   roomCleared: boolean
   playerTookHit: boolean
+  exitReached: boolean
   gameOver: boolean
+  victory: boolean
   paused: boolean
   revivesUsed: number
 }
 
 export interface RoomTemplate {
   readonly id: string
+  readonly kind: RoomKind
   readonly bounds: Rect
   readonly walls: readonly Rect[]
   readonly spawns: readonly EnemySpawnSpec[]
+  /** Where the player appears when entering. */
+  readonly entry: Vec2
 }
 
 export interface EnemySpawnSpec {
@@ -142,7 +156,6 @@ export interface CreateWorldOptions {
   readonly economy: EconomyRates
   readonly registry: CardRegistry
   readonly playerAttrs: AttrSet
-  readonly playerSpawn: Vec2
 }
 
 export function createWorld(options: CreateWorldOptions): World {
@@ -152,8 +165,10 @@ export function createWorld(options: CreateWorldOptions): World {
     rng: createRng(options.seed),
     room: {
       phase: 'entered',
+      kind: options.room.kind,
       bounds: options.room.bounds,
       walls: options.room.walls,
+      exit: null,
     },
     economy: options.economy,
     registry: options.registry,
@@ -177,7 +192,9 @@ export function createWorld(options: CreateWorldOptions): World {
     },
     roomCleared: false,
     playerTookHit: false,
+    exitReached: false,
     gameOver: false,
+    victory: false,
     paused: false,
     revivesUsed: 0,
   }
@@ -189,7 +206,7 @@ export function createWorld(options: CreateWorldOptions): World {
     contactDamage: 0,
     hasCore: true,
     attrs: options.playerAttrs,
-    pos: options.playerSpawn,
+    pos: options.room.entry,
   })
 
   for (const spawn of options.room.spawns) {
@@ -228,6 +245,8 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     alive: true,
     intent: NO_INTENT,
     fireCooldownTicks: 0,
+    phase: 1,
+    specialCooldownTicks: 0,
     iframesTicks: 0,
     mineCooldownTicks: 0,
     deflectWindowTicks: 0,

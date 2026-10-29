@@ -1,12 +1,13 @@
 import type { AttrSet } from '../core/attrs'
 import type { CardRegistry } from '../core/cards'
+import { applyRoom, type RoomSpec } from '../core/dungeon'
 import type { EconomyRates } from '../core/economy'
 import { buyCard as buyCardInWorld, listCardStates, type CardState } from '../core/progress'
 import { step } from '../core/simulation'
 import { toSnapshot } from '../core/snapshot'
 import { TICK_DT } from '../core/types'
-import type { EntityId, Vec2 } from '../core/types'
-import { createWorld, getPlayer, type RoomTemplate, type World } from '../core/world'
+import type { EntityId } from '../core/types'
+import { createWorld, getPlayer, type World } from '../core/world'
 import type { IntentSource } from '../input/keyboard'
 import type { Renderer } from '../render/canvas2d/renderer'
 
@@ -15,22 +16,36 @@ export interface PanelState {
   readonly cards: readonly CardState[]
 }
 
+export interface RunSummary {
+  readonly victory: boolean
+  readonly seconds: number
+  readonly kills: number
+  readonly coreHits: number
+  readonly bestChain: number
+  readonly score: number
+  readonly shards: number
+  readonly floor: number
+  readonly room: number
+}
+
 export interface GameOptions {
+  readonly rooms: readonly RoomSpec[]
+  readonly roomsPerFloor: number
   readonly seed: number
-  readonly room: RoomTemplate
   readonly economy: EconomyRates
   readonly registry: CardRegistry
   readonly playerAttrs: AttrSet
-  readonly playerSpawn: Vec2
   readonly input: IntentSource
   readonly renderer: Renderer
   readonly onPauseChange?: (paused: boolean) => void
+  readonly onRunEnd?: (summary: RunSummary) => void
 }
 
 export interface Game {
   start(): void
   stop(): void
   dispose(): void
+  restart(): void
   setPaused(value: boolean): void
   buyCard(cardId: string): void
   panelState(): PanelState
@@ -38,7 +53,10 @@ export interface Game {
   debug(): {
     tick: number
     gameOver: boolean
+    victory: boolean
     paused: boolean
+    roomIndex: number
+    roomKind: string
     shards: number
     kills: number
     playerX: number
@@ -49,6 +67,7 @@ export interface Game {
     armor: number
     deflectLevel: number
     purchases: number
+    enemies: number
   }
 }
 
@@ -56,14 +75,22 @@ export interface Game {
 const MAX_FRAME_SECONDS = 0.25
 
 export function createGame(options: GameOptions): Game {
-  let world: World = createWorld({
-    seed: options.seed,
-    room: options.room,
-    economy: options.economy,
-    registry: options.registry,
-    playerAttrs: options.playerAttrs,
-    playerSpawn: options.playerSpawn,
-  })
+  let roomIndex = 0
+  let runEnded = false
+
+  const spawnWorld = (seed: number): World => {
+    const firstRoom = options.rooms[0]
+    if (!firstRoom) throw new Error('dungeon has no rooms')
+    return createWorld({
+      seed,
+      room: firstRoom,
+      economy: options.economy,
+      registry: options.registry,
+      playerAttrs: options.playerAttrs,
+    })
+  }
+
+  let world = spawnWorld(options.seed)
   let playerId = getPlayer(world).id
   let restarts = 0
 
@@ -75,16 +102,23 @@ export function createGame(options: GameOptions): Game {
   let accumulator = 0
   let fps = 0
 
+  const summary = (): RunSummary => ({
+    victory: world.victory,
+    seconds: Math.round(world.tick / 60),
+    kills: world.stats.kills,
+    coreHits: world.stats.coreHits,
+    bestChain: world.stats.bestChain,
+    score: Math.round(world.score),
+    shards: Math.floor(world.shards),
+    floor: Math.floor(roomIndex / options.roomsPerFloor) + 1,
+    room: (roomIndex % options.roomsPerFloor) + 1,
+  })
+
   const restart = (): void => {
     restarts += 1
-    world = createWorld({
-      seed: options.seed + restarts,
-      room: options.room,
-      economy: options.economy,
-      registry: options.registry,
-      playerAttrs: options.playerAttrs,
-      playerSpawn: options.playerSpawn,
-    })
+    roomIndex = 0
+    runEnded = false
+    world = spawnWorld(options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
     accumulator = 0
@@ -100,10 +134,10 @@ export function createGame(options: GameOptions): Game {
   const frame = (now: number): void => {
     if (!running) return
 
-    if (options.input.consumePanelToggle() && !world.gameOver) {
+    if (options.input.consumePanelToggle() && !world.gameOver && !world.victory) {
       setPaused(!world.paused)
     }
-    if (options.input.consumeRestart() && world.gameOver) restart()
+    if (options.input.consumeRestart() && (world.gameOver || world.victory)) restart()
 
     const elapsed = lastTime === 0 ? 0 : Math.min((now - lastTime) / 1000, MAX_FRAME_SECONDS)
     lastTime = now
@@ -119,7 +153,19 @@ export function createGame(options: GameOptions): Game {
       }
     }
 
-    options.renderer.draw(toSnapshot(world), { fps })
+    if (world.exitReached && roomIndex + 1 < options.rooms.length) {
+      roomIndex += 1
+      const next = options.rooms[roomIndex]
+      if (next) applyRoom(world, next)
+    }
+
+    if (!runEnded && (world.gameOver || world.victory)) {
+      runEnded = true
+      options.onRunEnd?.(summary())
+    }
+
+    const label = `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
+    options.renderer.draw(toSnapshot(world), { fps, label })
     frameHandle = requestAnimationFrame(frame)
   }
 
@@ -152,10 +198,17 @@ export function createGame(options: GameOptions): Game {
 
   const debug = () => {
     const player = getPlayer(world)
+    let enemies = 0
+    for (const actor of world.actors.values()) {
+      if (actor.alive && actor.team === 'enemy') enemies += 1
+    }
     return {
       tick: world.tick,
       gameOver: world.gameOver,
+      victory: world.victory,
       paused: world.paused,
+      roomIndex,
+      roomKind: world.room.kind,
       shards: world.shards,
       kills: world.stats.kills,
       playerX: Math.round(player.pos.x),
@@ -166,8 +219,9 @@ export function createGame(options: GameOptions): Game {
       armor: player.attrs.armor,
       deflectLevel: player.attrs.deflectLevel,
       purchases: world.purchases.reduce((sum, purchase) => sum + purchase.level, 0),
+      enemies,
     }
   }
 
-  return { start, stop, dispose, setPaused, buyCard, panelState, debug }
+  return { start, stop, dispose, restart, setPaused, buyCard, panelState, debug }
 }

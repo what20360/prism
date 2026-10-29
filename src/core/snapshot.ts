@@ -1,4 +1,4 @@
-import type { EffectKind, EnemyBehavior, EnemyTier, RoomPhase, World } from './world'
+import type { EffectKind, EnemyBehavior, EnemyTier, RoomKind, RoomPhase, World } from './world'
 import type { Rect, Team } from './types'
 
 export interface ActorView {
@@ -68,8 +68,11 @@ export interface Snapshot {
   readonly shards: number
   readonly score: number
   readonly roomPhase: RoomPhase
+  readonly roomKind: RoomKind
+  readonly exit: Rect | null
   readonly roomCleared: boolean
   readonly gameOver: boolean
+  readonly victory: boolean
   readonly stats: HudStats
 }
 
@@ -135,8 +138,11 @@ export function toSnapshot(world: World): Snapshot {
     shards: world.shards,
     score: world.score,
     roomPhase: world.room.phase,
+    roomKind: world.room.kind,
+    exit: world.room.exit,
     roomCleared: world.roomCleared,
     gameOver: world.gameOver,
+    victory: world.victory,
     stats: {
       kills: world.stats.kills,
       chain: world.stats.chain,

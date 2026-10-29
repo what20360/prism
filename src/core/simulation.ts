@@ -1,7 +1,9 @@
 import type { Intent } from './controller'
 import { updateAi } from './systems/ai'
+import { updateBoss } from './systems/boss'
 import { resolveContactDamage } from './systems/damage'
 import { updateDeflectFields } from './systems/deflectField'
+import { updateExit } from './systems/exit'
 import { resolveHits } from './systems/hits'
 import { tryPlaceMine, updateMines } from './systems/mines'
 import { updateMovement } from './systems/movement'
@@ -43,6 +45,9 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   // 5.5 deflection fields bend hostile bullets before they move
   updateDeflectFields(world, TICK_DT)
 
+  // 5.6 boss phase changes and bullet-clearing pulses
+  updateBoss(world)
+
   // 6. projectiles
   updateProjectiles(world, TICK_DT)
 
@@ -55,6 +60,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
 
   // 11. room state
   updateRoom(world)
+  updateExit(world)
 
   world.tick += 1
 }

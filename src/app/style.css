@@ -114,3 +114,44 @@ body {
   color: #ffd166;
   white-space: nowrap;
 }
+/* Result panel */
+.panel--result {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.result__title {
+  margin: 0;
+  font-size: 40px;
+  color: #ff6b6b;
+}
+
+.result__title--win {
+  color: #ffd166;
+}
+
+.result__subtitle {
+  margin: 0;
+  color: #9fb3d1;
+}
+
+.result__grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px 28px;
+  margin: 12px 0;
+}
+
+.result__grid dt {
+  color: rgba(159, 179, 209, 0.7);
+}
+
+.result__grid dd {
+  margin: 0;
+  color: #dce8ff;
+}
+
+.result__restart {
+  margin-top: 8px;
+}

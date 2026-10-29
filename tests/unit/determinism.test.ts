@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
-import { TRAINING_ROOM } from '../../src/content/rooms'
+import { buildDungeon } from '../../src/content/dungeon'
 import type { Intent } from '../../src/core/controller'
 import { hashWorld } from '../../src/core/hash'
 import { step } from '../../src/core/simulation'
@@ -17,13 +17,15 @@ const SCRIPT: readonly { ticks: number; move: Intent['move'] }[] = [
 ]
 
 function runScript(seed: number): string {
+  const combatRoom = buildDungeon()[1]
+  if (!combatRoom) throw new Error('dungeon is missing a combat room')
+
   const world = createWorld({
     seed,
-    room: TRAINING_ROOM,
+    room: combatRoom,
     economy: DEFAULT_ECONOMY,
     registry: CARD_REGISTRY,
     playerAttrs: PLAYER_BASE_ATTRS,
-    playerSpawn: { x: 960, y: 540 },
   })
 
   const player = getPlayer(world)

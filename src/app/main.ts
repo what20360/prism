@@ -1,11 +1,12 @@
 import './style.css'
 import { CARD_REGISTRY } from '../content/cards'
+import { buildDungeon, ROOMS_PER_FLOOR } from '../content/dungeon'
 import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
-import { TRAINING_ROOM } from '../content/rooms'
 import { createKeyboardInput } from '../input/keyboard'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
-import { createUpgradePanel } from '../ui/upgradePanel'
+import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
+import { createUpgradePanel, type UpgradePanel } from '../ui/upgradePanel'
 import { createGame, type Game } from './game'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
@@ -14,35 +15,48 @@ if (!canvas) throw new Error('missing #game canvas')
 const renderer = createCanvasRenderer(canvas)
 const input = createKeyboardInput(window)
 
+const ui: { panel?: UpgradePanel; result?: ResultPanel } = {}
+
 const game: Game = createGame({
+  rooms: buildDungeon(),
+  roomsPerFloor: ROOMS_PER_FLOOR,
   seed: 20261029,
-  room: TRAINING_ROOM,
   economy: DEFAULT_ECONOMY,
   registry: CARD_REGISTRY,
   playerAttrs: PLAYER_BASE_ATTRS,
-  playerSpawn: { x: 1600, y: 900 },
   input,
   renderer,
   onPauseChange: (paused) => {
-    if (paused) panel.show(game.panelState())
-    else panel.hide()
+    if (paused) ui.panel?.show(game.panelState())
+    else ui.panel?.hide()
+  },
+  onRunEnd: (summary) => {
+    ui.panel?.hide()
+    ui.result?.show(summary)
   },
 })
 
-const panel = createUpgradePanel(document.body, {
+ui.panel = createUpgradePanel(document.body, {
   onBuy: (cardId) => {
     game.buyCard(cardId)
-    panel.render(game.panelState())
+    ui.panel?.render(game.panelState())
   },
   onClose: () => game.setPaused(false),
+})
+
+ui.result = createResultPanel(document.body, {
+  onRestart: () => {
+    ui.result?.hide()
+    game.restart()
+  },
 })
 
 game.start()
 
 if (import.meta.env.DEV) {
-  const hooks = window as Window & { __prism?: Game; __panel?: typeof panel }
+  const hooks = window as Window & { __prism?: Game; __ui?: typeof ui }
   hooks.__prism = game
-  hooks.__panel = panel
+  hooks.__ui = ui
 }
 
 if (import.meta.hot) {

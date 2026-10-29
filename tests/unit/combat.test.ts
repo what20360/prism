@@ -19,6 +19,8 @@ const EMPTY_ROOM: RoomTemplate = {
   bounds: { x: 0, y: 0, width: 1920, height: 1080 },
   walls: [],
   spawns: [],
+  kind: 'combat',
+  entry: { x: 300, y: 540 },
 }
 
 const tick = (world: World, times: number): void => {
@@ -32,7 +34,6 @@ function makeWorld(options: { enemies?: EnemySpawnSpec[]; playerAttrs?: Partial<
     economy: DEFAULT_ECONOMY,
     registry: CARD_REGISTRY,
     playerAttrs: { ...PLAYER_BASE_ATTRS, ...options.playerAttrs },
-    playerSpawn: { x: 300, y: 540 },
   })
 }
 

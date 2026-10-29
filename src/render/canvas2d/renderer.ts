@@ -4,6 +4,8 @@ import { COLORS } from './theme'
 
 export interface RenderDebug {
   readonly fps: number
+  /** Dungeon label such as F2-3; supplied by the app. */
+  readonly label?: string
 }
 
 export interface Renderer {
@@ -104,6 +106,22 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillRect(wall.x, wall.y, wall.width, wall.height)
       ctx.strokeRect(wall.x + 1, wall.y + 1, wall.width - 2, wall.height - 2)
     }
+  }
+
+  const drawExit = (exit: Rect): void => {
+    ctx.fillStyle = 'rgba(255, 209, 102, 0.16)'
+    ctx.fillRect(exit.x, exit.y, exit.width, exit.height)
+    ctx.strokeStyle = COLORS.mineArmed
+    ctx.lineWidth = 4
+    ctx.setLineDash([16, 10])
+    ctx.strokeRect(exit.x, exit.y, exit.width, exit.height)
+    ctx.setLineDash([])
+
+    ctx.fillStyle = COLORS.mineArmed
+    ctx.font = '28px ui-monospace, SFMono-Regular, Menlo, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText('EXIT', exit.x + exit.width / 2, exit.y + exit.height / 2 + 10)
+    ctx.textAlign = 'left'
   }
 
   const drawMine = (mine: MineView): void => {
@@ -239,6 +257,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.textBaseline = 'top'
     ctx.fillStyle = COLORS.hudText
     ctx.fillText(`tick ${snapshot.tick}   fps ${debug.fps.toFixed(0)}`, 24, 20)
+    if (debug.label) {
+      ctx.fillStyle = COLORS.hudAccent
+      ctx.fillText(`${debug.label}  ${snapshot.roomKind.toUpperCase()}`, viewportWidth - 260, 20)
+    }
 
     if (!player) return
 
@@ -282,14 +304,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
-  const drawGameOver = (): void => {
+  const drawEndScreen = (victory: boolean): void => {
     ctx.fillStyle = COLORS.overlay
     ctx.fillRect(0, 0, viewportWidth, viewportHeight)
 
     ctx.textAlign = 'center'
-    ctx.fillStyle = COLORS.enemyStroke
+    ctx.fillStyle = victory ? COLORS.mineArmed : COLORS.enemyStroke
     ctx.font = '56px ui-monospace, SFMono-Regular, Menlo, monospace'
-    ctx.fillText('GAME OVER', viewportWidth / 2, viewportHeight / 2 - 24)
+    ctx.fillText(victory ? 'VICTORY' : 'GAME OVER', viewportWidth / 2, viewportHeight / 2 - 24)
 
     ctx.fillStyle = COLORS.hudText
     ctx.font = '20px ui-monospace, SFMono-Regular, Menlo, monospace'
@@ -311,6 +333,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     drawGrid(camera)
     drawRoom(snapshot.bounds, snapshot.walls)
+    if (snapshot.exit) drawExit(snapshot.exit)
     for (const mine of snapshot.mines) drawMine(mine)
     for (const projectile of snapshot.projectiles) drawProjectile(projectile)
     for (const actor of snapshot.actors) {
@@ -321,7 +344,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.restore()
 
     drawHud(snapshot, debug)
-    if (snapshot.gameOver) drawGameOver()
+    if (snapshot.gameOver || snapshot.victory) drawEndScreen(snapshot.victory)
   }
 
   const dispose = (): void => {

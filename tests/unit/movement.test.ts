@@ -12,16 +12,17 @@ const EMPTY_ROOM: RoomTemplate = {
   bounds: { x: 0, y: 0, width: 1920, height: 1080 },
   walls: [],
   spawns: [],
+  kind: 'combat',
+  entry: { x: 300, y: 540 },
 }
 
 function makeWorld(spawnX: number, spawnY: number, room: RoomTemplate = EMPTY_ROOM) {
   return createWorld({
     seed: 1,
-    room,
+    room: { ...room, entry: { x: spawnX, y: spawnY } },
     economy: DEFAULT_ECONOMY,
     registry: CARD_REGISTRY,
     playerAttrs: PLAYER_BASE_ATTRS,
-    playerSpawn: { x: spawnX, y: spawnY },
   })
 }
 

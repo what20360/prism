@@ -82,4 +82,42 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
       bulletSize: 10,
     }),
   },
+
+  warden: {
+    tier: 'elite',
+    behavior: 'turret',
+    contactDamage: 0,
+    hasCore: true,
+    attrs: enemyAttrs({
+      maxHp: 220,
+      armor: 60,
+      speed: 0,
+      radius: 56,
+      damage: 12,
+      fireRate: 0.9,
+      bulletSpeed: 480,
+      range: 1100,
+      bulletSize: 12,
+      multishot: 3,
+    }),
+  },
+
+  boss: {
+    tier: 'boss',
+    behavior: 'boss',
+    contactDamage: 0,
+    hasCore: true,
+    attrs: enemyAttrs({
+      maxHp: 2000,
+      armor: 80,
+      speed: 0,
+      radius: 90,
+      damage: 12,
+      fireRate: 0.6,
+      bulletSpeed: 420,
+      range: 1800,
+      bulletSize: 14,
+      multishot: 8,
+    }),
+  },
 }
