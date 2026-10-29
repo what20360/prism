@@ -13,7 +13,7 @@ export const PLAYER_BASE_ATTRS: AttrSet = {
   shieldRegen: 0,
 
   damage: 10,
-  fireRate: 0.8,
+  fireRate: 0.7,
   bulletSpeed: 700,
   range: 560,
   pierce: 1,
@@ -34,5 +34,6 @@ export const PLAYER_BASE_ATTRS: AttrSet = {
   deflectWindowSeconds: 0.25,
   deflectCooldownSeconds: 6,
   reflectDamageMult: 1.5,
-  passiveDeflectRate: 0,
+  deflectFieldRadius: 0,
+  deflectFieldStrength: 0,
 }

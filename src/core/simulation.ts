@@ -1,6 +1,7 @@
 import type { Intent } from './controller'
 import { updateAi } from './systems/ai'
 import { resolveContactDamage } from './systems/damage'
+import { updateDeflectFields } from './systems/deflectField'
 import { resolveHits } from './systems/hits'
 import { tryPlaceMine, updateMines } from './systems/mines'
 import { updateMovement } from './systems/movement'
@@ -38,6 +39,9 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
 
   // 5. weapons
   updateWeapons(world)
+
+  // 5.5 deflection fields bend hostile bullets before they move
+  updateDeflectFields(world, TICK_DT)
 
   // 6. projectiles
   updateProjectiles(world, TICK_DT)

@@ -32,6 +32,7 @@
 | [docs/balance.md](docs/balance.md) | 数值表：属性、敌人、卡片价格、收入结构（**唯一的数值来源**） |
 | [docs/architecture.md](docs/architecture.md) | 架构设计：分层、`core` 内部、tick 流程、扩展点、测试策略 |
 | [docs/adr/0001-tech-stack.md](docs/adr/0001-tech-stack.md) | 技术选型与取舍记录 |
+| [docs/devlog.md](docs/devlog.md) | 开发手记：踩过的坑、被推翻的假设、环境怪癖 |
 
 **改规则的流程**：先改 `requirements.md` → 再改代码。
 **改数值的流程**：只改 `balance.md` → 代码里不得出现魔法数字。

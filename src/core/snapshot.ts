@@ -18,8 +18,7 @@ export interface ActorView {
   readonly deflectLevel: number
   readonly deflectActive: boolean
   readonly deflectReady: boolean
-  readonly deflectCharge: number
-  readonly passiveDeflectRate: number
+  readonly deflectFieldRadius: number
 }
 
 export interface ProjectileView {
@@ -93,8 +92,7 @@ export function toSnapshot(world: World): Snapshot {
       deflectLevel: actor.attrs.deflectLevel,
       deflectActive: actor.deflectWindowTicks > 0,
       deflectReady: actor.attrs.deflectLevel > 0 && actor.deflectCooldownTicks <= 0,
-      deflectCharge: actor.deflectCharge,
-      passiveDeflectRate: actor.attrs.passiveDeflectRate,
+      deflectFieldRadius: actor.attrs.deflectFieldRadius,
     })
   }
 

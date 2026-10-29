@@ -221,63 +221,66 @@ describe('deflect and reflect', () => {
     expect(tryActivateDeflect(world, player)).toBe(false)
   })
 
-  it('passive deflection spends a charge and turns the bullet aside', () => {
+  it('passive field bends bullets nearby and pushes harder up close', () => {
     const world = makeWorld()
     const player = getPlayer(world)
-    setAttrs(player, { passiveDeflectRate: 1, deflectLevel: 0 })
-    player.deflectCharge = 1
+    setAttrs(player, { deflectFieldRadius: 220, deflectFieldStrength: 900 })
 
-    world.projectiles.push({
-      id: 502,
-      ownerId: 0,
-      team: 'enemy',
-      pos: { x: player.pos.x, y: player.pos.y },
-      prevPos: { x: player.pos.x, y: player.pos.y },
-      vel: { x: 380, y: 0 },
-      radius: 10,
-      damage: 10,
-      penetration: 0,
-      pierceLeft: 1,
-      innerMult: 1.5,
-      travelLeft: 500,
-      hitIds: [],
-    })
+    const spawnBullet = (x: number): void => {
+      world.projectiles.push({
+        id: 500 + x,
+        ownerId: 0,
+        team: 'enemy',
+        pos: { x: player.pos.x + x, y: player.pos.y },
+        prevPos: { x: player.pos.x + x, y: player.pos.y },
+        vel: { x: 0, y: 380 },
+        radius: 10,
+        damage: 10,
+        penetration: 0,
+        pierceLeft: 1,
+        innerMult: 1.5,
+        travelLeft: 5000,
+        hitIds: [],
+      })
+    }
 
+    spawnBullet(190)
+    spawnBullet(90)
     step(world, new Map())
 
-    const deflected = world.projectiles[0]
-    expect(deflected?.team).toBe('enemy')
-    expect(deflected?.vel.x).toBeCloseTo(0, 6)
-    expect(deflected?.vel.y).toBeCloseTo(380, 6)
-    expect(player.hp).toBe(player.attrs.maxHp)
-    expect(player.deflectCharge).toBeLessThan(1)
+    const far = world.projectiles.find((p) => p.id === 690)
+    const near = world.projectiles.find((p) => p.id === 590)
+    expect(far?.vel.x).toBeGreaterThan(0)
+    expect(near?.vel.x).toBeGreaterThan(far?.vel.x ?? 0)
   })
 
-  it('passive deflection needs a full charge', () => {
-    const world = makeWorld()
-    const player = getPlayer(world)
-    setAttrs(player, { passiveDeflectRate: 0.1, deflectLevel: 0 })
-    player.deflectCharge = 0
+  it('the active window pushes much harder than the passive field', () => {
+    const makeWithWindow = (active: boolean) => {
+      const world = makeWorld()
+      const player = getPlayer(world)
+      setAttrs(player, { deflectFieldRadius: 220, deflectFieldStrength: 600, deflectLevel: 1 })
+      if (active) player.deflectWindowTicks = 12
 
-    world.projectiles.push({
-      id: 503,
-      ownerId: 0,
-      team: 'enemy',
-      pos: { x: player.pos.x, y: player.pos.y },
-      prevPos: { x: player.pos.x, y: player.pos.y },
-      vel: { x: 380, y: 0 },
-      radius: 10,
-      damage: 10,
-      penetration: 0,
-      pierceLeft: 1,
-      innerMult: 1.5,
-      travelLeft: 500,
-      hitIds: [],
-    })
+      world.projectiles.push({
+        id: 700,
+        ownerId: 0,
+        team: 'enemy',
+        pos: { x: player.pos.x + 120, y: player.pos.y + 120 },
+        prevPos: { x: player.pos.x + 120, y: player.pos.y + 120 },
+        vel: { x: 0, y: 420 },
+        radius: 10,
+        damage: 10,
+        penetration: 0,
+        pierceLeft: 1,
+        innerMult: 1.5,
+        travelLeft: 5000,
+        hitIds: [],
+      })
+      step(world, new Map())
+      return Math.abs(world.projectiles[0]?.vel.x ?? 0)
+    }
 
-    step(world, new Map())
-
-    expect(player.hp).toBeLessThan(player.attrs.maxHp)
+    expect(makeWithWindow(true)).toBeGreaterThan(makeWithWindow(false))
   })
 })
 

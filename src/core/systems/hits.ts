@@ -49,35 +49,28 @@ export function resolveHits(world: World): void {
   world.projectiles = survivors
 }
 
-/** Deflection: passive charge spends on a side turn, active window converts ownership. */
+/**
+ * The active window is the only place ownership changes: bullets are reversed
+ * and become the defender's. The passive field only bends trajectories.
+ */
 function tryDeflect(world: World, projectile: Projectile, target: Actor): boolean {
   if (projectile.team === target.team) return false
+  if (target.deflectWindowTicks <= 0 || target.attrs.deflectLevel <= 0) return false
 
-  if (target.deflectWindowTicks > 0 && target.attrs.deflectLevel > 0) {
-    projectile.team = target.team
-    projectile.ownerId = target.id
-    projectile.hitIds.length = 0
-    projectile.travelLeft = Math.max(projectile.travelLeft, 500)
-    projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
+  projectile.team = target.team
+  projectile.ownerId = target.id
+  projectile.hitIds.length = 0
+  projectile.travelLeft = Math.max(projectile.travelLeft, 500)
+  projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
 
-    let kind: EffectKind = 'deflect'
-    if (target.attrs.deflectLevel >= 2) {
-      projectile.damage *= target.attrs.reflectDamageMult
-      kind = 'reflect'
-    }
-
-    world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
-    return true
+  let kind: EffectKind = 'deflect'
+  if (target.attrs.deflectLevel >= 2) {
+    projectile.damage *= target.attrs.reflectDamageMult
+    kind = 'reflect'
   }
 
-  if (target.attrs.passiveDeflectRate > 0 && target.deflectCharge >= 1) {
-    target.deflectCharge -= 1
-    projectile.vel = { x: -projectile.vel.y, y: projectile.vel.x }
-    world.effects.push({ kind: 'deflect', x: projectile.pos.x, y: projectile.pos.y, radius: 30, ttl: 12 })
-    return true
-  }
-
-  return false
+  world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
+  return true
 }
 
 /** True when the shot's flight line passes within `radius` of the target centre. */

@@ -38,8 +38,10 @@ export interface AttrSet {
   deflectWindowSeconds: number
   deflectCooldownSeconds: number
   reflectDamageMult: number
-  /** Passive deflections per second; each costs one charge (max 1). */
-  passiveDeflectRate: number
+  /** Continuous deflection field: radius in world units (0 = no field). */
+  deflectFieldRadius: number
+  /** Outward acceleration at the centre, in units/s^2 (falls off with distance). */
+  deflectFieldStrength: number
 }
 
 export type AttrKey = keyof AttrSet

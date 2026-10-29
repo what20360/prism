@@ -30,8 +30,6 @@ export interface Actor {
   mineCooldownTicks: number
   deflectWindowTicks: number
   deflectCooldownTicks: number
-  /** 0..1 charge used by passive deflection. */
-  deflectCharge: number
   /** Ticks since last taking damage, used for shield regeneration. */
   outOfCombatTicks: number
 }
@@ -234,7 +232,6 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     mineCooldownTicks: 0,
     deflectWindowTicks: 0,
     deflectCooldownTicks: 0,
-    deflectCharge: 0,
     outOfCombatTicks: 0,
   }
 

@@ -42,7 +42,8 @@ const ZERO_ATTRS: AttrSet = {
   deflectWindowSeconds: 0.25,
   deflectCooldownSeconds: 6,
   reflectDamageMult: 1.5,
-  passiveDeflectRate: 0,
+  deflectFieldRadius: 0,
+  deflectFieldStrength: 0,
 }
 
 function enemyAttrs(overrides: Partial<AttrSet>): AttrSet {

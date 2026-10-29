@@ -181,6 +181,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.stroke()
     }
 
+    if (actor.deflectFieldRadius > 0) {
+      ctx.beginPath()
+      ctx.arc(actor.x, actor.y, actor.deflectFieldRadius, 0, Math.PI * 2)
+      ctx.strokeStyle = actor.deflectActive ? 'rgba(255, 209, 102, 0.55)' : 'rgba(138, 245, 255, 0.22)'
+      ctx.lineWidth = actor.deflectActive ? 5 : 3
+      ctx.setLineDash([26, 18])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
     if (actor.deflectActive) {
       ctx.beginPath()
       ctx.arc(actor.x, actor.y, r + 22, 0, Math.PI * 2)
@@ -254,10 +264,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       line += 28
     }
 
-    if (player.passiveDeflectRate > 0) {
-      const ready = player.deflectCharge >= 1
-      ctx.fillStyle = ready ? COLORS.hudWarn : COLORS.hudText
-      ctx.fillText(`DEFLECT ${ready ? 'READY' : `${Math.floor(player.deflectCharge * 100)}%`}`, 24, line)
+    if (player.deflectFieldRadius > 0) {
+      ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
+      ctx.fillText(`FIELD ${player.deflectFieldRadius}`, 24, line)
       line += 28
     }
 
