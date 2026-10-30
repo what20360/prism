@@ -34,7 +34,7 @@ export const ATTR_LABELS: Record<AttrKey, string> = {
   mineTriggerRadius: '侦测半径', mineSlowRadius: '减速半径', mineCooldownRate: '布雷冷却速度',
   mineHp: '地雷生命', mineFuseSeconds: '引爆延迟', mineIgnoreBullets: '无视', grenade: '手榴弹',
   mineFragments: '破片弹数', mineShardChance: '晶片概率', bloodOrbChance: '血球概率', pickupRadius: '拾取半径',
-  burstCount: '连发轮数', homing: '追踪', maxProjectiles: '同时存在子弹上限', vision: '视野',
+  burstCount: '连发轮数', homing: '追踪', pierceBoost: '贯穿推进', maxProjectiles: '同时存在子弹上限', vision: '视野',
   rageLevel: '狂暴', dashLevel: '冲刺', skillCooldownRate: '技能冷却速度',
 
   lifesteal: '吸血',

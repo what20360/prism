@@ -25,7 +25,7 @@ import { emitProjectile, updateWeapons } from '../../src/core/systems/weapons'
 import { createActor, createWorld, getPlayer, type Projectile, type World } from '../../src/core/world'
 function world(attrs: Partial<AttrSet> = {}) {
   const w = createWorld({ seed: 5, playerAttrs: { ...PLAYER_BASE_ATTRS, ...attrs }, registry: CARD_REGISTRY, economy: DEFAULT_ECONOMY,
-    room: { id: 'r', kind: 'combat', entry: { x: 100, y: 400 }, bounds: { x: 0, y: 0, width: 1000, height: 800 }, walls: [], spawns: [] } })
+    room: { id: 'r', kind: 'combat', pickups: [], entry: { x: 100, y: 400 }, bounds: { x: 0, y: 0, width: 1000, height: 800 }, walls: [], spawns: [] } })
   w.shards = 100000
   getPlayer(w).intent = { move: { x: 0, y: 0 }, fire: false, aim: { x: 1, y: 0 } }
   return w
@@ -98,7 +98,10 @@ describe('projectile combinations and continuous collision', () => {
     expect(w.projectiles).toHaveLength(1)
     tryPlaceMine(w, p); w.mines[0]!.fuseTicks = 1; updateMines(w)
     expect(w.projectiles).toHaveLength(1)
-    w.projectiles = []; tryPlaceMine(w, p); p.burstTimer = 0; updateWeapons(w)
+    w.projectiles = []; p.intent = { ...p.intent, fire: false }
+    for (let i = 0; i < 120; i++) updateWeapons(w)
+    expect(w.projectiles).toHaveLength(0); expect(p.burstRemaining).toBe(0)
+    p.intent = { ...p.intent, fire: true }; updateWeapons(w)
     expect(w.projectiles).toHaveLength(1)
   })
   it('buying sniper removes surplus already-flying player bullets', () => {
@@ -110,7 +113,7 @@ describe('projectile combinations and continuous collision', () => {
     const w = world(), target = enemy(w, 950, 400, { radius: 8 })
     const shot = bullet({ pos: { x: 900, y: 400 }, vel: { x: 1000, y: 0 }, pierceLeft: 3, ricochet: true })
     w.projectiles = [shot]; updateProjectiles(w, 0.15)
-    expect(target.hp).toBe(90); expect(shot.pierceLeft).toBe(1); expect(shot.vel.x).toBeLessThan(0)
+    expect(target.hp).toBe(80); expect(shot.pierceLeft).toBe(0); expect(shot.vel.x).toBeLessThan(0)
   })
   it('high-speed shots hit targets swept along the path', () => {
     const w = world(), a = enemy(w, 350, 400), b = enemy(w, 650, 400)
@@ -215,7 +218,7 @@ describe('two active skill slots and final priorities', () => {
   it('resets locks, queued bursts and drops on room transitions', () => {
     const w = world(), p = getPlayer(w); p.manualLockId = 20; p.lockTargetId = 20; p.burstRemaining = 4
     w.pickups.push({ id: 90, kind: 'blood', pos: p.pos, value: 4, ttl: 30 })
-    applyRoom(w, { id: 'n', kind: 'combat', entry: { x: 100, y: 400 }, bounds: w.room.bounds, walls: [], spawns: [] })
+    applyRoom(w, { id: 'n', kind: 'combat', pickups: [], entry: { x: 100, y: 400 }, bounds: w.room.bounds, walls: [], spawns: [] })
     expect(p.lockTargetId).toBeNull(); expect(p.burstRemaining).toBe(0); expect(w.pickups).toHaveLength(0)
   })
 })

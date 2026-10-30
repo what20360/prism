@@ -6,7 +6,7 @@ import { tryGetPlayer } from '../world'
 /** Exit sits at the top-centre of every non-boss room. */
 export const EXIT_RECT: Rect = { x: 1480, y: 60, width: 240, height: 140 }
 
-/** Step 11: room clear grants the guaranteed income and opens the exit. */
+/** Step 11: room clear opens the exit; resources only spawn on room entry. */
 export function updateRoom(world: World): void {
   if (world.roomCleared) return
   if (world.room.phase === 'entered') return
@@ -17,11 +17,6 @@ export function updateRoom(world: World): void {
 
   world.roomCleared = true
   world.room.phase = 'cleared'
-
-  const bonus = world.playerTookHit
-    ? world.economy.roomClear
-    : world.economy.roomClear + world.economy.roomClearNoHit
-  world.shards += bonus
 
   // The boss room ends the run instead of opening a door.
   if (world.room.kind === 'boss') {

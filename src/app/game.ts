@@ -1,4 +1,5 @@
 import type { PracticeMode, PracticeAction, PracticeState } from './modes/practice'
+import type { EndlessMode, EndlessState } from './modes/endless'
 import { combatAttrs } from '../core/combat'
 import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
 import { toSkillView, type SkillView } from '../core/snapshot'
@@ -42,11 +43,14 @@ export interface PanelState {
   readonly skillSlots: readonly (SkillId | null)[]
   readonly knownSkills: readonly SkillView[]
   readonly practice?: PracticeState
+  readonly endless?: EndlessState
 }
 
 export interface RunSummary {
   readonly victory: boolean
   readonly practice?: boolean
+  readonly endless?: boolean
+  readonly seed?: number
   readonly seconds: number
   readonly kills: number
   readonly coreHits: number
@@ -75,6 +79,7 @@ export interface GameOptions {
   readonly onRunEnd?: (summary: RunSummary) => void
   readonly initialUiMode?: UiMode
   readonly practice?: PracticeMode
+  readonly endless?: EndlessMode
 }
 
 export interface Game {
@@ -88,7 +93,7 @@ export interface Game {
   equipSkill(slot: number, id: SkillId | null): boolean
   setSetting<K extends SettingKey>(key: K, value: ControlSettings[K]): void
   panelState(): PanelState
-  session(): { canResume: boolean; practice: boolean }
+  session(): { canResume: boolean; practice: boolean; endless: boolean }
   practiceAction(action: PracticeAction): boolean
   /** Dev-only inspection hook used by browser verification. */
   debug(): {
@@ -119,11 +124,12 @@ export interface Game {
 const MAX_FRAME_SECONDS = 0.25
 
 export function createGame(options: GameOptions): Game {
+  if (options.practice && options.endless) throw new Error('a session can only have one mode')
   let roomIndex = 0
   let runEnded = false
 
   const spawnWorld = (seed: number): World => {
-    const firstRoom = options.practice?.room() ?? options.rooms[0]
+    const firstRoom = options.practice?.room() ?? options.endless?.room() ?? options.rooms[0]
     if (!firstRoom) throw new Error('dungeon has no rooms')
     const created = createWorld({
       seed,
@@ -133,6 +139,7 @@ export function createGame(options: GameOptions): Game {
       playerAttrs: options.playerAttrs,
     })
     options.practice?.initialize(created)
+    options.endless?.initialize(created)
     return created
   }
 
@@ -155,13 +162,14 @@ export function createGame(options: GameOptions): Game {
   const summary = (): RunSummary => ({
     victory: world.victory,
     practice: Boolean(options.practice),
+    endless: Boolean(options.endless), seed: world.seed,
     seconds: Math.round(world.tick / 60),
     kills: world.stats.kills,
     coreHits: world.stats.coreHits,
     bestChain: world.stats.bestChain,
     score: Math.round(world.score),
     shards: Math.floor(world.shards),
-    floor: Math.floor(roomIndex / options.roomsPerFloor) + 1,
+    floor: options.endless?.state(world).floor ?? Math.floor(roomIndex / options.roomsPerFloor) + 1,
     room: (roomIndex % options.roomsPerFloor) + 1,
   })
 
@@ -170,7 +178,7 @@ export function createGame(options: GameOptions): Game {
     restarts += 1
     roomIndex = 0
     runEnded = false
-    world = spawnWorld(options.seed + restarts)
+    world = spawnWorld(options.endless ? options.seed : options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
     options.input.reset()
@@ -229,7 +237,7 @@ export function createGame(options: GameOptions): Game {
     }
     const automaticFire = player.attrs.autoFire > 0 && settings.fireMode === 'auto'
     const fire = automaticFire ? undefined : Boolean(touch?.fire || options.pointer?.firing())
-    return { ...base, move, aim, fire, autoAim: automaticAim, lockTarget, placeMine: base.placeMine || touch?.placeMine,
+    return { ...base, move, aim, fire, autoAim: automaticAim, autoPickup: settings.autoPickup !== false, lockTarget, placeMine: base.placeMine || touch?.placeMine,
       skills: [...(base.skills ?? []), ...(touch?.skills ?? []), ...(base.skill === undefined ? [] : [base.skill]), ...(touch?.skill === undefined ? [] : [touch.skill])] }
   }
 
@@ -263,6 +271,7 @@ export function createGame(options: GameOptions): Game {
         options.practice?.beforeStep(world)
         step(world, intents)
         options.practice?.afterStep(world)
+        options.endless?.afterStep(world)
         accumulator -= TICK_DT
       }
     }
@@ -270,7 +279,7 @@ export function createGame(options: GameOptions): Game {
     // A frozen world must not collect input or build a catch-up backlog.
     if (world.paused || world.gameOver || world.victory) accumulator = 0
 
-    if (!options.practice && world.exitReached && roomIndex + 1 < options.rooms.length) {
+    if (!options.practice && !options.endless && world.exitReached && roomIndex + 1 < options.rooms.length) {
       roomIndex += 1
       const next = options.rooms[roomIndex]
       if (next) applyRoom(world, next)
@@ -282,9 +291,10 @@ export function createGame(options: GameOptions): Game {
       options.onRunEnd?.(summary())
     }
 
-    const label = options.practice ? '测试场' : `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
+    const endless = options.endless?.state(world)
+    const label = options.practice ? '测试场' : endless ? `无尽 · 第 ${endless.floor} 层` : `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
     const snapshot = toSnapshot(world)
-    options.renderer.draw(snapshot, { fps, label, practice: options.practice?.state(world) })
+    options.renderer.draw(snapshot, { fps, label, practice: options.practice?.state(world), endless })
     options.onSnapshot?.(snapshot, world.paused)
     frameHandle = requestAnimationFrame(frame)
   }
@@ -334,6 +344,7 @@ export function createGame(options: GameOptions): Game {
       cards: listCardStates(world).map((card) => practice?.config.freeCards && card.availability === 'not-enough-shards' && Number.isFinite(card.price)
         ? { ...card, availability: 'ok' as const } : card),
       practice,
+      endless: options.endless?.state(world),
       skillSlots: [...player.skillSlots],
       knownSkills: SKILL_IDS.filter((id) => unlocked(player.attrs, id)).map((id) => toSkillView(player, id)),
       settings: { ...settings,
@@ -391,5 +402,5 @@ export function createGame(options: GameOptions): Game {
     return true
   }
   return { start, stop, dispose, restart, setUiMode, buyCard, sellCard,
-    session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
+    session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice), endless: Boolean(options.endless) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
 }

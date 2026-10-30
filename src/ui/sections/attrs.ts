@@ -1,6 +1,6 @@
 import { armorToMitigation, type AttrSet } from '../../core/attrs'
 import { formatNumber } from '../cardInfo'
-import { homingProfile, mineSlowMultiplier, WEAPON_RULES } from '../../core/rules'
+import { homingProfile, penetrationProfile, mineSlowMultiplier, WEAPON_RULES } from '../../core/rules'
 
 export interface PlayerView {
   readonly attrs: AttrSet
@@ -63,6 +63,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('弹速', formatNumber(attrs.bulletSpeed)),
       row('发射初速 / 最高弹速', `${formatNumber(attrs.bulletSpeed * homing.initialMultiplier)} / ${formatNumber(attrs.bulletSpeed * homing.cruiseMultiplier)}`),
       row('穿透层数', formatNumber(attrs.pierce)),
+      row('贯穿推进', attrs.pierceBoost > 0 ? `每次速度 ×${formatNumber(penetrationProfile(attrs.pierceBoost).speedMultiplier)}，射程 +${formatNumber(penetrationProfile(attrs.pierceBoost).rangeGain)}` : '未解锁'),
       row('子弹大小', formatNumber(attrs.bulletSize)),
       row('护甲穿透', formatNumber(attrs.penetration)),
       row('内层伤害倍率', `×${formatNumber(attrs.innerDamageMult)}`),
@@ -79,6 +80,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('吸血', `${formatNumber(attrs.lifesteal * 100)}%`),
       row('吸盾', `${formatNumber(attrs.shieldSteal * 100)}%`),
       row('棱晶收益', `×${formatNumber(attrs.shardGain)}`),
+      row('磁铁吸取半径', attrs.pickupRadius > 0 ? formatNumber(attrs.pickupRadius) : '未解锁'),
     ]),
     group('偏转力场', [
       row('状态', attrs.deflectLevel > 0 ? `Lv${attrs.deflectLevel}` : '未解锁'),

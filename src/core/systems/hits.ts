@@ -21,6 +21,10 @@ function contactTime(from: Vec2, to: Vec2, centre: Vec2, radius: number): number
 }
 /** Hits are resolved in flight order before wall bounce costs are spent. */
 export function resolveProjectilePath(world: World, projectile: Projectile, from: Vec2, to: Vec2): 'alive' | 'stopped' | 'reflected' {
+  for (let i = projectile.hitIds.length - 1; i >= 0; i--) {
+    const actor = world.actors.get(projectile.hitIds[i]!)
+    if (!actor?.alive || distance(from, actor.pos) > projectile.radius + actor.radius + 1e-5) projectile.hitIds.splice(i, 1)
+  }
   const contacts: { t: number; id: number; actor?: Actor; mine?: typeof world.mines[number] }[] = []
   for (const mine of world.mines) {
     if (mine.team === projectile.team || mine.ignoreBullets || mine.hp <= 0) continue
@@ -50,24 +54,33 @@ export function resolveProjectilePath(world: World, projectile: Projectile, from
       length ? (to.y - from.y) / length : Math.sin(Math.atan2(projectile.vel.y, projectile.vel.x))) <= core
     if (isCore) world.stats.coreHits += 1
     applyDamage(world, { targetId: target.id, sourceId: projectile.ownerId, sourceTeam: projectile.team,
-      raw: projectile.damage * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet' })
+      raw: projectile.damage * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet', rewardMultiplier: projectile.rewardMultiplier })
     const radius = projectile.blastRadius ?? 0
     if (radius > 0) {
       world.effects.push({ kind: 'explosion', x: target.pos.x, y: target.pos.y, radius, ttl: 14 })
       for (const other of world.actors.values()) {
         if (!other.alive || other.team === projectile.team || other.id === target.id || distance(other.pos, target.pos) > radius + other.radius) continue
-        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false, kind: 'bullet' })
+        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false, kind: 'bullet', rewardMultiplier: projectile.rewardMultiplier })
       }
     }
     projectile.hitIds.push(target.id); projectile.pierceLeft -= isCore ? 2 : 1
     if (projectile.pierceLeft <= 0) return 'stopped'
+    const boost = projectile.pierceSpeedMultiplier ?? 1
+    projectile.vel = { x: Math.sign(projectile.vel.x) * Math.min(Number.MAX_VALUE, Math.abs(projectile.vel.x) * boost), y: Math.sign(projectile.vel.y) * Math.min(Number.MAX_VALUE, Math.abs(projectile.vel.y) * boost) }
+    if (projectile.cruiseSpeed !== undefined) projectile.cruiseSpeed = Math.min(Number.MAX_VALUE, projectile.cruiseSpeed * boost)
+    grantRange(projectile, projectile.pierceRangeGain ?? 0)
   }
   return 'alive'
+}
+function grantRange(projectile: Projectile, amount: number): void {
+  projectile.rangeBudget = Math.min(Number.MAX_VALUE, (projectile.rangeBudget ?? projectile.travelLeft) + amount)
+  projectile.travelLeft = Math.min(Number.MAX_VALUE, projectile.travelLeft + amount)
 }
 function tryDeflect(world: World, projectile: Projectile, target: Actor): boolean {
   if (projectile.team === target.team || target.deflectWindowTicks <= 0 || target.attrs.deflectLevel <= 0) return false
   projectile.team = target.team; projectile.ownerId = target.id; projectile.hitIds.length = 0
-  projectile.targetId = target.lockTargetId; projectile.travelLeft = Math.max(projectile.travelLeft, 500)
+  projectile.rewardMultiplier = target.rewardMultiplier
+  projectile.targetId = target.lockTargetId; grantRange(projectile, Math.max(0, 500 - projectile.travelLeft))
   projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
   let kind: EffectKind = 'deflect'
   if (target.attrs.deflectLevel >= 2) { projectile.damage *= target.attrs.reflectDamageMult; kind = 'reflect' }

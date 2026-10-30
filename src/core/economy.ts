@@ -10,8 +10,4 @@ export interface EconomyRates {
   readonly takenRate: number
   /** Fraction of overkill damage that still counts. */
   readonly overflowRate: number
-  /** Shard bonus for clearing a room. */
-  readonly roomClear: number
-  /** Extra bonus for clearing without taking a hit. */
-  readonly roomClearNoHit: number
 }

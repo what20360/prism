@@ -28,6 +28,14 @@ describe('settings persistence', () => {
     createSettingsStore(storage).save({ ...DEFAULT_SETTINGS, music: false, sfx: true, touchControls: true })
     expect(createSettingsStore(storage).load()).toMatchObject({ music: false, sfx: true, touchControls: true })
   })
+  it('migrates v2 controls and persists the magnet switch in v3', () => {
+    const storage = memoryStorage(JSON.stringify({ version: 2, settings: { aimMode: 'auto', fireMode: 'manual', music: false } }))
+    const store = createSettingsStore(storage)
+    expect(store.load()).toMatchObject({ aimMode: 'auto', music: false, autoPickup: true })
+    store.save({ ...store.load(), autoPickup: false })
+    expect(createSettingsStore(storage).load().autoPickup).toBe(false)
+    expect(JSON.parse(storage.getItem(CONFIG_STORAGE_KEY)!).version).toBe(3)
+  })
   it('loads defaults on first launch', () => {
     expect(createSettingsStore(memoryStorage()).load()).toEqual(DEFAULT_SETTINGS)
   })
@@ -44,7 +52,7 @@ describe('settings persistence', () => {
     const settings = { aimMode: 'manual', fireMode: 'auto', tick: 42, shards: 100 } as const
     createSettingsStore(storage).save(settings)
     expect(JSON.parse(storage.getItem(CONFIG_STORAGE_KEY) ?? '')).toEqual({
-      version: 2,
+      version: 3,
       settings: { ...DEFAULT_SETTINGS, aimMode: 'manual', fireMode: 'auto' },
     })
   })

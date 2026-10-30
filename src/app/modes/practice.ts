@@ -57,7 +57,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
         spawns.push({ ...type, pos, attrs: { ...type.attrs, maxHp: config.hp, armor: config.armor } })
       }
     }
-    return { id: 'practice', kind: 'combat', bounds: { x: 0, y: 0, width: 3200, height: 1800 },
+    return { id: 'practice', kind: 'combat', pickups: [], bounds: { x: 0, y: 0, width: 3200, height: 1800 },
       entry: { x: 1600, y: 1280 }, walls: config.layout === 'cover' ? [{ x: 850, y: 950, width: 240, height: 160 }, { x: 2110, y: 950, width: 240, height: 160 }, { x: 1450, y: 420, width: 300, height: 130 }] : [], spawns }
   }
   const credit = (world: World, price = 0) => { if (config.freeCards) world.shards = Math.max(CREDIT, Number.isFinite(price) ? price : 0) }

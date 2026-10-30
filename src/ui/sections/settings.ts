@@ -112,6 +112,13 @@ export function renderSettingsSection(
   touch.setAttribute('aria-pressed', String(settings.touchControls === true))
   touch.addEventListener('click', () => handlers.onSetting('touchControls', !settings.touchControls))
   wrapper.append(touch)
+  const magnet = document.createElement('button'); magnet.type = 'button'; magnet.className = 'settings__option'
+  magnet.disabled = attrs.pickupRadius <= 0
+  magnet.textContent = `磁铁自动吸取：${magnet.disabled ? '未解锁' : settings.autoPickup !== false ? '开启' : '关闭'}`
+  magnet.setAttribute('aria-pressed', String(!magnet.disabled && settings.autoPickup !== false))
+  magnet.onclick = () => handlers.onSetting('autoPickup', settings.autoPickup === false)
+  const magnetHint = document.createElement('p'); magnetHint.className = 'settings__hint'; magnetHint.textContent = '购买磁吸核心后，在范围内自动吸取资源。关闭后仍可接触拾取；满生命时保留血球。'
+  wrapper.append(magnet, magnetHint)
 
   return wrapper
 }

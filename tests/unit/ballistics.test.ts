@@ -4,8 +4,9 @@ import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { resolveAttrs } from '../../src/core/cards'
 import { combatAttrs } from '../../src/core/combat'
-import { buyCard, listCardStates } from '../../src/core/progress'
-import { emitProjectile } from '../../src/core/systems/weapons'
+import { buyCard, sellCard, listCardStates } from '../../src/core/progress'
+import { emitProjectile, updateWeapons } from '../../src/core/systems/weapons'
+import { toSnapshot } from '../../src/core/snapshot'
 import { updateProjectiles } from '../../src/core/systems/projectiles'
 import { tryActivateSkill } from '../../src/core/systems/skills'
 import { createWorld, createActor, getPlayer } from '../../src/core/world'
@@ -24,18 +25,18 @@ describe('homing and flying-sword ballistics', () => {
   it('launches at one fifth speed and never accelerates past the resolved bullet speed', () => {
     const { world, player, emit } = setup([], { homing: 1, range: 10000 })
     const bullet = emit()
-    expect(bullet.vel.x).toBe(140); expect(bullet.homingTurn).toBeCloseTo(0.75)
+    expect(bullet.vel.x).toBe(140); expect(bullet.homingTurn).toBeCloseTo(1.6)
     expect(bullet.cruiseSpeed).toBe(player.attrs.bulletSpeed)
     for (let i = 0; i < 240; i++) updateProjectiles(world, 1 / 60)
     expect(Math.hypot(bullet.vel.x, bullet.vel.y)).toBeCloseTo(700)
   })
-  it('turns no faster than the reduced angular speed', () => {
+  it('turns no faster than the configured angular speed', () => {
     const { world, player, emit } = setup([], { homing: 1 })
     const target = createActor(world, { team: 'enemy', tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: false,
       attrs: PLAYER_BASE_ATTRS, pos: { x: player.pos.x, y: player.pos.y + 5000 } })
     player.lockTargetId = target.id
     const bullet = emit(); updateProjectiles(world, 0.1)
-    expect(Math.atan2(bullet.vel.y, bullet.vel.x)).toBeCloseTo(0.075)
+    expect(Math.atan2(bullet.vel.y, bullet.vel.x)).toBeCloseTo(0.16)
   })
   it('makes sniper bullets faster with the same angular steering and a naturally larger turning radius', () => {
     const ordinary = setup([{ id: 'homing', level: 1 }]), sniper = setup([{ id: 'homing', level: 1 }, { id: 'precision-stance', level: 1 }])
@@ -63,7 +64,47 @@ describe('homing and flying-sword ballistics', () => {
   })
 })
 
+describe('sniper suppresses burst upgrades', () => {
+  it.each([['precision-stance', 'burst'], ['burst', 'precision-stance']])('ignores burst bonuses and costs regardless of purchase order: %s first', (first, second) => {
+    const { world, player } = setup(); world.shards = 100000
+    buyCard(world, first); buyCard(world, second); buyCard(world, 'burst')
+    expect(player.attrs.damage).toBe(PLAYER_BASE_ATTRS.damage)
+    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range * 1.6)
+    expect(player.attrs.burstCount).toBe(1)
+    player.intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: true }; updateWeapons(world)
+    expect(world.projectiles).toHaveLength(1); expect(player.burstRemaining).toBe(0)
+    player.intent = { ...player.intent, fire: false }; world.projectiles = []
+    for (let i = 0; i < 180; i++) updateWeapons(world)
+    expect(world.projectiles).toHaveLength(0)
+    sellCard(world, 'precision-stance')
+    expect(player.attrs.burstCount).toBe(3)
+    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage / 1.4)
+    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range / 1.2)
+    player.intent = { ...player.intent, fire: true }; updateWeapons(world)
+    player.intent = { ...player.intent, fire: false }
+    for (let i = 0; i < 8; i++) updateWeapons(world)
+    expect(world.projectiles).toHaveLength(3)
+  })
+  it('cancels an already queued burst when sniper is bought and does not revive it on sale', () => {
+    const { world, player } = setup(); world.shards = 10000; buyCard(world, 'burst')
+    player.intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: true }; updateWeapons(world)
+    expect(player.burstRemaining).toBe(1)
+    buyCard(world, 'precision-stance'); expect(player.burstRemaining).toBe(0)
+    sellCard(world, 'precision-stance'); world.projectiles = []; player.intent = { ...player.intent, fire: false }
+    for (let i = 0; i < 180; i++) updateWeapons(world)
+    expect(world.projectiles).toHaveLength(0)
+  })
+})
+
 describe('range is actual path length', () => {
+  it('exposes the remaining distance fraction to rendering independently of elapsed time', () => {
+    const { world, emit } = setup([], { bulletSpeed: 140, range: 280 }); const bullet = emit()
+    expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBe(1)
+    updateProjectiles(world, 1)
+    expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBeCloseTo(0.5)
+    bullet.travelLeft = 0
+    expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBe(0)
+  })
   it.each([70, 700, 2100])('flies the same distance at speed %s but takes a different time', (speed) => {
     const { world, player, emit } = setup([], { bulletSpeed: speed, range: 280 })
     const bullet = emit(); let ticks = 0

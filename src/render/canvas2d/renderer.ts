@@ -1,7 +1,8 @@
 import type { PracticeState } from '../../app/modes/practice'
+import type { EndlessState } from '../../app/modes/endless'
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
 
-export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState }
+export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState }
 export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
@@ -194,14 +195,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
     text('P R I S M', 20, 29, 15, CYAN)
-    text(`${debug.label ?? ''}  /  ${debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
+    text(`${debug.label ?? ''}  /  ${debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
       ctx.fillStyle = '#192538'; ctx.fillRect(20, 65, barWidth, 5)
       ctx.fillStyle = p.hp < p.maxHp * 0.3 ? RED : CYAN; ctx.fillRect(20, 65, barWidth * clamp(p.hp / p.maxHp, 0, 1), 5)
       text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
       text(debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
-      if (s.stats.chain > 1 && !debug.practice) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
+      if (debug.endless) {
+        text(`种子 ${debug.endless.seed} · 敌人 ${debug.endless.alive + debug.endless.pending}`, 20, 133, 11, PURPLE)
+        if (!phone) text(debug.endless.open ? `传送门开放 · 下次补刷收益 ${Number((debug.endless.nextReward * 100).toFixed(1))}%` : '清空敌人，开启下一层', 20, 153, 11, '#8ad9bb')
+      } else if (s.stats.chain > 1 && !debug.practice) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
       if (!phone) {
         text(p.autoFire ? '扳机模组已装备' : '按住左键射击 · 右键目标锁定 · 右键空白取消', 20, height - 25, 12, '#7591a9')
         for (const [i, skill] of p.skills.entries()) if (skill.id) {
@@ -240,33 +244,40 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const target = s.actors.find((a) => a.locked && a.alive)
     if (!target) return
     const phone = width < 700, w = phone ? 190 : 220, x = phone ? 20 : width - w - 18, y = phone ? 150 : 190
-    ctx.fillStyle = 'rgba(5,14,25,0.92)'; ctx.fillRect(x, y, w, 113)
-    ctx.strokeStyle = target.manualLocked ? '#9c8354' : '#37687d'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, 113)
+    const h = target.rewardMultiplier < 1 ? 134 : 113
+    ctx.fillStyle = 'rgba(5,14,25,0.92)'; ctx.fillRect(x, y, w, h)
+    ctx.strokeStyle = target.manualLocked ? '#9c8354' : '#37687d'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h)
     text(`${target.manualLocked ? '◆' : '◇'} ${target.name ?? '目标'} · ${target.manualLocked ? '手动锁定' : '方向锁定'}`, x + 10, y + 19, 11, target.manualLocked ? GOLD : CYAN)
     ctx.fillStyle = '#253244'; ctx.fillRect(x + 10, y + 29, w - 20, 3)
     ctx.fillStyle = RED; ctx.fillRect(x + 10, y + 29, (w - 20) * clamp(target.hp / target.maxHp, 0, 1), 3)
     text(`生命 ${Math.ceil(target.hp)} / ${Math.round(target.maxHp)}   盾 ${Math.ceil(target.shield)}`, x + 10, y + 49, 11)
     text(`护甲 ${Math.round(target.armor)}   移速 ${Math.round(target.movementSpeed)}`, x + 10, y + 70, 11)
     text(`伤害 ${Number(target.damage.toFixed(1))}   攻速 ${Number(target.fireRate.toFixed(2))}/s`, x + 10, y + 91, 11)
+    if (target.rewardMultiplier < 1) text(`棱晶收益 ${Number((target.rewardMultiplier * 100).toFixed(2))}%`, x + 10, y + 112, 11, GOLD)
   }
   const drawBullet = (bullet: Snapshot['projectiles'][number]) => {
-    const color = bullet.team === 'player' ? '#a5efff' : '#ff8ea9'
+    const energy = bullet.rangeRatio
+    const hue = bullet.team === 'player' ? 245 - 55 * energy : (382 - 32 * energy) % 360
+    const color = `hsl(${hue}, 90%, ${38 + 42 * energy}%)`
+    const halo = `hsla(${hue}, 95%, ${48 + 24 * energy}%, ${0.06 + 0.3 * energy})`
+    ctx.save(); ctx.globalAlpha = 0.65 + 0.35 * energy
     const count = Math.min(bullet.trail.length, Math.ceil(bullet.speed / 160))
     const trail = bullet.trail.slice(-count)
     if (count > 0 && bullet.speed > 35) {
       const first = trail[0]!, fade = ctx.createLinearGradient(first.x, first.y, bullet.x + 0.01, bullet.y + 0.01)
-      fade.addColorStop(0, 'rgba(90,160,220,0)'); fade.addColorStop(1, color)
+      fade.addColorStop(0, `hsla(${hue}, 90%, 55%, 0)`); fade.addColorStop(1, color)
       ctx.strokeStyle = fade; ctx.lineWidth = Math.max(2, bullet.radius * 0.65)
       ctx.beginPath(); ctx.moveTo(first.x, first.y)
       for (const point of trail) ctx.lineTo(point.x, point.y)
       ctx.lineTo(bullet.x, bullet.y); ctx.stroke()
     }
     const glow = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, bullet.radius * 2.2)
-    glow.addColorStop(0, bullet.team === 'player' ? 'rgba(135,229,255,0.35)' : 'rgba(255,110,150,0.3)'); glow.addColorStop(1, 'rgba(80,150,220,0)')
+    glow.addColorStop(0, halo); glow.addColorStop(1, `hsla(${hue}, 95%, 50%, 0)`)
     ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 2.2, 0, Math.PI * 2); ctx.fill()
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 0.72, 0, Math.PI * 2); ctx.fill()
     ring(bullet.x, bullet.y, bullet.radius, color, 1.2)
-    ctx.fillStyle = '#f6fcff'; ctx.beginPath(); ctx.arc(bullet.x - bullet.radius * 0.17, bullet.y - bullet.radius * 0.17, Math.max(2, bullet.radius * 0.29), 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = `hsl(${hue}, 90%, ${60 + 38 * energy}%)`; ctx.beginPath(); ctx.arc(bullet.x - bullet.radius * 0.17, bullet.y - bullet.radius * 0.17, Math.max(2, bullet.radius * 0.29), 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
   }
   const draw = (s: Snapshot, debug: RenderDebug) => {
     lastScene = s

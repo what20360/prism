@@ -8,6 +8,7 @@ export interface ControlSettings {
   readonly music?: boolean
   readonly sfx?: boolean
   readonly touchControls?: boolean
+  readonly autoPickup?: boolean
 }
 
 export type SettingKey = keyof ControlSettings
@@ -18,9 +19,10 @@ export const DEFAULT_SETTINGS: ControlSettings = {
   music: true,
   sfx: true,
   touchControls: false,
+  autoPickup: true,
 }
 
-export const CONFIG_VERSION = 2
+export const CONFIG_VERSION = 3
 export const CONFIG_STORAGE_KEY = 'prism.config'
 
 export interface ConfigStorage {
@@ -47,17 +49,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function decodeSettings(value: unknown): ControlSettings {
-  if (!isRecord(value) || ![1, CONFIG_VERSION].includes(value.version as number) || !isRecord(value.settings)) {
+  if (!isRecord(value) || ![1, 2, CONFIG_VERSION].includes(value.version as number) || !isRecord(value.settings)) {
     return { ...DEFAULT_SETTINGS }
   }
 
   const { aimMode, fireMode } = value.settings
   return {
-    aimMode: value.version === 2 && (aimMode === 'auto' || aimMode === 'manual') ? aimMode : DEFAULT_SETTINGS.aimMode,
-    fireMode: value.version === 2 && (fireMode === 'auto' || fireMode === 'manual') ? fireMode : DEFAULT_SETTINGS.fireMode,
+    aimMode: value.version !== 1 && (aimMode === 'auto' || aimMode === 'manual') ? aimMode : DEFAULT_SETTINGS.aimMode,
+    fireMode: value.version !== 1 && (fireMode === 'auto' || fireMode === 'manual') ? fireMode : DEFAULT_SETTINGS.fireMode,
     music: typeof value.settings.music === 'boolean' ? value.settings.music : true,
     sfx: typeof value.settings.sfx === 'boolean' ? value.settings.sfx : true,
     touchControls: value.settings.touchControls === true,
+    autoPickup: value.settings.autoPickup !== false,
   }
 }
 
@@ -77,7 +80,7 @@ export function createSettingsStore(storage: ConfigStorage | undefined = browser
       try {
         storage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({
           version: CONFIG_VERSION,
-          settings: { aimMode: settings.aimMode, fireMode: settings.fireMode, music: settings.music ?? true, sfx: settings.sfx ?? true, touchControls: settings.touchControls === true },
+          settings: { aimMode: settings.aimMode, fireMode: settings.fireMode, music: settings.music ?? true, sfx: settings.sfx ?? true, touchControls: settings.touchControls === true, autoPickup: settings.autoPickup !== false },
         }))
         return true
       } catch {

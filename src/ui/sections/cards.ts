@@ -124,7 +124,7 @@ export function renderCardsSection(
 ): HTMLElement {
   const wrapper = element('div', 'cards')
   wrapper.append(element('p', 'menu__hint', state.practice?.config.freeCards ? '测试场 · 自由购卡' : `可用棱晶 ${Math.floor(state.shards)}`))
-  wrapper.append(element('p', 'cards__intro', `标有“可回收”的卡可逐级出售，返还实付价格的 ${fmt(CARD_ECONOMY.refundRatio * 100)}%；其他卡持续生效至本局结束。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
+  wrapper.append(element('p', 'cards__intro', `所有卡片都可逐级出售，返还实付价格的 ${fmt(CARD_ECONOMY.refundRatio * 100)}%；前置仅限制购买，出售不会连带撤销其他卡片。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
 
   const grouped = new Map<string, CardState[]>()
   for (const card of state.cards) {

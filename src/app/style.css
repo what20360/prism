@@ -574,3 +574,10 @@ body { background: #050a13; color: #c2d3e3; }
 }
 @media (max-height: 650px) and (max-width: 800px) { .home__prism { display: none; } .home__description { display: none; } }
 @media (prefers-reduced-motion: reduce) { .home__action { transition: none; } }
+
+.home__seed { display: flex; align-items: center; gap: 12px; color: #8eaabe; font-size: 12px; margin-top: 4px; }
+.home__seed input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid #3c5366; border-radius: 8px; color: #d1edfa; background: #0a1724; font: inherit; }
+.home__action--endless { border-color: #8a7154; background: linear-gradient(120deg, #352b24, #1a2230); }
+.home__action--endless .home__arrow { color: #e9c48f; }
+.endless-page > p { max-width: 900px; line-height: 1.9; }
+.endless-page .practice__metrics dd { font-size: clamp(14px, 2vw, 22px); word-break: break-all; }

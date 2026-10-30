@@ -26,6 +26,7 @@ export function tryPlaceMine(world: World, actor: Actor): void {
   const direction = moveLength > 0.01 ? { x: actor.intent.move.x / moveLength, y: actor.intent.move.y / moveLength } : { x: Math.cos(actor.aimAngle), y: Math.sin(actor.aimAngle) }
   const multiplier = Math.max(1, attrs.mineSlowMultiplier)
   world.mines.push({ id: allocateId(world), ownerId: actor.id, team: actor.team, pos: { ...actor.pos },
+    rewardMultiplier: actor.rewardMultiplier,
     bodyRadius: MINE_BODY_RADIUS, triggerRadius: attrs.mineTriggerRadius, blastRadius: attrs.mineBlastRadius,
     slowRadius: attrs.mineSlowRadius, slowMultiplier: mineSlowMultiplier(multiplier, attrs.mineIgnoreBullets > 0),
     damage: attrs.mineDamage, hp: attrs.mineHp, fuseTicks: null, fuseTotalTicks: Math.max(1, Math.round(attrs.mineFuseSeconds * TICK_RATE)),
@@ -60,7 +61,7 @@ function detonate(world: World, mine: Mine): void {
   world.effects.push({ kind: 'explosion', x: mine.pos.x, y: mine.pos.y, radius: mine.blastRadius, ttl: 14 })
   for (const actor of world.actors.values()) {
     if (!actor.alive || actor.team === mine.team || distance(actor.pos, mine.pos) > mine.blastRadius) continue
-    applyDamage(world, { targetId: actor.id, sourceId: mine.ownerId, sourceTeam: mine.team, raw: mine.damage, penetration: 0, isCore: false, kind: 'mine' })
+    applyDamage(world, { targetId: actor.id, sourceId: mine.ownerId, sourceTeam: mine.team, raw: mine.damage, penetration: 0, isCore: false, kind: 'mine', rewardMultiplier: mine.rewardMultiplier })
   }
   world.projectiles = world.projectiles.filter((projectile) => projectile.team === mine.team || distance(projectile.pos, mine.pos) > mine.blastRadius)
   const owner = world.actors.get(mine.ownerId)

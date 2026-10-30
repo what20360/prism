@@ -9,6 +9,4 @@ export const DEFAULT_ECONOMY: EconomyRates = {
   },
   takenRate: 0.05,
   overflowRate: 0.5,
-  roomClear: 10,
-  roomClearNoHit: 5,
 }

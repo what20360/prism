@@ -44,6 +44,7 @@ export interface AttrSet {
   pickupRadius: number
   burstCount: number
   homing: number
+  pierceBoost: number
   maxProjectiles: number
   vision: number
   rageLevel: number

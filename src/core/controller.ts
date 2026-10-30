@@ -15,6 +15,7 @@ export interface Intent {
   /** undefined preserves manual lock, null clears it. */
   readonly lockTarget?: number | null
   readonly autoAim?: boolean
+  readonly autoPickup?: boolean
   /**
    * Unit direction to shoot at. When absent the actor aims at the nearest
    * opponent in range, which is what every AI controller wants.

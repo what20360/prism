@@ -1,7 +1,7 @@
 import { combatAttrs } from '../combat'
 import { hasLineOfSight } from '../navigation'
 import { TICK_RATE } from '../types'
-import { homingProfile, WEAPON_RULES } from '../rules'
+import { homingProfile, penetrationProfile, WEAPON_RULES } from '../rules'
 import type { Vec2 } from '../types'
 import type { Actor, World } from '../world'
 import { allocateId } from '../world'
@@ -14,6 +14,7 @@ export function updateWeapons(world: World): void {
   for (const actor of world.actors.values()) {
     if (!actor.alive) continue
     const attrs = combatAttrs(actor), angle = resolveAimAngle(world, actor)
+    if (attrs.maxProjectiles === 1) { actor.burstRemaining = 0; actor.burstTimer = 0 }
     if (angle !== undefined) actor.aimAngle = angle
     if (actor.fireCooldownTicks > 0) actor.fireCooldownTicks -= 1
     if (actor.burstTimer > 0) actor.burstTimer -= 1
@@ -30,7 +31,7 @@ export function updateWeapons(world: World): void {
     } else {
       if (angle === undefined) continue
       fireAt(world, actor, angle)
-      actor.burstRemaining = Math.max(0, Math.floor(attrs.burstCount) - 1)
+      actor.burstRemaining = attrs.maxProjectiles === 1 ? 0 : Math.max(0, Math.floor(attrs.burstCount) - 1)
       actor.burstTimer = WEAPON_RULES.burstGapTicks; actor.burstAngle = angle
     }
     actor.fireCooldownTicks = Math.max(1, Math.round(TICK_RATE / attrs.fireRate))
@@ -58,13 +59,16 @@ export function emitProjectile(world: World, actor: Actor, angle: number, origin
   const attrs = combatAttrs(actor), dx = Math.cos(angle), dy = Math.sin(angle)
   const pos = origin ?? { x: actor.pos.x + dx * actor.radius * 0.5, y: actor.pos.y + dy * actor.radius * 0.5 }
   const profile = homingProfile(attrs.homing)
+  const penetration = penetrationProfile(attrs.pierceBoost)
   const speed = attrs.bulletSpeed * profile.initialMultiplier
   world.projectiles.push({ id: allocateId(world), ownerId: actor.id, team: actor.team,
+    rewardMultiplier: actor.rewardMultiplier,
     pos: { ...pos }, prevPos: { ...pos }, vel: { x: dx * speed, y: dy * speed }, radius: attrs.bulletSize,
     damage: attrs.damage, penetration: attrs.penetration, pierceLeft: Math.max(1, Math.floor(attrs.pierce)),
-    innerMult: attrs.innerDamageMult, travelLeft: attrs.range, hitIds: [], ricochet: attrs.ricochet > 0,
+    innerMult: attrs.innerDamageMult, travelLeft: attrs.range, rangeBudget: attrs.range, hitIds: [], ricochet: attrs.ricochet > 0,
     blastRadius: attrs.blastRadius, targetId: actor.lockTargetId,
     homingTurn: profile.turnRate,
+    pierceSpeedMultiplier: penetration.speedMultiplier, pierceRangeGain: penetration.rangeGain,
     cruiseSpeed: attrs.bulletSpeed * profile.cruiseMultiplier, trail: [] })
   return true
 }

@@ -368,7 +368,7 @@ describe('card info', () => {
     expect(deflect?.summary).toContain('力场半径')
 
     const damage = states.find((state) => state.id === 'gun-damage')
-    expect(damage?.summary).toBe('伤害 +2（每级 +2）')
+    expect(damage?.summary).toBe('伤害 +2（每级 +2） · 可回收')
     expect(damage?.requires).toEqual([])
   })
 })

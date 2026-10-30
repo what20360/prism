@@ -1,3 +1,5 @@
+import { renderEndlessSection } from './sections/endless'
+import type { EndlessState } from '../app/modes/endless'
 import { renderPracticeSection } from './sections/practice'
 import type { PracticeState, PracticeAction } from '../app/modes/practice'
 import { renderSkillsSection, type SkillsState } from './sections/skills'
@@ -9,11 +11,12 @@ import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
 import type { ControlSettings, SettingKey } from '../storage/config'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice' | 'endless'
 
 export interface MenuState extends CardsSectionState, SkillsState {
   readonly player: PlayerView
   readonly settings: ControlSettings
+  readonly endless?: EndlessState
   readonly practice?: PracticeState
 }
 
@@ -45,6 +48,7 @@ const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'skills', label: '主动技能' },
   { id: 'settings', label: '设置' },
   { id: 'practice', label: '测试控制' },
+  { id: 'endless', label: '无尽状态' },
 ]
 
 /**
@@ -108,10 +112,11 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
 
   const render = (): void => {
     const state = handlers.getState()
-    if (active === 'practice' && !state.practice) active = 'upgrade'
+    if ((active === 'practice' && !state.practice) || (active === 'endless' && !state.endless)) active = 'upgrade'
     content.replaceChildren()
 
     if (active === 'practice' && state.practice) content.append(renderPracticeSection(state.practice, handlers.onPractice, handlers.onRestart))
+    else if (active === 'endless' && state.endless) content.append(renderEndlessSection(state.endless))
     else if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
     else if (active === 'skills') content.append(renderSkillsSection(state, handlers.onEquip))
@@ -121,7 +126,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, collapsed, onPractice: handlers.onPractice }))
 
     for (const [id, button] of buttons) {
-      button.hidden = id === 'practice' && !state.practice
+      button.hidden = (id === 'practice' && !state.practice) || (id === 'endless' && !state.endless)
       button.classList.toggle('menu__tab--active', id === active)
       button.setAttribute('aria-current', id === active ? 'page' : 'false')
     }

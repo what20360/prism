@@ -24,6 +24,7 @@ export interface DamageEvent {
   readonly penetration: number
   readonly isCore: boolean
   readonly kind?: 'bullet' | 'mine' | 'contact'
+  readonly rewardMultiplier?: number
 }
 
 /**
@@ -56,21 +57,23 @@ export function applyDamage(world: World, event: DamageEvent): void {
 
   if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
     world.stats.damageDealt += effectiveDamage
-    const gained = offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain
+    const reward = target.rewardMultiplier ?? 1
+    const gained = offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain * reward
     world.shards += gained
     world.score += effectiveDamage + overkill * world.economy.overflowRate
     applyLifesteal(player, effectiveDamage)
     const chance = event.kind === 'mine' ? player.attrs.mineShardChance : event.kind === 'bullet' ? player.attrs.bloodOrbChance : 0
     if (effectiveDamage > 0 && chance > 0 && world.pickups.length < 100 && nextFloat(world.rng) < chance) {
       world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-        value: event.kind === 'mine' ? DROP_RULES.shardValue * player.attrs.shardGain : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
+        value: event.kind === 'mine' ? DROP_RULES.shardValue * player.attrs.shardGain * reward : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
     }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
     if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)
     if (gained > 0.05) pushFloater(world, 'shard', gained, target.pos.x, target.pos.y)
   } else if (target.team === 'player') {
     world.stats.damageTaken += event.raw
-    const gained = takenShards(world, event.raw) * target.attrs.shardGain
+    const sourceReward = event.rewardMultiplier ?? world.actors.get(event.sourceId)?.rewardMultiplier ?? 1
+    const gained = takenShards(world, event.raw) * target.attrs.shardGain * sourceReward
     world.shards += gained
     world.score += event.raw * 0.5
     world.playerTookHit = true
@@ -180,6 +183,7 @@ export function resolveContactDamage(world: World): void {
       raw: actor.contactDamage,
       penetration: actor.attrs.penetration,
       isCore: false,
+      rewardMultiplier: actor.rewardMultiplier,
     })
     return
   }

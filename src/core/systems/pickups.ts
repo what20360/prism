@@ -6,11 +6,11 @@ import { hasLineOfSight } from '../navigation'
 export function updatePickups(world: World): void {
   const player = tryGetPlayer(world)
   world.pickups = world.pickups.filter((pickup) => {
-    pickup.ttl -= 1
-    if (pickup.ttl <= 0) return false
+    if (pickup.ttl >= 0 && --pickup.ttl <= 0) return false
     if (!player) return true
+    if (pickup.kind === 'blood' && player.hp >= player.attrs.maxHp) return true
     const d = distance(pickup.pos, player.pos)
-    if (d < player.attrs.pickupRadius && d > 1 && hasLineOfSight(pickup.pos, player.pos, world.room.walls)) {
+    if (player.intent.autoPickup !== false && d < player.attrs.pickupRadius && d > 1 && hasLineOfSight(pickup.pos, player.pos, world.room.walls)) {
       const travel = Math.min(d, 400 * TICK_DT)
       pickup.pos = { x: pickup.pos.x + (player.pos.x - pickup.pos.x) / d * travel, y: pickup.pos.y + (player.pos.y - pickup.pos.y) / d * travel }
     }

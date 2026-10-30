@@ -41,9 +41,9 @@ export function createResultPanel(root: HTMLElement, handlers: ResultPanelHandle
   }
 
   const show = (summary: RunSummary): void => {
-    title.textContent = summary.practice ? '测试结束' : summary.victory ? '通关' : '失败'
+    title.textContent = summary.practice ? '测试结束' : summary.endless ? '远征结束' : summary.victory ? '通关' : '失败'
     title.className = summary.victory ? 'result__title result__title--win' : 'result__title'
-    subtitle.textContent = summary.practice ? '重新测试或返回主菜单' : `到达 F${summary.floor}-${summary.room}`
+    subtitle.textContent = summary.practice ? '重新测试或返回主菜单' : summary.endless ? `无尽第 ${summary.floor} 层 · 种子 ${summary.seed}` : `到达 F${summary.floor}-${summary.room}`
 
     grid.replaceChildren()
     row('用时', `${Math.floor(summary.seconds / 60)}:${String(summary.seconds % 60).padStart(2, '0')}`)

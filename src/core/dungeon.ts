@@ -1,6 +1,7 @@
 import { shieldCap } from './attrs'
 import type { RoomTemplate, World } from './world'
 import { getPlayer, spawnEnemy } from './world'
+import { populateRoomPickups } from './roomResources'
 
 export type RoomSpec = RoomTemplate
 
@@ -39,6 +40,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
   player.lockTargetId = null; player.manualLockId = null
   player.burstRemaining = 0; player.rageTicks = 0; player.dashTicks = 0
   player.shield = Math.min(player.shield, shieldCap(player.attrs))
+  populateRoomPickups(world, room.pickups)
 }
 
 export function spawnPendingEnemies(world: World): void {

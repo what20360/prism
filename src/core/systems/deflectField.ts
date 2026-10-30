@@ -36,6 +36,7 @@ export function updateDeflectFields(world: World, dt: number): void {
         const owned = world.projectiles.filter((p) => p.ownerId === actor.id && p.team === actor.team && p.pierceLeft > 0).length
         if (cap > 0 && owned >= cap) { projectile.pierceLeft = 0; continue }
         projectile.team = actor.team; projectile.ownerId = actor.id; projectile.hitIds.length = 0
+        projectile.rewardMultiplier = actor.rewardMultiplier
         projectile.targetId = actor.lockTargetId; projectile.travelLeft = Math.max(500, projectile.travelLeft)
         const rebound = strength * (1 - distance / radius) ** 2 * dt
         projectile.vel = { x: -projectile.vel.x + dx / distance * rebound, y: -projectile.vel.y + dy / distance * rebound }

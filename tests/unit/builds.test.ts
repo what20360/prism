@@ -37,7 +37,7 @@ describe('builds and card recycling', () => {
     expect(w.shards).toBe(start - 5)
     expect(sellCard(w, 'auto-fire')).toBe(false)
     buyCard(w, 'gun-damage')
-    expect(sellCard(w, 'gun-damage')).toBe(false)
+    expect(sellCard(w, 'gun-damage')).toBe(true)
   })
 
   it('keeps original paid prices even if the pricing function changes', () => {
@@ -51,15 +51,16 @@ describe('builds and card recycling', () => {
     expect(saleValue(w, 'mode')).toBe(12)
   })
 
-  it('does not sell a setting that an owned card still requires', () => {
+  it('sells a prerequisite without removing previously purchased dependents', () => {
     const base = CARD_REGISTRY.get('auto-aim')!
     const dependent = { ...base, id: 'dependent', requires: [{ card: 'auto-aim', level: 1 }] }
     const w = createWorld({ seed: 1, registry: createCardRegistry([base, dependent]), playerAttrs: PLAYER_BASE_ATTRS,
       economy: DEFAULT_ECONOMY, room: { id: 'r', kind: 'safe', entry: { x: 100, y: 100 }, bounds: { x: 0, y: 0, width: 800, height: 600 }, walls: [], spawns: [] } })
     w.shards = 100
     buyCard(w, 'auto-aim'); buyCard(w, 'dependent')
-    expect(sellCard(w, 'auto-aim')).toBe(false)
-    expect(listCardStates(w).find((card) => card.id === 'auto-aim')!.saleBlocked).toBe(dependent.name)
+    expect(sellCard(w, 'auto-aim')).toBe(true)
+    expect(listCardStates(w).find((card) => card.id === 'auto-aim')!.saleBlocked).toBeNull()
+    expect(w.purchases.some((purchase) => purchase.id === 'dependent')).toBe(true)
   })
 
   it('reverses a sold stance and clamps health after a maximum health tradeoff', () => {

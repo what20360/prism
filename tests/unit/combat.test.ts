@@ -274,13 +274,15 @@ describe('combat', () => {
     expect(world.tick).toBe(tickBefore)
   })
 
-  it('grants the room clear bonus once all enemies are gone', () => {
+  it('opens a cleared room without granting a clear bonus', () => {
     const world = makeWorld({ enemies: [enemy({ maxHp: 1 })] })
 
     tick(world, 300)
 
     expect(world.roomCleared).toBe(true)
-    expect(world.shards).toBeGreaterThanOrEqual(DEFAULT_ECONOMY.roomClear)
+    const shards = world.shards
+    step(world, new Map())
+    expect(world.shards).toBe(shards)
   })
 })
 

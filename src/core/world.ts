@@ -1,6 +1,7 @@
 import type { AttrSet } from './attrs'
 import type { CardRegistry, Purchase } from './cards'
 import { resolveSpawnPosition } from './collision'
+import { populateRoomPickups } from './roomResources'
 import { NO_INTENT, type Intent } from './controller'
 import type { EconomyRates } from './economy'
 import { createRng, type Rng } from './rng'
@@ -20,6 +21,7 @@ export interface Actor {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
+  readonly rewardMultiplier: number
   /** Display name from content; enemies leave it undefined for plain shapes. */
   readonly name?: string
   /** Replaced wholesale when the card pipeline re-resolves. */
@@ -66,6 +68,7 @@ export interface Projectile {
   readonly id: EntityId
   /** Mutable: deflect/reflect transfers ownership mid-flight. */
   ownerId: EntityId
+  rewardMultiplier?: number
   team: Team
   pos: Vec2
   /** Position at the start of the current tick, used for swept core-hit tests. */
@@ -79,8 +82,12 @@ export interface Projectile {
   innerMult: number
   /** Remaining path length, consumed by actual motion rather than elapsed time. */
   travelLeft: number
-  /** Targets already hit, so one bullet cannot hit the same actor twice. */
+  /** Total distance granted at launch and by penetration; used for range feedback. */
+  rangeBudget?: number
+  /** Contacts still awaiting separation before this projectile may hit again. */
   readonly hitIds: EntityId[]
+  pierceSpeedMultiplier?: number
+  pierceRangeGain?: number
   ricochet?: boolean
   blastRadius?: number
   resolvedTick?: number
@@ -94,6 +101,7 @@ export interface Projectile {
 export interface Mine {
   readonly id: EntityId
   readonly ownerId: EntityId
+  readonly rewardMultiplier?: number
   readonly team: Team
   pos: Vec2
   readonly bodyRadius: number
@@ -205,7 +213,11 @@ export interface RoomTemplate {
   readonly spawns: readonly EnemySpawnSpec[]
   /** Where the player appears when entering. */
   readonly entry: Vec2
+  /** Omit for seeded room resources; [] gives a clean testing scene. */
+  readonly pickups?: readonly PickupSpawnSpec[]
 }
+
+export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number }
 
 export interface EnemySpawnSpec {
   readonly pos: Vec2
@@ -214,6 +226,7 @@ export interface EnemySpawnSpec {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
+  readonly rewardMultiplier?: number
   /** Display name shown by the target info card. */
   readonly name?: string
 }
@@ -281,6 +294,8 @@ export function createWorld(options: CreateWorldOptions): World {
     pos: options.room.entry,
   })
 
+  populateRoomPickups(world, options.room.pickups)
+
   for (const spawn of options.room.spawns) {
     spawnEnemy(world, spawn)
   }
@@ -294,6 +309,7 @@ interface CreateActorSpec {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
+  readonly rewardMultiplier?: number
   readonly attrs: AttrSet
   readonly pos: Vec2
   readonly name?: string
@@ -310,6 +326,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     behavior: spec.behavior,
     contactDamage: spec.contactDamage,
     hasCore: spec.hasCore,
+    rewardMultiplier: spec.rewardMultiplier ?? 1,
     name: spec.name,
     attrs: spec.attrs,
     pos: spec.pos,

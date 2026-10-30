@@ -13,6 +13,7 @@ import { createHomeMenu, type HomeMenu } from '../ui/homeMenu'
 import { createMenu, type Menu } from '../ui/menu'
 import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
 import { createPracticeMode } from './modes/practice'
+import { createEndlessMode } from './modes/endless'
 import { createGame, type Game, type UiMode } from './game'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
@@ -38,12 +39,12 @@ const showMode = (mode: UiMode) => {
   else if (mode === 'menu') { home.hide(); ui.menu?.open() }
   else { home.hide(); ui.menu?.close() }
 }
-const launch = (practice: boolean, initialUiMode: UiMode = 'play') => {
+const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number) => {
   game?.dispose(); input.reset(); pointer.reset(); touch.reset(); ui.result?.hide(); ui.menu?.close(); home.hide()
-  const mode = practice ? createPracticeMode() : undefined
-  game = createGame({ rooms: mode ? [mode.room()] : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: 20261029 + ++sessionCounter * 997,
+  const mode = kind === 'practice' ? createPracticeMode() : undefined, endless = kind === 'endless' ? createEndlessMode() : undefined
+  game = createGame({ rooms: mode ? [mode.room()] : endless ? [endless.room()] : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: seed ?? 20261029 + ++sessionCounter * 997,
     economy: DEFAULT_ECONOMY, registry: CARD_REGISTRY, playerAttrs: PLAYER_BASE_ATTRS, input, pointer, touch, renderer,
-    initialSettings: preferences, initialUiMode, practice: mode, onSettingsChange: saveSettings,
+    initialSettings: preferences, initialUiMode, practice: mode, endless, onSettingsChange: saveSettings,
     onSnapshot: (snapshot, paused) => { touch.update(snapshot, paused); audio.update(snapshot, paused) },
     onUiModeChange: showMode,
     onRunEnd: (summary) => { ui.menu?.close(); testButton.hidden = true; ui.result?.show(summary) },
@@ -53,10 +54,10 @@ const launch = (practice: boolean, initialUiMode: UiMode = 'play') => {
 home = createHomeMenu(document.body, {
   getState: () => {
     const session = game?.session(), attrs = session?.canResume ? game!.panelState().player.attrs : PLAYER_BASE_ATTRS
-    return { canResume: session?.canResume ?? false, practice: session?.practice ?? false, attrs,
+    return { canResume: session?.canResume ?? false, practice: session?.practice ?? false, endless: session?.endless ?? false, attrs,
       settings: { ...preferences, aimMode: attrs.autoAim > 0 ? preferences.aimMode : 'manual', fireMode: attrs.autoFire > 0 ? preferences.fireMode : 'manual' } }
   },
-  onDungeon: () => launch(false), onPractice: () => launch(true), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
+  onDungeon: () => launch('dungeon'), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
 })
 ui.menu = createMenu(document.body, {
   onClose: () => game?.setUiMode('play'), onRestart: () => game?.restart(), onHome: returnHome,
@@ -67,7 +68,7 @@ ui.menu = createMenu(document.body, {
   onSetting, getState: () => game!.panelState(),
 })
 ui.result = createResultPanel(document.body, { onRestart: () => game?.restart(), onHome: returnHome })
-launch(false, 'home')
+launch('dungeon', 'home')
 if (import.meta.env.DEV) {
   const hooks = window as Window & { __prism?: Game }
   Object.defineProperty(hooks, '__prism', { get: () => game, configurable: true })

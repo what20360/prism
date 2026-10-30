@@ -52,7 +52,7 @@ export function listCardStates(world: World): CardState[] {
       refund: card.resellable && level > 0 ? saleValue(world, card.id) : null,
       tags: card.tags ?? [],
       priority: card.priority,
-      saleBlocked: saleBlocker(world, card.id),
+      saleBlocked: null,
     }
   })
 }
@@ -98,19 +98,11 @@ export function saleValue(world: World, cardId: string): number {
   return Number.isFinite(paid) ? Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0
 }
 
-function saleBlocker(world: World, cardId: string): string | null {
-  const nextLevel = purchaseLevel(world.purchases, cardId) - 1
-  const dependent = world.purchases.find((item) => item.id !== cardId && item.level > 0 &&
-    world.registry.get(item.id)?.requires?.some((requirement) => requirement.card === cardId && (requirement.level ?? 1) > nextLevel))
-  return dependent ? world.registry.get(dependent.id)?.name ?? dependent.id : null
-}
-
 export function sellCard(world: World, cardId: string): boolean {
   const card = world.registry.get(cardId)
   const purchase = world.purchases.find((item) => item.id === cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return false
   const nextLevel = purchase.level - 1
-  if (saleBlocker(world, cardId)) return false
   world.shards += saleValue(world, cardId)
   purchase.level = nextLevel
   purchase.paid?.pop()
@@ -129,6 +121,7 @@ export function reapplyAttrs(world: World, player: Actor): void {
   player.attrs = next
   reconcileSkills(player, previous)
   if (next.maxProjectiles > 0) {
+    if (next.maxProjectiles === 1) { player.burstRemaining = 0; player.burstTimer = 0 }
     let count = 0
     world.projectiles = world.projectiles.filter((bullet) => bullet.ownerId !== player.id || bullet.team !== player.team || ++count <= next.maxProjectiles)
   }

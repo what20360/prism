@@ -46,6 +46,7 @@ export interface ActorView {
   readonly damage: number
   readonly fireRate: number
   readonly movementSpeed: number
+  readonly rewardMultiplier: number
   readonly shield: number
   readonly alive: boolean
   readonly aimAngle: number
@@ -81,6 +82,7 @@ export interface ProjectileView {
   readonly vx: number
   readonly vy: number
   readonly speed: number
+  readonly rangeRatio: number
   readonly trail: readonly { x: number; y: number }[]
 }
 
@@ -167,6 +169,7 @@ export function toSnapshot(world: World): Snapshot {
       damage: attrs.damage,
       fireRate: attrs.fireRate,
       movementSpeed: attrs.speed,
+      rewardMultiplier: actor.rewardMultiplier,
       shield: actor.shield,
       moveX: actor.dashTicks > 0 ? actor.dashDirection.x : actor.intent.move.x,
       moveY: actor.dashTicks > 0 ? actor.dashDirection.y : actor.intent.move.y,
@@ -204,6 +207,7 @@ export function toSnapshot(world: World): Snapshot {
     vx: p.vel.x,
     vy: p.vel.y,
     speed: Math.hypot(p.pos.x - p.prevPos.x, p.pos.y - p.prevPos.y) * TICK_RATE,
+    rangeRatio: Math.max(0, Math.min(1, p.travelLeft / Math.max(Number.MIN_VALUE, p.rangeBudget ?? p.travelLeft))),
     trail: p.trail?.map((point) => ({ ...point })) ?? [],
   }))
 

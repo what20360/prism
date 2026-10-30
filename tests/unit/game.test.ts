@@ -5,6 +5,7 @@ import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { createPracticeMode, DEFAULT_PRACTICE } from '../../src/app/modes/practice'
+import { createEndlessMode } from '../../src/app/modes/endless'
 import type { RoomSpec } from '../../src/core/dungeon'
 
 describe('game lifecycle', () => {
@@ -50,7 +51,7 @@ describe('game lifecycle', () => {
       rooms: [{
         id: 'safe', kind: 'safe',
         bounds: { x: 0, y: 0, width: 3200, height: 1800 },
-        walls: [], entry: { x: 500, y: 500 }, spawns: [],
+        walls: [], entry: { x: 500, y: 500 }, spawns: [], pickups: [{ kind: 'shard', pos: { x: 500, y: 500 }, value: 15 }],
       }],
       roomsPerFloor: 1,
       seed: 7,
@@ -93,6 +94,16 @@ describe('game lifecycle', () => {
     expect(game.panelState().practice).toBeUndefined(); expect(game.panelState().player.attrs.damage).toBe(10)
     game.dispose()
   })
+  it('boots and restarts endless mode with the same seed, first floor and no test privileges', () => {
+    const { game } = idleGame({ endless: createEndlessMode(), seed: 4321 })
+    const state = game.panelState().endless
+    expect(state).toMatchObject({ seed: 4321, floor: 1, open: false, alive: 0, pending: 6 })
+    expect(game.session().endless).toBe(true); expect(game.session().practice).toBe(false)
+    game.setUiMode('menu'); expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 10 })).toBe(false)
+    game.restart()
+    expect(game.panelState().endless).toEqual(state); expect(game.debug().purchases).toBe(0)
+    game.dispose()
+  })
 
   it('restarts a practice session with its configuration and clears the build', () => {
     const mode = createPracticeMode()
@@ -125,6 +136,20 @@ describe('game lifecycle', () => {
     const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' } })
     game.start(); advance(1000); advance(1200)
     expect(game.debug().projectiles).toBe(0)
+    game.dispose()
+  })
+
+  it('preserves a disabled magnet preference across purchases, practice grants and restarts', () => {
+    const { game } = idleGame({ practice: createPracticeMode(), initialSettings: { aimMode: 'manual', fireMode: 'manual', autoPickup: false } })
+    game.setUiMode('menu')
+    expect(game.buyCard('magnet')).toBe(true)
+    expect(game.panelState().player.attrs.pickupRadius).toBe(180)
+    expect(game.panelState().settings.autoPickup).toBe(false)
+    game.restart(); game.setUiMode('menu')
+    expect(game.practiceAction({ type: 'card-level', id: 'magnet', level: 3 })).toBe(true)
+    expect(game.panelState().settings.autoPickup).toBe(false)
+    game.setSetting('autoPickup', true); game.restart()
+    expect(game.panelState().settings.autoPickup).toBe(true)
     game.dispose()
   })
 

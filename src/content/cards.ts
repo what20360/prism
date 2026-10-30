@@ -1,7 +1,7 @@
 import { createCardRegistry } from '../core/cards'
-import type { AttrKey } from '../core/attrs'
+import type { AttrKey, AttrSet } from '../core/attrs'
 import type { Card, Requirement } from '../core/cards'
-import { CARD_ECONOMY, DEFLECT_RULES, DROP_RULES, MINE_RULES, WEAPON_RULES, homingProfile } from '../core/rules'
+import { CARD_ECONOMY, DEFLECT_RULES, DROP_RULES, MINE_RULES, WEAPON_RULES, homingProfile, penetrationProfile } from '../core/rules'
 import { TICK_RATE } from '../core/types'
 import { formatRuleNumber as fmt } from './format'
 import { describeRage, describeDash } from './skills'
@@ -12,6 +12,7 @@ type Operation = 'add' | 'multiply' | 'divide' | 'set' | 'chance'
 type Modifier = readonly [key: AttrKey, operation: Operation, value: number, label: string, percent?: boolean]
 type Formula = (level: number) => readonly Modifier[]
 type Options = Partial<Pick<Card, 'priority' | 'resellable' | 'maxLevel' | 'requires' | 'tags'>> & {
+  readonly enabled?: (attrs: AttrSet) => boolean
   readonly describe?: (level: number, modifiers: readonly Modifier[], generated: string) => string
 }
 export function cardPrice(base: number, level: number): number { return Math.round(base * CARD_ECONOMY.growth ** (level - 1)) }
@@ -21,10 +22,11 @@ function describeModifier([, operation, value, label, percent]: Modifier): strin
     operation === 'add' ? `${label} ${value >= 0 ? '+' : ''}${shown}` : `${label} ${operation === 'divide' ? '÷' : '×'}${shown}`
 }
 function formulaCard(id: string, name: string, category: Card['category'], cost: number, formula: Formula, options: Options = { priority: 100 }): Card {
-  const { describe, ...metadata } = options
-  return { id, name, category, priority: 100, priceFn: (level) => cardPrice(cost, level), ...metadata,
+  const { describe, enabled, ...metadata } = options
+  return { id, name, category, priority: 100, priceFn: (level) => cardPrice(cost, level), ...metadata, resellable: true,
     effectFn: (level, attrs) => {
       const next = { ...attrs }
+      if (enabled && !enabled(attrs)) return next
       for (const [key, operation, value] of formula(level)) {
         next[key] = operation === 'add' ? next[key] + value : operation === 'multiply' ? next[key] * value :
           operation === 'divide' ? next[key] / value : operation === 'chance' ? 1 - (1 - next[key]) * (1 - value) : value
@@ -34,7 +36,7 @@ function formulaCard(id: string, name: string, category: Card['category'], cost:
     },
     summary: (level) => {
       const modifiers = formula(level), text = modifiers.filter(([, op, value, label]) => label && (op !== 'add' || value !== 0)).map(describeModifier).join(' · ')
-      return (describe ? describe(level, modifiers, text) : text) + (metadata.resellable ? ' · 可回收' : '')
+      return (describe ? describe(level, modifiers, text) : text) + ' · 可回收'
     },
   }
 }
@@ -88,7 +90,7 @@ export const BUILD_CARDS: readonly Card[] = [
   toggle('auto-fire', '自动扳机', 'special', 12, 'autoFire', () => '启用自动射击；设置中可切回手动', undefined, 0),
   formulaCard('burst', '连发', 'gun', 26, (level) => [
     ['burstCount', 'add', level, '连发轮数'], ['damage', 'divide', 1 + 0.2 * level, '伤害'], ['range', 'divide', 1 + 0.1 * level, '射程'],
-  ], { priority: 100, tags: ['连发'], describe: (_level, _modifiers, text) => `${text}；同一朝向，间隔 ${fmt(WEAPON_RULES.burstGapTicks / TICK_RATE)} 秒；与霰弹弹数相乘` }),
+  ], { priority: 110, enabled: (attrs) => attrs.maxProjectiles !== 1, tags: ['连发'], describe: (_level, _modifiers, text) => `${text}；同一朝向，间隔 ${fmt(WEAPON_RULES.burstGapTicks / TICK_RATE)} 秒；与霰弹弹数相乘；狙击手生效时整卡暂停（含代价）` }),
   formulaCard('scatter', '霰弹', 'gun', 32, (level) => [
     ['multishot', 'add', 2 * level, '每轮弹数'], ['bulletSpeed', 'divide', 1 + 0.12 * level, '弹速'], ['damage', 'divide', 1 + 0.14 * level, '伤害'],
   ], { priority: 100, tags: ['霰弹'], describe: (_level, _modifiers, text) => `${text}；多方向发射` }),
@@ -102,6 +104,12 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('suspension', '悬浮弹芯', 'gun', 14, (level) => [['bulletSpeed', 'divide', 1 + 0.6 * level, '弹速']], {
     priority: 100, resellable: true, tags: ['飞剑', '追踪', '可回收'], describe: (_level, _modifiers, text) => `${text}；保留射程，延长飞行时间；配合追踪形成飞剑`,
   }),
+  formulaCard('pierce-drive', '贯穿推进', 'gun', 24, (level) => [['pierceBoost', 'add', level, '贯穿推进等级']], {
+    priority: 100, tags: ['穿透', '飞剑'], requires: [{ card: 'gun-pierce', level: 1 }], describe: (level) => {
+      const p = penetrationProfile(level)
+      return `每次穿过单位后若仍有穿透：弹速与最高弹速 ×${fmt(p.speedMultiplier)}，剩余射程 +${fmt(p.rangeGain)}`
+    },
+  }),
   numericCard('explosive', '星爆弹头', 'gun', 32, [['blastRadius', 'add', 45, '爆炸半径'], ['damage', 'multiply', 0.94, '伤害']], ['爆破']),
   numericCard('coward', '胆小鬼', 'mobility', 22, [['speed', 'multiply', 1.25, '移速'], ['maxHp', 'multiply', 0.8, '最终最大生命']], ['机动', '可回收'], true, undefined, 1000),
   numericCard('heavy-stance', '重炮手', 'gun', 28, [['speed', 'multiply', 0.85, '移速'], ['armor', 'add', 30, '护甲'], ['damage', 'multiply', 1.35, '伤害']], ['重炮', '可回收'], true),
@@ -109,7 +117,7 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('precision-stance', '狙击手', 'gun', 28, (level) => [
     ['range', 'multiply', 1 + 0.6 * level, '射程'], ['bulletSpeed', 'multiply', 1 + 2 * level, '弹速'],
     ['maxProjectiles', 'set', 1, '自有子弹上限'],
-  ], { priority: 100, resellable: true, tags: ['精准', '可回收'], describe: (_level, _modifiers, text) => `${text}；高速弹转弯半径更大，连发/霰弹/破片也受一弹限制` }),
+  ], { priority: 100, resellable: true, tags: ['精准', '可回收'], describe: (_level, _modifiers, text) => `${text}；高速弹转弯半径更大；暂停连发及其代价，霰弹/破片也受一弹限制` }),
   formulaCard('ascender', '登高者', 'special', 18, (level) => [['vision', 'multiply', 1 + 0.12 * level, '可见世界范围']], { priority: 100, tags: ['视野'] }),
   numericCard('mine-power', '聚变雷芯', 'mine', 12, [['mineDamage', 'add', 8, '地雷伤害']], ['雷场']),
   numericCard('mine-radius', '扩域雷场', 'mine', 14, [['mineBlastRadius', 'add', 25, '爆炸半径']], ['雷场']),
@@ -128,7 +136,9 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('gourmet', '美食家', 'recovery', 22, (level) => [['bloodOrbChance', 'chance', 1 - 0.88 ** level, '血球掉落概率', true]], {
     priority: 100, tags: ['拾取', '续航'], describe: (_level, _modifiers, text) => `${text}；子弹有效伤害触发，回复至少 ${fmt(DROP_RULES.bloodMinimum)} 生命或最大生命 ${fmt(DROP_RULES.bloodHpFraction * 100)}%`,
   }),
-  numericCard('magnet', '磁吸核心', 'special', 12, [['pickupRadius', 'add', 80, '掉落吸引半径']], ['拾取']),
+  formulaCard('magnet', '磁吸核心', 'special', 12, (level) => [['pickupRadius', 'add', 100 + 80 * level, '自动吸取半径']], {
+    priority: 100, tags: ['拾取'], describe: (_level, _modifiers, text) => `${text}；设置中可开关，靠近仍可手动拾取`,
+  }),
   numericCard('shield-regen', '自愈电容', 'recovery', 20, [['shieldRegen', 'add', 2, '护盾回复/秒']], ['护盾']),
   numericCard('thruster', '矢量推进', 'mobility', 12, [['speed', 'add', 25, '移速']], ['机动']),
   numericCard('core-stability', '核心稳态', 'defense', 18, [['coreRadiusMult', 'multiply', 0.92, '自身核心半径']], ['生存']),
