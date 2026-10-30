@@ -2,7 +2,9 @@
 
 一款 2D 俯视角、几何抽象风的地牢 Roguelike 射击游戏：**局内成长、无局外养成**。
 
-开发成果仅更新到 GitHub `main`。现有测试站点已停止维护，不保证与源码一致；交付约定见 [docs/deployment.md](docs/deployment.md)。
+开发成果更新到 GitHub `main`，由 GitHub Actions 自动测试、构建并发布到 GitHub Pages。首次启用步骤见 [docs/deployment.md](docs/deployment.md)；原测试站点已停止维护。
+
+GitHub Pages 地址：https://what20360.github.io/prism/ （完成首次启用与部署后可公开访问，无需登录）。
 
 | 项目 | 状态 |
 |---|---|
