@@ -16,17 +16,13 @@ body {
   height: 100vh;
 }
 
-/* Upgrade panel (paused, DOM layer) */
+/* Paused menu: left navigation + right page */
 .panel {
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px 32px;
-  box-sizing: border-box;
-  overflow: auto;
-  background: rgba(4, 5, 9, 0.88);
+  background: #05070c;
   color: #9fb3d1;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -35,62 +31,106 @@ body {
   display: none;
 }
 
-.panel__header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.panel--menu {
+  padding: 0;
+  overflow: hidden;
 }
 
-.panel h2 {
-  margin: 0;
-  font-size: 22px;
+.menu {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.menu__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px 16px;
+  border-right: 1px solid rgba(90, 220, 255, 0.18);
+  background: rgba(8, 11, 18, 0.9);
+}
+
+.menu__brand {
+  margin: 0 0 14px;
+  padding-left: 12px;
+  font-size: 20px;
+  letter-spacing: 0.22em;
   color: #5adcff;
 }
 
-.panel__shards {
-  margin-left: auto;
-  color: #ffd166;
-}
-
-.panel__close {
+.menu__tab {
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
-  border: 1px solid rgba(120, 170, 255, 0.5);
-  color: inherit;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
+  color: #9fb3d1;
   font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.panel__close:hover {
+.menu__tab:hover {
+  background: rgba(90, 220, 255, 0.1);
+  color: #dce8ff;
+}
+
+.menu__tab--active {
+  border-color: rgba(90, 220, 255, 0.45);
+  background: rgba(90, 220, 255, 0.14);
+  color: #dce8ff;
+}
+
+.menu__resume {
+  margin-top: auto;
+  padding: 10px 12px;
+  border: 1px solid rgba(120, 170, 255, 0.5);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.menu__resume:hover {
   background: rgba(120, 170, 255, 0.15);
 }
 
-.panel__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  align-items: start;
+.menu__content {
+  overflow: auto;
+  padding: 24px 32px;
 }
 
-.panel__section h3 {
-  margin: 0 0 8px;
+.menu__hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #ffd166;
+}
+
+.menu__section {
+  margin-bottom: 22px;
+}
+
+.menu__heading {
+  margin: 0 0 10px;
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(159, 179, 209, 0.7);
+  color: rgba(159, 179, 209, 0.72);
 }
 
-.panel__cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Card browser */
+.cards__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
 }
 
 .card {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 5px;
   padding: 10px 12px;
   border: 1px solid rgba(90, 220, 255, 0.25);
   border-radius: 8px;
@@ -101,18 +141,69 @@ body {
   cursor: pointer;
 }
 
-.card:hover:not(:disabled) {
+.card:hover {
   background: rgba(90, 220, 255, 0.16);
 }
 
-.card--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.card--locked,
+.card--max-level {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.card--locked:hover,
+.card--max-level:hover {
+  background: rgba(90, 220, 255, 0.06);
+}
+
+.card--not-enough-shards {
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__name {
+  font-size: 14px;
+}
+
+.card__level {
+  font-size: 12px;
+  color: #5adcff;
 }
 
 .card__meta {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
   color: #ffd166;
-  white-space: nowrap;
+}
+
+/* Not affordable: the price itself turns red instead of showing a warning. */
+.card__price--short {
+  color: #ff6b6b;
+}
+
+.card__price--muted {
+  color: rgba(159, 179, 209, 0.65);
+}
+
+.card__status {
+  color: #ff6b6b;
+}
+
+.card__effect {
+  font-size: 12px;
+  color: rgba(159, 179, 209, 0.92);
+}
+
+.card__req {
+  font-size: 12px;
+  color: rgba(255, 209, 102, 0.85);
 }
 /* Result panel */
 .panel--result {
@@ -155,32 +246,21 @@ body {
 .result__restart {
   margin-top: 8px;
 }
-/* Help panel */
-.panel--help {
-  gap: 20px;
-}
-
-.help__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
-  align-items: start;
-}
-
-.help__list {
+/* Key reference */
+.keys__list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.help__row {
+.keys__row {
   display: grid;
-  grid-template-columns: 160px 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 16px;
   align-items: baseline;
 }
 
-.help__row kbd {
+.keys__row kbd {
   justify-self: start;
   padding: 3px 10px;
   border: 1px solid rgba(90, 220, 255, 0.35);
@@ -192,6 +272,89 @@ body {
   white-space: nowrap;
 }
 
-.help__row span {
+.keys__row span {
   color: rgba(159, 179, 209, 0.9);
+}
+
+/* Rules */
+.help__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.help__term {
+  color: #5adcff;
+}
+
+.help__row span:last-child {
+  color: rgba(159, 179, 209, 0.9);
+}
+
+/* Attribute sheet */
+.attrs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.attrs__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attrs__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(90, 220, 255, 0.12);
+}
+
+.attrs__key {
+  color: rgba(159, 179, 209, 0.85);
+}
+
+.attrs__value {
+  color: #dce8ff;
+}
+
+@media (max-width: 720px) {
+  .menu {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .menu__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid rgba(90, 220, 255, 0.18);
+  }
+
+  .menu__brand {
+    margin: 0 8px 0 0;
+    padding-left: 0;
+  }
+
+  .menu__resume {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
+  .keys__row,
+  .help__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }

@@ -1,0 +1,123 @@
+import { renderAttrsSection, type PlayerView } from './sections/attrs'
+import { renderCardsSection, type CardsSectionState } from './sections/cards'
+import { renderHelpSection } from './sections/help'
+import { renderKeysSection } from './sections/keys'
+
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs'
+
+export interface MenuState extends CardsSectionState {
+  readonly player: PlayerView
+}
+
+export interface MenuHandlers {
+  readonly onClose: () => void
+  readonly onBuy: (cardId: string) => void
+  readonly getState: () => MenuState
+}
+
+export interface Menu {
+  open(): void
+  close(): void
+  refresh(): void
+  readonly visible: boolean
+  readonly section: MenuSection
+}
+
+const SECTIONS: readonly { id: MenuSection; label: string }[] = [
+  { id: 'help', label: '帮助' },
+  { id: 'keys', label: '按键绑定' },
+  { id: 'upgrade', label: '升级面板' },
+  { id: 'attrs', label: '角色属性' },
+]
+
+/**
+ * Single paused menu: Escape opens it, the left column switches pages and the
+ * right column renders the active page. One key instead of one key per panel.
+ */
+export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
+  const overlay = document.createElement('div')
+  overlay.className = 'panel panel--menu'
+  overlay.hidden = true
+
+  const shell = document.createElement('div')
+  shell.className = 'menu'
+
+  const nav = document.createElement('nav')
+  nav.className = 'menu__nav'
+
+  const brand = document.createElement('h2')
+  brand.className = 'menu__brand'
+  brand.textContent = 'PRISM'
+  nav.append(brand)
+
+  const buttons = new Map<MenuSection, HTMLButtonElement>()
+  for (const section of SECTIONS) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'menu__tab'
+    button.textContent = section.label
+    button.addEventListener('click', () => select(section.id))
+    buttons.set(section.id, button)
+    nav.append(button)
+  }
+
+  const resume = document.createElement('button')
+  resume.type = 'button'
+  resume.className = 'menu__resume'
+  resume.textContent = '继续 (Esc)'
+  resume.addEventListener('click', () => handlers.onClose())
+  nav.append(resume)
+
+  const content = document.createElement('div')
+  content.className = 'menu__content'
+
+  shell.append(nav, content)
+  overlay.append(shell)
+  root.append(overlay)
+
+  let active: MenuSection = 'upgrade'
+
+  const render = (): void => {
+    const state = handlers.getState()
+    content.replaceChildren()
+
+    if (active === 'help') content.append(renderHelpSection())
+    else if (active === 'keys') content.append(renderKeysSection())
+    else if (active === 'attrs') content.append(renderAttrsSection(state.player))
+    else content.append(renderCardsSection(state, { onBuy: handlers.onBuy }))
+
+    for (const [id, button] of buttons) {
+      button.classList.toggle('menu__tab--active', id === active)
+      button.setAttribute('aria-current', id === active ? 'page' : 'false')
+    }
+  }
+
+  const select = (section: MenuSection): void => {
+    active = section
+    render()
+    content.scrollTop = 0
+  }
+
+  const open = (): void => {
+    overlay.hidden = false
+    render()
+  }
+
+  const close = (): void => {
+    overlay.hidden = true
+  }
+
+  return {
+    open,
+    close,
+    refresh: () => {
+      if (!overlay.hidden) render()
+    },
+    get visible() {
+      return !overlay.hidden
+    },
+    get section() {
+      return active
+    },
+  }
+}

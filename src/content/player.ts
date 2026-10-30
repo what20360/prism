@@ -2,7 +2,7 @@ import type { AttrSet } from '../core/attrs'
 
 /** Numbers mirror docs/balance.md. Never inline these elsewhere. */
 export const PLAYER_BASE_ATTRS: AttrSet = {
-  maxHp: 100,
+  maxHp: 50,
   speed: 330,
   radius: 40,
   coreRadiusMult: 0.45,

@@ -101,7 +101,7 @@ describe('lifesteal and shield steal', () => {
   it('heals for a share of damage dealt', () => {
     const world = makeWorld()
     const player = getPlayer(world)
-    player.hp = 50
+    player.hp = 10
     setAttrs(player, { lifesteal: 0.5 })
 
     const target = [...world.actors.values()].find((actor) => actor.team === 'enemy')
@@ -126,7 +126,7 @@ describe('lifesteal and shield steal', () => {
       isCore: false,
     })
 
-    expect(player.hp).toBeCloseTo(60, 6)
+    expect(player.hp).toBeCloseTo(20, 6)
   })
 
   it('caps shield steal at max hp * shieldCapMult', () => {
@@ -347,5 +347,28 @@ describe('pause and determinism', () => {
     const afterBuy = hashWorld(world)
 
     expect(typeof afterBuy).toBe('string')
+  })
+})
+
+describe('card info', () => {
+  it('describes every card effect twice differently by level', () => {
+    for (const card of CARD_REGISTRY.all()) {
+      expect(typeof card.summary, card.id).toBe('function')
+      const first = card.summary?.(1)
+      expect(first, card.id).toBeTruthy()
+      expect(card.summary?.(2), card.id).not.toBe(first)
+    }
+  })
+
+  it('exposes summaries and prerequisites to the menu', () => {
+    const states = listCardStates(makeWorld())
+
+    const deflect = states.find((state) => state.id === 'deflect')
+    expect(deflect?.requires).toEqual([{ attr: 'armor', min: 20 }])
+    expect(deflect?.summary).toContain('力场半径')
+
+    const damage = states.find((state) => state.id === 'gun-damage')
+    expect(damage?.summary).toBe('伤害 +2（每级 +2）')
+    expect(damage?.requires).toEqual([])
   })
 })

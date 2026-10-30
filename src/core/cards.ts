@@ -23,7 +23,8 @@ export interface Requirement {
 /**
  * A card is a price function plus an effect function.
  * `priceFn` depends only on the purchase count (docs/requirements.md 5.3.1);
- * `effectFn` is pure and returns a new attribute set.
+ * `effectFn` is pure and returns a new attribute set. `summary` describes the
+ * same effect in words so the upgrade panel never has to guess.
  */
 export interface Card {
   readonly id: string
@@ -32,6 +33,7 @@ export interface Card {
   readonly priority: number
   readonly priceFn: (level: number) => number
   readonly effectFn: (level: number, attrs: AttrSet) => AttrSet
+  readonly summary?: (level: number) => string
   readonly requires?: readonly Requirement[]
   readonly maxLevel?: number
 }

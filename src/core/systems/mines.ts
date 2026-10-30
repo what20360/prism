@@ -8,20 +8,21 @@ export const MINE_FUSE_TICKS = Math.round(0.08 * TICK_RATE)
 export const MINE_PLACE_COOLDOWN_TICKS = TICK_RATE * 2
 export const MAX_MINES_PER_TEAM = 3
 export const MINE_BODY_RADIUS = 30
-export const MINE_TRIGGER_RADIUS = 80
 export const MINE_BLAST_RADIUS = 200
-export const MINE_SLOW_RADIUS = 80
+/** Trigger and slow field share one ratio of the blast radius (docs/balance.md 3). */
+export const MINE_PROXIMITY_RATIO = 0.6
+export const MINE_TRIGGER_RADIUS = MINE_BLAST_RADIUS * MINE_PROXIMITY_RATIO
+export const MINE_SLOW_RADIUS = MINE_BLAST_RADIUS * MINE_PROXIMITY_RATIO
 export const MINE_SLOW_FACTOR = 0.6
 export const MINE_DAMAGE = 30
 
+/** Placing at the cap replaces the oldest mine of that owner instead of failing. */
 export function tryPlaceMine(world: World, actor: Actor): void {
   if (actor.mineCooldownTicks > 0) return
 
-  let owned = 0
-  for (const mine of world.mines) {
-    if (mine.ownerId === actor.id) owned += 1
-  }
-  if (owned >= MAX_MINES_PER_TEAM) return
+  const owned = world.mines.filter((mine) => mine.ownerId === actor.id)
+  const oldest = owned.length >= MAX_MINES_PER_TEAM ? owned[0] : undefined
+  if (oldest) removeMine(world, oldest)
 
   world.mines.push({
     id: allocateId(world),

@@ -134,7 +134,10 @@ src/
     keyboard.ts  gamepad.ts  touch.ts  replay.ts
     intent.ts           设备无关的意图输出
   ui/
-    hud.ts  upgradePanel.ts  resultPanel.ts  settings.ts
+    menu.ts             暂停菜单外壳（Esc，左侧目录 + 右侧内容）
+    sections/           菜单分页：help / keys / cards / attrs
+    cardInfo.ts         属性与前置的中文文案格式化
+    resultPanel.ts      结算面板
   net/
     transport.ts        接口定义（首发空实现）
   storage/

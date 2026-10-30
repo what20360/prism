@@ -1,5 +1,5 @@
 import { shieldCap, type AttrSet } from './attrs'
-import type { BuyResult } from './cards'
+import type { BuyResult, Requirement } from './cards'
 import { meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
 import type { Actor, World } from './world'
 import { getPlayer } from './world'
@@ -13,6 +13,10 @@ export interface CardState {
   readonly level: number
   readonly price: number
   readonly availability: CardAvailability
+  /** Effect of the next purchase, for tooltips. */
+  readonly summary: string | null
+  /** Prerequisites as data; the UI decides how to phrase them. */
+  readonly requires: readonly Requirement[]
 }
 
 /** Read-only view for the upgrade panel. */
@@ -37,6 +41,8 @@ export function listCardStates(world: World): CardState[] {
       level,
       price,
       availability,
+      summary: card.summary ? card.summary(level + 1) : null,
+      requires: card.requires ?? [],
     }
   })
 }

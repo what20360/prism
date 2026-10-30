@@ -33,15 +33,20 @@ const WALL_SETS: readonly (readonly { x: number; y: number; width: number; heigh
   ],
 ]
 
+/**
+ * Free-standing spawn points: each one keeps clearance from the player entry
+ * (>= 180 units) and from every wall in all three layouts, so the safety net in
+ * `resolveSpawnPosition` never has to move them.
+ */
 const ANCHORS: readonly Vec2[] = [
-  { x: 800, y: 420 },
-  { x: 2400, y: 420 },
-  { x: 800, y: 1400 },
-  { x: 2400, y: 1400 },
-  { x: 1100, y: 900 },
-  { x: 2100, y: 900 },
-  { x: 1250, y: 1250 },
-  { x: 1950, y: 1250 },
+  { x: 400, y: 380 },
+  { x: 2800, y: 380 },
+  { x: 400, y: 1250 },
+  { x: 2800, y: 1250 },
+  { x: 1000, y: 1000 },
+  { x: 2200, y: 1000 },
+  { x: 1600, y: 380 },
+  { x: 1600, y: 1250 },
 ]
 
 function spawn(type: string, pos: Vec2): EnemySpawnSpec {

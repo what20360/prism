@@ -16,6 +16,48 @@ export function isOpposing(a: Team, b: Team): boolean {
   return a !== b
 }
 
+/**
+ * Nudges a circle out of every wall it overlaps and back inside the room bounds.
+ * Spawning uses this so a content anchor can never trap an actor in geometry.
+ */
+export function resolveSpawnPosition(
+  pos: Vec2,
+  radius: number,
+  walls: readonly Rect[],
+  bounds: Rect,
+): Vec2 {
+  let x = pos.x
+  let y = pos.y
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    let moved = false
+    for (const wall of walls) {
+      if (!circleIntersectsRect(x, y, radius, wall)) continue
+
+      const left = wall.x - radius - x
+      const right = wall.x + wall.width + radius - x
+      const up = wall.y - radius - y
+      const down = wall.y + wall.height + radius - y
+      const dx = Math.abs(left) < Math.abs(right) ? left : right
+      const dy = Math.abs(up) < Math.abs(down) ? up : down
+
+      if (Math.abs(dx) <= Math.abs(dy)) x += dx
+      else y += dy
+      moved = true
+    }
+    if (!moved) break
+  }
+
+  const minX = bounds.x + radius
+  const maxX = bounds.x + bounds.width - radius
+  const minY = bounds.y + radius
+  const maxY = bounds.y + bounds.height - radius
+  return {
+    x: x < minX ? minX : x > maxX ? maxX : x,
+    y: y < minY ? minY : y > maxY ? maxY : y,
+  }
+}
+
 /** Shortest distance from a point to a ray (origin + unit direction). */
 export function distanceToRay(
   px: number,

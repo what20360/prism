@@ -1,5 +1,5 @@
 import { createCardRegistry } from '../core/cards'
-import type { AttrKey, AttrSet } from '../core/attrs'
+import type { AttrKey } from '../core/attrs'
 import type { Card, Requirement } from '../core/cards'
 
 const GROWTH = 1.6
@@ -9,8 +9,25 @@ function priceFor(base: number): (level: number) => number {
   return (level) => Math.round(base * Math.pow(GROWTH, level - 1))
 }
 
-function addAttr(key: AttrKey, perLevel: number): (level: number, attrs: AttrSet) => AttrSet {
-  return (level, attrs) => ({ ...attrs, [key]: (attrs[key] as number) + perLevel * level })
+const fmt = (value: number): string => String(Number(value.toFixed(3)))
+
+/**
+ * Cards that only shift one attribute share this factory, so the effect and its
+ * tooltip text can never drift apart.
+ */
+function attrEffect(
+  key: AttrKey,
+  perLevel: number,
+  label: string,
+  unit: 'flat' | 'percent' = 'flat',
+): Pick<Card, 'effectFn' | 'summary'> {
+  const show = (value: number): string =>
+    unit === 'percent' ? `${fmt(value * 100)}%` : fmt(value)
+
+  return {
+    effectFn: (level, attrs) => ({ ...attrs, [key]: (attrs[key] as number) + perLevel * level }),
+    summary: (level) => `${label} +${show(perLevel * level)}（每级 +${show(perLevel)}）`,
+  }
 }
 
 function atLeast(key: AttrKey, min: number): Requirement {
@@ -24,7 +41,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(10),
-    effectFn: addAttr('damage', 2),
+    ...attrEffect('damage', 2, '伤害'),
   },
   {
     id: 'gun-firerate',
@@ -32,7 +49,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(12),
-    effectFn: addAttr('fireRate', 0.2),
+    ...attrEffect('fireRate', 0.2, '射速'),
   },
   {
     id: 'gun-bulletspeed',
@@ -40,7 +57,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(8),
-    effectFn: addAttr('bulletSpeed', 90),
+    ...attrEffect('bulletSpeed', 90, '弹速'),
   },
   {
     id: 'gun-range',
@@ -48,7 +65,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(6),
-    effectFn: addAttr('range', 70),
+    ...attrEffect('range', 70, '射程'),
   },
   {
     id: 'gun-pierce',
@@ -56,7 +73,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(20),
-    effectFn: addAttr('pierce', 1),
+    ...attrEffect('pierce', 1, '穿透层数'),
   },
   {
     id: 'gun-size',
@@ -64,7 +81,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(8),
-    effectFn: addAttr('bulletSize', 1),
+    ...attrEffect('bulletSize', 1, '子弹大小'),
   },
   {
     id: 'gun-penetration',
@@ -72,7 +89,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(14),
-    effectFn: addAttr('penetration', 20),
+    ...attrEffect('penetration', 20, '护甲穿透'),
   },
   {
     id: 'gun-inner',
@@ -80,7 +97,7 @@ export const CARDS: readonly Card[] = [
     category: 'gun',
     priority: 10,
     priceFn: priceFor(18),
-    effectFn: addAttr('innerDamageMult', 0.1),
+    ...attrEffect('innerDamageMult', 0.1, '内层伤害倍率'),
   },
   {
     id: 'armor',
@@ -88,7 +105,7 @@ export const CARDS: readonly Card[] = [
     category: 'defense',
     priority: 20,
     priceFn: priceFor(14),
-    effectFn: addAttr('armor', 10),
+    ...attrEffect('armor', 10, '护甲'),
   },
   {
     id: 'maxhp',
@@ -96,7 +113,7 @@ export const CARDS: readonly Card[] = [
     category: 'defense',
     priority: 20,
     priceFn: priceFor(8),
-    effectFn: addAttr('maxHp', 10),
+    ...attrEffect('maxHp', 10, '最大生命'),
   },
   {
     id: 'shield',
@@ -104,7 +121,7 @@ export const CARDS: readonly Card[] = [
     category: 'defense',
     priority: 20,
     priceFn: priceFor(12),
-    effectFn: addAttr('shield', 10),
+    ...attrEffect('shield', 10, '护盾值'),
   },
   {
     id: 'shield-cap',
@@ -112,7 +129,7 @@ export const CARDS: readonly Card[] = [
     category: 'defense',
     priority: 20,
     priceFn: priceFor(16),
-    effectFn: addAttr('shieldCapMult', 0.25),
+    ...attrEffect('shieldCapMult', 0.25, '护盾上限系数'),
   },
   {
     id: 'shard-gain',
@@ -120,7 +137,7 @@ export const CARDS: readonly Card[] = [
     category: 'special',
     priority: 5,
     priceFn: priceFor(20),
-    effectFn: addAttr('shardGain', 0.1),
+    ...attrEffect('shardGain', 0.1, '棱晶收益', 'percent'),
   },
   {
     id: 'lifesteal',
@@ -128,7 +145,7 @@ export const CARDS: readonly Card[] = [
     category: 'recovery',
     priority: 30,
     priceFn: priceFor(18),
-    effectFn: addAttr('lifesteal', 0.02),
+    ...attrEffect('lifesteal', 0.02, '吸血', 'percent'),
     requires: [atLeast('shardGain', 1.1)],
   },
   {
@@ -137,7 +154,7 @@ export const CARDS: readonly Card[] = [
     category: 'recovery',
     priority: 30,
     priceFn: priceFor(18),
-    effectFn: addAttr('shieldSteal', 0.02),
+    ...attrEffect('shieldSteal', 0.02, '吸盾', 'percent'),
     requires: [atLeast('shieldCapMult', 1.25)],
   },
   {
@@ -147,7 +164,7 @@ export const CARDS: readonly Card[] = [
     priority: 40,
     priceFn: priceFor(60),
     maxLevel: 2,
-    effectFn: addAttr('revives', 1),
+    ...attrEffect('revives', 1, '复活次数'),
   },
   {
     id: 'deflect',
@@ -163,6 +180,10 @@ export const CARDS: readonly Card[] = [
       deflectFieldRadius: level === 1 ? 220 : attrs.deflectFieldRadius + 40,
       deflectFieldStrength: level === 1 ? 600 : attrs.deflectFieldStrength + 150,
     }),
+    summary: (level) =>
+      level <= 1
+        ? '力场半径 220、强度 600；主动窗口 0.25 秒：力场 ×5 并把接触的子弹转为己方'
+        : '力场半径 +40、强度 +150、主动窗口 +0.05 秒',
     requires: [atLeast('armor', 20)],
   },
   {
@@ -180,6 +201,8 @@ export const CARDS: readonly Card[] = [
       deflectFieldRadius: attrs.deflectFieldRadius + 30 * level,
       deflectFieldStrength: attrs.deflectFieldStrength + 100 * level,
     }),
+    summary: (level) =>
+      `反射伤害倍率 +${fmt(0.5 * level)}、力场半径 +${30 * level}、强度 +${100 * level}、窗口 +${fmt(0.05 * level)} 秒`,
     requires: [{ card: 'deflect', level: 1 }, atLeast('armor', 50)],
   },
 ]

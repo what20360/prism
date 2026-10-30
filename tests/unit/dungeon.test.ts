@@ -5,6 +5,7 @@ import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { applyRoom } from '../../src/core/dungeon'
+import { circleIntersectsRect, resolveSpawnPosition } from '../../src/core/collision'
 import { step } from '../../src/core/simulation'
 import { toSnapshot } from '../../src/core/snapshot'
 import { applyDamage } from '../../src/core/systems/damage'
@@ -83,6 +84,39 @@ describe('dungeon layout', () => {
         expect(overlapsCorridor && overlapsEntry).toBe(false)
       }
     }
+  })
+
+  it('never spawns an enemy inside a wall', () => {
+    for (const room of buildDungeon()) {
+      const world = makeWorld(room)
+      for (const actor of world.actors.values()) {
+        if (actor.team !== 'enemy') continue
+        for (const wall of room.walls) {
+          expect(circleIntersectsRect(actor.pos.x, actor.pos.y, actor.radius, wall)).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('keeps authored spawn anchors clear of every layout', () => {
+    for (const room of buildDungeon()) {
+      for (const spawn of room.spawns) {
+        for (const wall of room.walls) {
+          expect(circleIntersectsRect(spawn.pos.x, spawn.pos.y, spawn.attrs.radius, wall)).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('nudges a spawn that overlaps a wall to the nearest free spot', () => {
+    const wall = { x: 1500, y: 500, width: 200, height: 400 }
+    const start = { x: 1600, y: 700 }
+    expect(circleIntersectsRect(start.x, start.y, 40, wall)).toBe(true)
+
+    const resolved = resolveSpawnPosition(start, 40, [wall], BOUNDS)
+
+    expect(circleIntersectsRect(resolved.x, resolved.y, 40, wall)).toBe(false)
+    expect(Math.hypot(resolved.x - start.x, resolved.y - start.y)).toBeLessThan(260)
   })
 })
 

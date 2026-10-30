@@ -5,10 +5,8 @@ export interface IntentSource {
   read(): Intent
   /** True once per press of the restart key. */
   consumeRestart(): boolean
-  /** True once per press of the upgrade panel key. */
-  consumePanelToggle(): boolean
-  /** True once per press of the help key. */
-  consumeHelpToggle(): boolean
+  /** True once per press of the menu key (Escape). */
+  consumeMenuToggle(): boolean
   dispose(): void
 }
 
@@ -28,20 +26,15 @@ const ACTION_KEYS = new Set(['KeyE', 'KeyJ'])
 export function createKeyboardInput(target: Window): IntentSource {
   const pressed = new Set<string>()
   let restartRequested = false
-  let panelToggleRequested = false
-  let helpToggleRequested = false
+  let menuToggleRequested = false
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.code === 'KeyR') {
       restartRequested = true
       return
     }
-    if (event.code === 'KeyH') {
-      helpToggleRequested = true
-      return
-    }
-    if (event.code === 'Tab') {
-      panelToggleRequested = true
+    if (event.code === 'Escape') {
+      menuToggleRequested = true
       event.preventDefault()
       return
     }
@@ -84,15 +77,9 @@ export function createKeyboardInput(target: Window): IntentSource {
     return requested
   }
 
-  const consumePanelToggle = (): boolean => {
-    const requested = panelToggleRequested
-    panelToggleRequested = false
-    return requested
-  }
-
-  const consumeHelpToggle = (): boolean => {
-    const requested = helpToggleRequested
-    helpToggleRequested = false
+  const consumeMenuToggle = (): boolean => {
+    const requested = menuToggleRequested
+    menuToggleRequested = false
     return requested
   }
 
@@ -102,5 +89,5 @@ export function createKeyboardInput(target: Window): IntentSource {
     target.removeEventListener('blur', onBlur)
   }
 
-  return { read, consumeRestart, consumePanelToggle, consumeHelpToggle, dispose }
+  return { read, consumeRestart, consumeMenuToggle, dispose }
 }

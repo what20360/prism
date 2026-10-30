@@ -5,6 +5,13 @@ import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import type { AttrSet } from '../../src/core/attrs'
 import { step } from '../../src/core/simulation'
 import { applyDamage } from '../../src/core/systems/damage'
+import {
+  MAX_MINES_PER_TEAM,
+  MINE_BLAST_RADIUS,
+  MINE_SLOW_RADIUS,
+  MINE_TRIGGER_RADIUS,
+  tryPlaceMine,
+} from '../../src/core/systems/mines'
 import type { Mine, Projectile } from '../../src/core/world'
 import {
   createWorld,
@@ -64,9 +71,9 @@ function mineAt(x: number, y: number, overrides: Partial<Mine> = {}): Mine {
     team: 'player',
     pos: { x, y },
     bodyRadius: 30,
-    triggerRadius: 80,
-    blastRadius: 200,
-    slowRadius: 80,
+    triggerRadius: MINE_TRIGGER_RADIUS,
+    blastRadius: MINE_BLAST_RADIUS,
+    slowRadius: MINE_SLOW_RADIUS,
     slowFactor: 0.6,
     damage: 30,
     hp: 1,
@@ -174,6 +181,40 @@ describe('combat', () => {
     expect(firstEnemy(world).hp).toBeLessThan(200)
   })
 
+  it('a mine arms for an enemy standing well outside the old trigger radius', () => {
+    const standoff = MINE_TRIGGER_RADIUS - 10
+    const world = makeWorld({
+      enemies: [enemy({ maxHp: 200 }, { pos: { x: 500 + standoff, y: 540 } })],
+    })
+    world.mines.push(mineAt(500, 540))
+
+    step(world, new Map())
+
+    expect(world.mines[0]?.fuseTicks).not.toBeNull()
+  })
+
+  it('placing at the mine cap replaces the oldest mine instead of failing', () => {
+    const world = makeWorld()
+    const player = getPlayer(world)
+
+    for (let i = 0; i < MAX_MINES_PER_TEAM; i += 1) {
+      player.pos = { x: 400 + i * 40, y: 540 }
+      player.mineCooldownTicks = 0
+      tryPlaceMine(world, player)
+    }
+
+    expect(world.mines).toHaveLength(MAX_MINES_PER_TEAM)
+    const oldestId = world.mines[0]?.id
+
+    player.pos = { x: 900, y: 540 }
+    player.mineCooldownTicks = 0
+    tryPlaceMine(world, player)
+
+    expect(world.mines).toHaveLength(MAX_MINES_PER_TEAM)
+    expect(world.mines.some((mine) => mine.id === oldestId)).toBe(false)
+    expect(world.mines[world.mines.length - 1]?.pos).toEqual({ x: 900, y: 540 })
+  })
+
   it('shard income from taking a hit uses pre-mitigation damage', () => {
     const world = makeWorld({ playerAttrs: { armor: 300 } })
     const player = getPlayer(world)
@@ -187,7 +228,7 @@ describe('combat', () => {
       isCore: false,
     })
 
-    expect(player.hp).toBeCloseTo(90, 6)
+    expect(player.hp).toBeCloseTo(player.attrs.maxHp - 10, 6)
     expect(world.shards).toBeCloseTo(40 * DEFAULT_ECONOMY.takenRate, 10)
     expect(world.stats.damageTaken).toBeCloseTo(40, 10)
   })
@@ -208,7 +249,7 @@ describe('combat', () => {
     const shardsAfterFirst = world.shards
     applyDamage(world, hit)
 
-    expect(player.hp).toBeCloseTo(90, 6)
+    expect(player.hp).toBeCloseTo(player.attrs.maxHp - 10, 6)
     expect(world.shards).toBeCloseTo(shardsAfterFirst, 10)
   })
 

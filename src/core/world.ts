@@ -1,5 +1,6 @@
 import type { AttrSet } from './attrs'
 import type { CardRegistry, Purchase } from './cards'
+import { resolveSpawnPosition } from './collision'
 import { NO_INTENT, type Intent } from './controller'
 import type { EconomyRates } from './economy'
 import { createRng, type Rng } from './rng'
@@ -216,7 +217,7 @@ export function createWorld(options: CreateWorldOptions): World {
   })
 
   for (const spawn of options.room.spawns) {
-    createActor(world, { team: 'enemy', ...spawn })
+    spawnEnemy(world, spawn)
   }
 
   return world
@@ -262,6 +263,17 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
 
   world.actors.set(id, actor)
   return actor
+}
+
+/** Enemy spawn point, snapped out of walls so no enemy starts inside geometry. */
+export function spawnEnemy(world: World, spec: EnemySpawnSpec): Actor {
+  const pos = resolveSpawnPosition(
+    spec.pos,
+    spec.attrs.radius,
+    world.room.walls,
+    world.room.bounds,
+  )
+  return createActor(world, { team: 'enemy', ...spec, pos })
 }
 
 export function tryGetPlayer(world: World): Actor | undefined {

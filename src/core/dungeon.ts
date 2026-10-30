@@ -1,6 +1,6 @@
 import { shieldCap } from './attrs'
 import type { RoomTemplate, World } from './world'
-import { createActor, getPlayer } from './world'
+import { getPlayer, spawnEnemy } from './world'
 
 export type RoomSpec = RoomTemplate
 
@@ -40,7 +40,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
 
 export function spawnPendingEnemies(world: World): void {
   for (const spawn of world.pendingSpawns) {
-    createActor(world, { team: 'enemy', ...spawn })
+    spawnEnemy(world, spawn)
   }
   world.pendingSpawns = []
 }

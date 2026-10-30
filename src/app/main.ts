@@ -5,9 +5,8 @@ import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { createKeyboardInput } from '../input/keyboard'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
-import { createHelpPanel, type HelpPanel } from '../ui/helpPanel'
+import { createMenu, type Menu } from '../ui/menu'
 import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
-import { createUpgradePanel, type UpgradePanel } from '../ui/upgradePanel'
 import { createGame, type Game } from './game'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
@@ -16,7 +15,7 @@ if (!canvas) throw new Error('missing #game canvas')
 const renderer = createCanvasRenderer(canvas)
 const input = createKeyboardInput(window)
 
-const ui: { panel?: UpgradePanel; result?: ResultPanel; help?: HelpPanel } = {}
+const ui: { menu?: Menu; result?: ResultPanel } = {}
 
 const game: Game = createGame({
   rooms: buildDungeon(),
@@ -28,35 +27,26 @@ const game: Game = createGame({
   input,
   renderer,
   onUiModeChange: (mode) => {
-    if (mode === 'upgrade') {
-      ui.help?.hide()
-      ui.panel?.show(game.panelState())
+    if (mode === 'menu') {
+      ui.menu?.open()
       return
     }
-    if (mode === 'help') {
-      ui.panel?.hide()
-      ui.help?.show()
-      return
-    }
-    ui.panel?.hide()
-    ui.help?.hide()
+    ui.menu?.close()
   },
   onRunEnd: (summary) => {
-    ui.panel?.hide()
-    ui.help?.hide()
+    ui.menu?.close()
     ui.result?.show(summary)
   },
 })
 
-ui.panel = createUpgradePanel(document.body, {
+ui.menu = createMenu(document.body, {
+  onClose: () => game.setUiMode('play'),
   onBuy: (cardId) => {
     game.buyCard(cardId)
-    ui.panel?.render(game.panelState())
+    ui.menu?.refresh()
   },
-  onClose: () => game.setUiMode('play'),
+  getState: () => game.panelState(),
 })
-
-ui.help = createHelpPanel(document.body)
 
 ui.result = createResultPanel(document.body, {
   onRestart: () => {

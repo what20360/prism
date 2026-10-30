@@ -1,4 +1,5 @@
 import type { AttrSet } from '../core/attrs'
+import { shieldCap } from '../core/attrs'
 import type { CardRegistry } from '../core/cards'
 import { applyRoom, type RoomSpec } from '../core/dungeon'
 import type { EconomyRates } from '../core/economy'
@@ -10,12 +11,14 @@ import type { EntityId } from '../core/types'
 import { createWorld, getPlayer, type World } from '../core/world'
 import type { IntentSource } from '../input/keyboard'
 import type { Renderer } from '../render/canvas2d/renderer'
+import type { PlayerView } from '../ui/sections/attrs'
 
-export type UiMode = 'play' | 'upgrade' | 'help'
+export type UiMode = 'play' | 'menu'
 
 export interface PanelState {
   readonly shards: number
   readonly cards: readonly CardState[]
+  readonly player: PlayerView
 }
 
 export interface RunSummary {
@@ -141,11 +144,8 @@ export function createGame(options: GameOptions): Game {
     if (!running) return
 
     const canToggle = !world.gameOver && !world.victory
-    if (options.input.consumePanelToggle() && canToggle) {
-      setUiMode(uiMode === 'upgrade' ? 'play' : 'upgrade')
-    }
-    if (options.input.consumeHelpToggle() && canToggle) {
-      setUiMode(uiMode === 'help' ? 'play' : 'help')
+    if (options.input.consumeMenuToggle() && canToggle) {
+      setUiMode(uiMode === 'menu' ? 'play' : 'menu')
     }
     if (options.input.consumeRestart() && (world.gameOver || world.victory)) restart()
 
@@ -202,10 +202,19 @@ export function createGame(options: GameOptions): Game {
     buyCardInWorld(world, cardId)
   }
 
-  const panelState = (): PanelState => ({
-    shards: Math.floor(world.shards),
-    cards: listCardStates(world),
-  })
+  const panelState = (): PanelState => {
+    const player = getPlayer(world)
+    return {
+      shards: Math.floor(world.shards),
+      cards: listCardStates(world),
+      player: {
+        attrs: player.attrs,
+        hp: player.hp,
+        shield: player.shield,
+        shieldCap: shieldCap(player.attrs),
+      },
+    }
+  }
 
   const debug = () => {
     const player = getPlayer(world)
