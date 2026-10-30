@@ -2,6 +2,8 @@
 
 一款 2D 俯视角、几何抽象风的地牢 Roguelike 射击游戏：**局内成长、无局外养成**。
 
+私有在线测试：[PRISM](https://prism-what20360.what20360.chatgpt.site)。开发任务完成后，源码与站点一起更新；发布与版本核对流程见 [docs/deployment.md](docs/deployment.md)。
+
 | 项目 | 状态 |
 |---|---|
 | 当前阶段 | **M4 地牢结构完成**；开发暂停于「战斗信息反馈」收尾（见 `docs/backlog.md`） |
@@ -33,6 +35,7 @@
 | [docs/architecture.md](docs/architecture.md) | 架构设计：分层、`core` 内部、tick 流程、扩展点、测试策略 |
 | [docs/backlog.md](docs/backlog.md) | **未实现需求与待办**（暂停点、恢复顺序、技术债） |
 | [docs/playtest.md](docs/playtest.md) | **试玩反馈表**（玩家填写手感、数值、bug 与下一步方向） |
+| [docs/deployment.md](docs/deployment.md) | 私有测试站点、源码同步与发布版本核对 |
 | [docs/adr/0001-tech-stack.md](docs/adr/0001-tech-stack.md) | 技术选型与取舍记录 |
 | [docs/devlog.md](docs/devlog.md) | 开发手记：踩过的坑、被推翻的假设、环境怪癖 |
 
