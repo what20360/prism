@@ -348,6 +348,8 @@ interface Snapshot {
 
 ## 8. 不变量与错误处理
 
+**设置与生命周期的当前落点**：`storage/config.ts` 定义当前操作设置及版本化存档，`app/main.ts` 负责加载并订阅保存；`createGame` 只接收初始设置与变更回调，不直接访问存储。`prism.config` 只保存 `aimMode` / `fireMode`，损坏或不可读时回退默认值。所有重开入口调用 `Game.restart()`，由统一 UI 回调关闭菜单和结算面板，同时重置输入与帧计时。暂停和局末状态不再采集战斗意图。
+
 | 不变量 | 守护方式 |
 |---|---|
 | `hp ≥ 0`、`shield ≥ 0`、`armor ≥ 0` | 管线内 `clamp`，单测覆盖 |

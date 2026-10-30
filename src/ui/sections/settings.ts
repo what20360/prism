@@ -1,4 +1,4 @@
-import type { ControlSettings, SettingKey } from '../../app/game'
+import type { ControlSettings, SettingKey } from '../../storage/config'
 
 export interface SettingsHandlers {
   readonly onSetting: <K extends SettingKey>(key: K, value: ControlSettings[K]) => void
@@ -46,7 +46,7 @@ export function renderSettingsSection(
 
   const note = document.createElement('p')
   note.className = 'menu__hint'
-  note.textContent = '设置仅影响你如何下达指令，不改动任何战斗数值。'
+  note.textContent = '设置会自动保存在当前浏览器，刷新与重新开始后保留。'
   wrapper.append(note)
 
   for (const field of FIELDS) {

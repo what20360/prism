@@ -3,6 +3,8 @@ export interface PointerSource {
   position(): { x: number; y: number } | null
   /** True while the primary button is held. */
   firing(): boolean
+  /** Releases the trigger while retaining the latest aim position. */
+  reset(): void
   dispose(): void
 }
 
@@ -51,6 +53,7 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   return {
     position: () => (seen ? { x, y } : null),
     firing: () => down,
+    reset: onBlur,
     dispose: () => {
       target.removeEventListener('pointermove', onMove)
       target.removeEventListener('pointerdown', onDown)

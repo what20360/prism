@@ -6,6 +6,7 @@ import { PLAYER_BASE_ATTRS } from '../content/player'
 import { createKeyboardInput } from '../input/keyboard'
 import { createPointerInput } from '../input/pointer'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
+import { createSettingsStore } from '../storage/config'
 import { createMenu, type Menu } from '../ui/menu'
 import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
 import { createGame, type Game } from './game'
@@ -16,6 +17,7 @@ if (!canvas) throw new Error('missing #game canvas')
 const renderer = createCanvasRenderer(canvas)
 const input = createKeyboardInput(window)
 const pointer = createPointerInput(canvas)
+const settingsStore = createSettingsStore()
 
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 
@@ -29,12 +31,15 @@ const game: Game = createGame({
   input,
   pointer,
   renderer,
+  initialSettings: settingsStore.load(),
+  onSettingsChange: settingsStore.save,
   onUiModeChange: (mode) => {
     if (mode === 'menu') {
       ui.menu?.open()
       return
     }
     ui.menu?.close()
+    ui.result?.hide()
   },
   onRunEnd: (summary) => {
     ui.menu?.close()
@@ -44,6 +49,7 @@ const game: Game = createGame({
 
 ui.menu = createMenu(document.body, {
   onClose: () => game.setUiMode('play'),
+  onRestart: () => game.restart(),
   onBuy: (cardId) => {
     game.buyCard(cardId)
     ui.menu?.refresh()
@@ -56,10 +62,7 @@ ui.menu = createMenu(document.body, {
 })
 
 ui.result = createResultPanel(document.body, {
-  onRestart: () => {
-    ui.result?.hide()
-    game.restart()
-  },
+  onRestart: () => game.restart(),
 })
 
 game.start()

@@ -7,6 +7,8 @@ export interface IntentSource {
   consumeRestart(): boolean
   /** True once per press of the menu key (Escape). */
   consumeMenuToggle(): boolean
+  /** Clears held keys and queued actions when a new run starts. */
+  reset(): void
   dispose(): void
 }
 
@@ -29,12 +31,14 @@ export function createKeyboardInput(target: Window): IntentSource {
   let menuToggleRequested = false
 
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return
     if (event.code === 'KeyR') {
-      restartRequested = true
+      if (!event.repeat) restartRequested = true
+      event.preventDefault()
       return
     }
     if (event.code === 'Escape') {
-      menuToggleRequested = true
+      if (!event.repeat) menuToggleRequested = true
       event.preventDefault()
       return
     }
@@ -48,13 +52,15 @@ export function createKeyboardInput(target: Window): IntentSource {
   }
 
   // Losing focus must not leave keys stuck down.
-  const onBlur = (): void => {
+  const reset = (): void => {
     pressed.clear()
+    restartRequested = false
+    menuToggleRequested = false
   }
 
   target.addEventListener('keydown', onKeyDown)
   target.addEventListener('keyup', onKeyUp)
-  target.addEventListener('blur', onBlur)
+  target.addEventListener('blur', reset)
 
   const read = (): Intent => {
     let x = 0
@@ -86,8 +92,8 @@ export function createKeyboardInput(target: Window): IntentSource {
   const dispose = (): void => {
     target.removeEventListener('keydown', onKeyDown)
     target.removeEventListener('keyup', onKeyUp)
-    target.removeEventListener('blur', onBlur)
+    target.removeEventListener('blur', reset)
   }
 
-  return { read, consumeRestart, consumeMenuToggle, dispose }
+  return { read, consumeRestart, consumeMenuToggle, reset, dispose }
 }

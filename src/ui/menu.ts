@@ -3,7 +3,7 @@ import { renderCardsSection, type CardsSectionState } from './sections/cards'
 import { renderHelpSection } from './sections/help'
 import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
-import type { ControlSettings, SettingKey } from '../app/game'
+import type { ControlSettings, SettingKey } from '../storage/config'
 
 export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings'
 
@@ -14,6 +14,7 @@ export interface MenuState extends CardsSectionState {
 
 export interface MenuHandlers {
   readonly onClose: () => void
+  readonly onRestart: () => void
   readonly onBuy: (cardId: string) => void
   readonly onSetting: <K extends SettingKey>(key: K, value: ControlSettings[K]) => void
   readonly getState: () => MenuState
@@ -66,12 +67,22 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     nav.append(button)
   }
 
+  const actions = document.createElement('div')
+  actions.className = 'menu__actions'
+
   const resume = document.createElement('button')
   resume.type = 'button'
   resume.className = 'menu__resume'
   resume.textContent = '继续 (Esc)'
   resume.addEventListener('click', () => handlers.onClose())
-  nav.append(resume)
+  const restart = document.createElement('button')
+  restart.type = 'button'
+  restart.className = 'menu__restart'
+  restart.textContent = '重新开始'
+  restart.title = '结束当前局并重新开始'
+  restart.addEventListener('click', () => handlers.onRestart())
+  actions.append(resume, restart)
+  nav.append(actions)
 
   const content = document.createElement('div')
   content.className = 'menu__content'

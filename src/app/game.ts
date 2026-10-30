@@ -9,29 +9,23 @@ import { toSnapshot } from '../core/snapshot'
 import { TICK_DT } from '../core/types'
 import type { EntityId, Vec2 } from '../core/types'
 import type { Intent } from '../core/controller'
-import { createWorld, getPlayer, type World } from '../core/world'
+import { createWorld, getPlayer, tryGetPlayer, type World } from '../core/world'
 import type { IntentSource } from '../input/keyboard'
 import type { PointerSource } from '../input/pointer'
 import type { Renderer } from '../render/canvas2d/renderer'
 import type { PlayerView } from '../ui/sections/attrs'
+import {
+  DEFAULT_SETTINGS,
+  type AimMode,
+  type FireMode,
+  type ControlSettings,
+  type SettingKey,
+} from '../storage/config'
+
+export { DEFAULT_SETTINGS } from '../storage/config'
+export type { AimMode, FireMode, ControlSettings, SettingKey } from '../storage/config'
 
 export type UiMode = 'play' | 'menu'
-
-export type AimMode = 'auto' | 'manual'
-export type FireMode = 'auto' | 'manual'
-
-/** Player-facing control settings; they only affect how intents are authored. */
-export interface ControlSettings {
-  readonly aimMode: AimMode
-  readonly fireMode: FireMode
-}
-
-export const DEFAULT_SETTINGS: ControlSettings = {
-  aimMode: 'auto',
-  fireMode: 'auto',
-}
-
-export type SettingKey = keyof ControlSettings
 
 export interface PanelState {
   readonly shards: number
@@ -62,6 +56,8 @@ export interface GameOptions {
   readonly input: IntentSource
   readonly pointer?: PointerSource
   readonly renderer: Renderer
+  readonly initialSettings?: ControlSettings
+  readonly onSettingsChange?: (settings: ControlSettings) => void
   readonly onUiModeChange?: (mode: UiMode) => void
   readonly onRunEnd?: (summary: RunSummary) => void
 }
@@ -126,7 +122,7 @@ export function createGame(options: GameOptions): Game {
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
   let uiMode: UiMode = 'play'
-  let settings: ControlSettings = { ...DEFAULT_SETTINGS }
+  let settings: ControlSettings = { ...DEFAULT_SETTINGS, ...options.initialSettings }
   let running = false
   let frameHandle = 0
   let lastTime = 0
@@ -152,7 +148,11 @@ export function createGame(options: GameOptions): Game {
     world = spawnWorld(options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
+    options.input.reset()
+    options.pointer?.reset()
+    lastTime = 0
     accumulator = 0
+    fps = 0
     uiMode = 'play'
     options.onUiModeChange?.('play')
   }
@@ -161,6 +161,8 @@ export function createGame(options: GameOptions): Game {
     if (uiMode === mode && world.paused === (mode !== 'play')) return
     uiMode = mode
     world.paused = mode !== 'play'
+    lastTime = 0
+    accumulator = 0
     options.onUiModeChange?.(mode)
   }
 
@@ -170,7 +172,8 @@ export function createGame(options: GameOptions): Game {
     if (!pointer) return undefined
 
     const target = options.renderer.viewToWorld(pointer.x, pointer.y)
-    const player = getPlayer(world)
+    const player = tryGetPlayer(world)
+    if (!player) return undefined
     const dx = target.x - player.pos.x
     const dy = target.y - player.pos.y
     const length = Math.hypot(dx, dy)
@@ -187,7 +190,9 @@ export function createGame(options: GameOptions): Game {
   }
 
   const setSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]): void => {
+    if (settings[key] === value) return
     settings = { ...settings, [key]: value }
+    options.onSettingsChange?.({ ...settings })
   }
 
   const frame = (now: number): void => {
@@ -204,14 +209,20 @@ export function createGame(options: GameOptions): Game {
 
     if (elapsed > 0) {
       fps = fps === 0 ? 1 / elapsed : fps * 0.9 + (1 / elapsed) * 0.1
+    }
+
+    if (!world.paused && !world.gameOver && !world.victory) {
       accumulator += elapsed
 
-      while (accumulator >= TICK_DT) {
+      while (accumulator >= TICK_DT && !world.paused && !world.gameOver && !world.victory) {
         intents.set(playerId, playerIntent())
         step(world, intents)
         accumulator -= TICK_DT
       }
     }
+
+    // A frozen world must not collect input or build a catch-up backlog.
+    if (world.paused || world.gameOver || world.victory) accumulator = 0
 
     if (world.exitReached && roomIndex + 1 < options.rooms.length) {
       roomIndex += 1
@@ -268,7 +279,9 @@ export function createGame(options: GameOptions): Game {
   }
 
   const debug = () => {
-    const player = getPlayer(world)
+    // Inspection must keep working on the result screen, where the player is dead.
+    const player = world.actors.get(playerId)
+    if (!player) throw new Error('world has no player actor')
     let enemies = 0
     for (const actor of world.actors.values()) {
       if (actor.alive && actor.team === 'enemy') enemies += 1

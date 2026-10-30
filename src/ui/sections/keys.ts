@@ -26,7 +26,7 @@ export const KEY_BINDINGS: readonly KeyGroup[] = [
     section: '界面',
     items: [
       { keys: 'Esc', action: '打开 / 关闭菜单（暂停），左侧切换各个页面' },
-      { keys: 'R', action: '死亡或通关后重新开始' },
+      { keys: 'R', action: '死亡或通关后重新开始；局内可用菜单「重新开始」' },
     ],
   },
 ]

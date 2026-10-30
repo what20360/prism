@@ -82,8 +82,15 @@ body {
   color: #dce8ff;
 }
 
-.menu__resume {
+.menu__actions {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu__resume,
+.menu__restart {
   padding: 10px 12px;
   border: 1px solid rgba(120, 170, 255, 0.5);
   border-radius: 8px;
@@ -93,8 +100,13 @@ body {
   cursor: pointer;
 }
 
-.menu__resume:hover {
+.menu__resume:hover,
+.menu__restart:hover {
   background: rgba(120, 170, 255, 0.15);
+}
+
+.menu__restart {
+  color: #ffd166;
 }
 
 .menu__content {
@@ -381,9 +393,10 @@ body {
     padding-left: 0;
   }
 
-  .menu__resume {
+  .menu__actions {
     margin-top: 0;
     margin-left: auto;
+    flex-direction: row;
   }
 
   .keys__row,
