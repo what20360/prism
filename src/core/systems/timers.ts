@@ -36,4 +36,17 @@ export function updateTimers(world: World): void {
     if (effect.ttl > 0) alive.push(effect)
   }
   world.effects = alive
+
+  const visible = []
+  for (const floater of world.floaters) {
+    floater.ttl -= 1
+    floater.y -= 0.8
+    floater.x += floater.driftX
+    if (floater.ttl > 0) visible.push(floater)
+  }
+  world.floaters = visible
+
+  for (const actor of world.actors.values()) {
+    if (actor.damageFlashTicks > 0) actor.damageFlashTicks -= 1
+  }
 }

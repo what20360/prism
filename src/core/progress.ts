@@ -78,12 +78,15 @@ export function buyCard(world: World, cardId: string): BuyResult {
 export function reapplyAttrs(world: World, player: Actor): void {
   const next = resolveAttrs(world.basePlayerAttrs, world.purchases, world.registry)
   const hpGain = next.maxHp - player.attrs.maxHp
+  const shieldGain = next.shield - player.attrs.shield
 
   player.attrs = next
   player.radius = next.radius
   if (hpGain > 0) player.hp = Math.min(next.maxHp, player.hp + hpGain)
 
   const cap = shieldCap(next)
+  // Buying a shield card has to hand over the shield points it promises.
+  if (shieldGain > 0) player.shield += shieldGain
   if (player.shield > cap) player.shield = cap
 }
 

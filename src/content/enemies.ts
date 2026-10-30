@@ -2,6 +2,7 @@ import type { AttrSet } from '../core/attrs'
 import type { EnemyBehavior, EnemyTier } from '../core/world'
 
 export interface EnemyType {
+  readonly name: string
   readonly attrs: AttrSet
   readonly tier: EnemyTier
   readonly behavior: EnemyBehavior
@@ -53,6 +54,7 @@ function enemyAttrs(overrides: Partial<AttrSet>): AttrSet {
 /** Values from docs/balance.md 4. */
 export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   drifter: {
+    name: 'Drifter',
     tier: 'normal',
     behavior: 'chase',
     contactDamage: 6,
@@ -66,6 +68,7 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   },
 
   turret: {
+    name: 'Turret',
     tier: 'normal',
     behavior: 'turret',
     contactDamage: 0,
@@ -84,6 +87,7 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   },
 
   warden: {
+    name: 'Warden',
     tier: 'elite',
     behavior: 'turret',
     contactDamage: 0,
@@ -103,6 +107,7 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   },
 
   boss: {
+    name: 'Prism Heart',
     tier: 'boss',
     behavior: 'boss',
     contactDamage: 0,

@@ -11,6 +11,13 @@ export interface Intent {
   readonly placeMine?: boolean
   /** Index of the skill slot to activate this tick (0 = first slot). */
   readonly skill?: number
+  /**
+   * Unit direction to shoot at. When absent the actor aims at the nearest
+   * opponent in range, which is what every AI controller wants.
+   */
+  readonly aim?: Vec2
+  /** False suppresses firing this tick (manual fire); absent means fire at will. */
+  readonly fire?: boolean
 }
 
 export const NO_INTENT: Intent = Object.freeze({

@@ -372,3 +372,27 @@ describe('card info', () => {
     expect(damage?.requires).toEqual([])
   })
 })
+
+describe('shield cards', () => {
+  it('hands over the shield points a shield card promises', () => {
+    const world = makeWorld()
+    const player = getPlayer(world)
+    const before = player.shield
+
+    buyCard(world, 'shield')
+
+    expect(player.shield).toBeGreaterThan(before)
+    expect(player.shield).toBe(player.attrs.shield)
+  })
+
+  it('never lets the shield exceed its cap when the card is bought', () => {
+    const world = makeWorld()
+    const player = getPlayer(world)
+    player.shield = 0
+    setAttrs(player, { shieldCapMult: 0.2 })
+
+    buyCard(world, 'shield')
+
+    expect(player.shield).toBeLessThanOrEqual(player.attrs.maxHp * player.attrs.shieldCapMult + 1e-9)
+  })
+})

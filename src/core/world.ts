@@ -19,6 +19,8 @@ export interface Actor {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
+  /** Display name from content; enemies leave it undefined for plain shapes. */
+  readonly name?: string
   /** Replaced wholesale when the card pipeline re-resolves. */
   attrs: AttrSet
 
@@ -28,6 +30,10 @@ export interface Actor {
   shield: number
   alive: boolean
   intent: Intent
+  /** Last resolved shot direction in radians, used for the aim indicator. */
+  aimAngle: number
+  /** Ticks left on the "just got hit" highlight that shows target stats. */
+  damageFlashTicks: number
   fireCooldownTicks: number
   /** Boss phase (1 or 2); unused for regular enemies. */
   phase: number
@@ -87,6 +93,21 @@ export interface Effect {
   ttl: number
 }
 
+export type FloaterKind = 'damage' | 'overflow' | 'taken' | 'shard' | 'heal'
+
+/**
+ * Short-lived combat text. Purely cosmetic, so it is deliberately excluded from
+ * `hashWorld` — replays compare the simulation, not the presentation.
+ */
+export interface Floater {
+  readonly kind: FloaterKind
+  readonly value: number
+  x: number
+  y: number
+  ttl: number
+  readonly driftX: number
+}
+
 export interface RoomState {
   phase: RoomPhase
   kind: RoomKind
@@ -122,6 +143,8 @@ export interface World {
   projectiles: Projectile[]
   mines: Mine[]
   effects: Effect[]
+  /** Cosmetic combat text; not part of the deterministic state hash. */
+  floaters: Floater[]
   purchases: Purchase[]
   nextEntityId: EntityId
   shards: number
@@ -153,6 +176,8 @@ export interface EnemySpawnSpec {
   readonly behavior: EnemyBehavior
   readonly contactDamage: number
   readonly hasCore: boolean
+  /** Display name shown by the target info card. */
+  readonly name?: string
 }
 
 export interface CreateWorldOptions {
@@ -184,6 +209,7 @@ export function createWorld(options: CreateWorldOptions): World {
     projectiles: [],
     mines: [],
     effects: [],
+    floaters: [],
     purchases: [],
     nextEntityId: 1,
     shards: 0,
@@ -231,6 +257,7 @@ interface CreateActorSpec {
   readonly hasCore: boolean
   readonly attrs: AttrSet
   readonly pos: Vec2
+  readonly name?: string
 }
 
 export function createActor(world: World, spec: CreateActorSpec): Actor {
@@ -244,6 +271,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     behavior: spec.behavior,
     contactDamage: spec.contactDamage,
     hasCore: spec.hasCore,
+    name: spec.name,
     attrs: spec.attrs,
     pos: spec.pos,
     radius: spec.attrs.radius,
@@ -251,6 +279,8 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     shield: spec.attrs.shield,
     alive: true,
     intent: NO_INTENT,
+    aimAngle: 0,
+    damageFlashTicks: 0,
     fireCooldownTicks: 0,
     phase: 1,
     specialCooldownTicks: 0,

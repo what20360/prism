@@ -1,4 +1,11 @@
-import type { ActorView, EffectView, MineView, ProjectileView, Snapshot } from '../../core/snapshot'
+import type {
+  ActorView,
+  EffectView,
+  FloaterView,
+  MineView,
+  ProjectileView,
+  Snapshot,
+} from '../../core/snapshot'
 import type { Rect } from '../../core/types'
 import { COLORS } from './theme'
 
@@ -10,6 +17,8 @@ export interface RenderDebug {
 
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
+  /** Converts a viewport (CSS) point into world space using the last camera. */
+  viewToWorld(clientX: number, clientY: number): { x: number; y: number }
   dispose(): void
 }
 
@@ -30,6 +39,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   let viewportWidth = 1
   let viewportHeight = 1
+  /** Camera of the last frame, so pointer coordinates can be converted. */
+  let lastCamera: Camera | null = null
 
   const resize = (): void => {
     const dpr = window.devicePixelRatio || 1
@@ -370,9 +381,25 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
 
     if (player.deflectLevel > 0) {
-      ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
       const state = player.deflectActive ? 'ACTIVE' : player.deflectReady ? 'READY' : 'COOLDOWN'
-      ctx.fillText(`SKILL ${state}`, 24, line)
+      ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudText
+      const suffix =
+        player.deflectReady || player.deflectActive
+          ? ''
+          : ` ${player.deflectCooldownSeconds.toFixed(1)}s`
+      ctx.fillText(`SKILL ${state}${suffix}`, 24, line)
+
+      // Cooldown gauge: full bar means the skill is ready again.
+      const barWidth = 120
+      const barY = line + 24
+      const ratio =
+        player.deflectReady || player.deflectActive
+          ? 1
+          : 1 - player.deflectCooldownSeconds / Math.max(0.001, player.deflectCooldownTotal)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+      ctx.fillRect(24, barY, barWidth, 6)
+      ctx.fillStyle = player.deflectActive ? COLORS.hudWarn : COLORS.hudAccent
+      ctx.fillRect(24, barY, barWidth * Math.max(0, Math.min(1, ratio)), 6)
     }
 
     if (snapshot.roomCleared && !snapshot.gameOver) {
@@ -396,10 +423,97 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.textAlign = 'left'
   }
 
+  const drawFloater = (floater: FloaterView): void => {
+    const alpha = Math.min(1, floater.ttl / 26)
+    let color: string = COLORS.hudText
+    let size = 24
+    let label = String(Math.round(floater.value))
+
+    if (floater.kind === 'damage') {
+      color = '#ffffff'
+    } else if (floater.kind === 'overflow') {
+      color = COLORS.mineArmed
+      size = 26
+      label = `溢 ${label}`
+    } else if (floater.kind === 'taken') {
+      color = COLORS.enemyStroke
+      size = 28
+      label = `-${label}`
+    } else if (floater.kind === 'shard') {
+      color = COLORS.hudAccent
+      size = 20
+      label = `◆${Math.round(floater.value * 10) / 10}`
+    } else if (floater.kind === 'heal') {
+      color = '#7dffa8'
+      size = 24
+      label = `+${label}`
+    }
+
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = color
+    ctx.font = `${size}px ui-monospace, SFMono-Regular, Menlo, monospace`
+    ctx.textAlign = 'center'
+    // A thin dark outline keeps the numbers readable over bullets and walls.
+    ctx.lineWidth = 4
+    ctx.strokeStyle = 'rgba(3, 5, 10, 0.85)'
+    ctx.strokeText(label, floater.x, floater.y)
+    ctx.fillText(label, floater.x, floater.y)
+    ctx.textAlign = 'left'
+    ctx.globalAlpha = 1
+  }
+
+  /** Name + hp + armor card above an enemy that was just hit. */
+  const drawTargetCard = (actor: ActorView): void => {
+    const name = actor.name ?? actor.tier.toUpperCase()
+    const text = `${name}  ${Math.ceil(actor.hp)}/${Math.round(actor.maxHp)}  甲 ${Math.round(actor.armor)}`
+    const y = actor.y - actor.radius - 76
+
+    ctx.font = '20px ui-monospace, SFMono-Regular, Menlo, monospace'
+    const width = ctx.measureText(text).width + 20
+    ctx.fillStyle = 'rgba(4, 6, 12, 0.7)'
+    ctx.fillRect(actor.x - width / 2, y - 18, width, 26)
+    ctx.fillStyle = COLORS.hudText
+    ctx.textAlign = 'center'
+    ctx.fillText(text, actor.x, y)
+    ctx.textAlign = 'left'
+  }
+
+  /** Aim line plus a streak along the current movement direction. */
+  const drawPlayerIndicators = (player: ActorView): void => {
+    const length = 150
+    const tipX = player.x + Math.cos(player.aimAngle) * length
+    const tipY = player.y + Math.sin(player.aimAngle) * length
+
+    ctx.beginPath()
+    ctx.moveTo(player.x + Math.cos(player.aimAngle) * player.radius, player.y + Math.sin(player.aimAngle) * player.radius)
+    ctx.lineTo(tipX, tipY)
+    ctx.strokeStyle = 'rgba(90, 220, 255, 0.5)'
+    ctx.lineWidth = 3
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(tipX, tipY, 5, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(90, 220, 255, 0.7)'
+    ctx.fill()
+
+    const moveLength = Math.hypot(player.moveX, player.moveY)
+    if (moveLength < 0.1) return
+
+    const backX = player.x - (player.moveX / moveLength) * (player.radius + 18)
+    const backY = player.y - (player.moveY / moveLength) * (player.radius + 18)
+    ctx.beginPath()
+    ctx.moveTo(player.x - (player.moveX / moveLength) * player.radius, player.y - (player.moveY / moveLength) * player.radius)
+    ctx.lineTo(backX, backY)
+    ctx.strokeStyle = 'rgba(159, 179, 209, 0.45)'
+    ctx.lineWidth = 6
+    ctx.stroke()
+  }
+
   const draw = (snapshot: Snapshot, debug: RenderDebug): void => {
     const aspect = viewportWidth / viewportHeight
     const camera = computeCamera(snapshot, aspect)
     const scale = viewportWidth / camera.width
+    lastCamera = camera
 
     ctx.fillStyle = COLORS.background
     ctx.fillRect(0, 0, viewportWidth, viewportHeight)
@@ -418,9 +532,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const mine of snapshot.mines) drawMine(mine)
     for (const projectile of snapshot.projectiles) drawProjectile(projectile)
     for (const actor of snapshot.actors) {
-      if (actor.alive) drawActor(actor)
+      if (!actor.alive) continue
+      drawActor(actor)
+      if (actor.team === 'player') drawPlayerIndicators(actor)
+      else if (actor.damageFlashTicks > 0) drawTargetCard(actor)
     }
     for (const effect of snapshot.effects) drawEffect(effect)
+    for (const floater of snapshot.floaters) drawFloater(floater)
 
     ctx.restore()
 
@@ -432,5 +550,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     window.removeEventListener('resize', resize)
   }
 
-  return { draw, dispose }
+  const viewToWorld = (clientX: number, clientY: number): { x: number; y: number } => {
+    const camera = lastCamera
+    if (!camera) return { x: clientX, y: clientY }
+    const rect = canvas.getBoundingClientRect()
+    const scale = viewportWidth / camera.width
+    return {
+      x: camera.x + (clientX - rect.left) / scale,
+      y: camera.y + (clientY - rect.top) / scale,
+    }
+  }
+
+  return { draw, viewToWorld, dispose }
 }

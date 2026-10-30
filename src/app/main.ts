@@ -4,6 +4,7 @@ import { buildDungeon, ROOMS_PER_FLOOR } from '../content/dungeon'
 import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { createKeyboardInput } from '../input/keyboard'
+import { createPointerInput } from '../input/pointer'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
 import { createMenu, type Menu } from '../ui/menu'
 import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
@@ -14,6 +15,7 @@ if (!canvas) throw new Error('missing #game canvas')
 
 const renderer = createCanvasRenderer(canvas)
 const input = createKeyboardInput(window)
+const pointer = createPointerInput(canvas)
 
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 
@@ -25,6 +27,7 @@ const game: Game = createGame({
   registry: CARD_REGISTRY,
   playerAttrs: PLAYER_BASE_ATTRS,
   input,
+  pointer,
   renderer,
   onUiModeChange: (mode) => {
     if (mode === 'menu') {
@@ -43,6 +46,10 @@ ui.menu = createMenu(document.body, {
   onClose: () => game.setUiMode('play'),
   onBuy: (cardId) => {
     game.buyCard(cardId)
+    ui.menu?.refresh()
+  },
+  onSetting: (key, value) => {
+    game.setSetting(key, value)
     ui.menu?.refresh()
   },
   getState: () => game.panelState(),
@@ -67,6 +74,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     game.dispose()
     input.dispose()
+    pointer.dispose()
     renderer.dispose()
   })
 }

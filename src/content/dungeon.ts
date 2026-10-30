@@ -59,6 +59,7 @@ function spawn(type: string, pos: Vec2): EnemySpawnSpec {
     behavior: definition.behavior,
     contactDamage: definition.contactDamage,
     hasCore: definition.hasCore,
+    name: definition.name,
   }
 }
 

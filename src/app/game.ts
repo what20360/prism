@@ -7,18 +7,37 @@ import { buyCard as buyCardInWorld, listCardStates, type CardState } from '../co
 import { step } from '../core/simulation'
 import { toSnapshot } from '../core/snapshot'
 import { TICK_DT } from '../core/types'
-import type { EntityId } from '../core/types'
+import type { EntityId, Vec2 } from '../core/types'
+import type { Intent } from '../core/controller'
 import { createWorld, getPlayer, type World } from '../core/world'
 import type { IntentSource } from '../input/keyboard'
+import type { PointerSource } from '../input/pointer'
 import type { Renderer } from '../render/canvas2d/renderer'
 import type { PlayerView } from '../ui/sections/attrs'
 
 export type UiMode = 'play' | 'menu'
 
+export type AimMode = 'auto' | 'manual'
+export type FireMode = 'auto' | 'manual'
+
+/** Player-facing control settings; they only affect how intents are authored. */
+export interface ControlSettings {
+  readonly aimMode: AimMode
+  readonly fireMode: FireMode
+}
+
+export const DEFAULT_SETTINGS: ControlSettings = {
+  aimMode: 'auto',
+  fireMode: 'auto',
+}
+
+export type SettingKey = keyof ControlSettings
+
 export interface PanelState {
   readonly shards: number
   readonly cards: readonly CardState[]
   readonly player: PlayerView
+  readonly settings: ControlSettings
 }
 
 export interface RunSummary {
@@ -41,6 +60,7 @@ export interface GameOptions {
   readonly registry: CardRegistry
   readonly playerAttrs: AttrSet
   readonly input: IntentSource
+  readonly pointer?: PointerSource
   readonly renderer: Renderer
   readonly onUiModeChange?: (mode: UiMode) => void
   readonly onRunEnd?: (summary: RunSummary) => void
@@ -53,6 +73,7 @@ export interface Game {
   restart(): void
   setUiMode(mode: UiMode): void
   buyCard(cardId: string): void
+  setSetting<K extends SettingKey>(key: K, value: ControlSettings[K]): void
   panelState(): PanelState
   /** Dev-only inspection hook used by browser verification. */
   debug(): {
@@ -74,6 +95,8 @@ export interface Game {
     deflectLevel: number
     purchases: number
     enemies: number
+    aimMode: AimMode
+    fireMode: FireMode
   }
 }
 
@@ -103,6 +126,7 @@ export function createGame(options: GameOptions): Game {
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
   let uiMode: UiMode = 'play'
+  let settings: ControlSettings = { ...DEFAULT_SETTINGS }
   let running = false
   let frameHandle = 0
   let lastTime = 0
@@ -140,6 +164,32 @@ export function createGame(options: GameOptions): Game {
     options.onUiModeChange?.(mode)
   }
 
+  const manualAim = (): Vec2 | undefined => {
+    if (settings.aimMode !== 'manual') return undefined
+    const pointer = options.pointer?.position()
+    if (!pointer) return undefined
+
+    const target = options.renderer.viewToWorld(pointer.x, pointer.y)
+    const player = getPlayer(world)
+    const dx = target.x - player.pos.x
+    const dy = target.y - player.pos.y
+    const length = Math.hypot(dx, dy)
+    if (length < 1) return undefined
+    return { x: dx / length, y: dy / length }
+  }
+
+  /** Settings only change how the player's intent is authored. */
+  const playerIntent = (): Intent => {
+    const base = options.input.read()
+    const aim = manualAim()
+    const fire = settings.fireMode === 'auto' ? undefined : options.pointer?.firing() ?? false
+    return { ...base, aim, fire }
+  }
+
+  const setSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]): void => {
+    settings = { ...settings, [key]: value }
+  }
+
   const frame = (now: number): void => {
     if (!running) return
 
@@ -157,7 +207,7 @@ export function createGame(options: GameOptions): Game {
       accumulator += elapsed
 
       while (accumulator >= TICK_DT) {
-        intents.set(playerId, options.input.read())
+        intents.set(playerId, playerIntent())
         step(world, intents)
         accumulator -= TICK_DT
       }
@@ -207,6 +257,7 @@ export function createGame(options: GameOptions): Game {
     return {
       shards: Math.floor(world.shards),
       cards: listCardStates(world),
+      settings,
       player: {
         attrs: player.attrs,
         hp: player.hp,
@@ -243,8 +294,10 @@ export function createGame(options: GameOptions): Game {
       deflectLevel: player.attrs.deflectLevel,
       purchases: world.purchases.reduce((sum, purchase) => sum + purchase.level, 0),
       enemies,
+      aimMode: settings.aimMode,
+      fireMode: settings.fireMode,
     }
   }
 
-  return { start, stop, dispose, restart, setUiMode, buyCard, panelState, debug }
+  return { start, stop, dispose, restart, setUiMode, buyCard, setSetting, panelState, debug }
 }

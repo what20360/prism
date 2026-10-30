@@ -1,4 +1,4 @@
-import { normalize, scale } from '../math'
+import { scale } from '../math'
 import { TICK_RATE } from '../types'
 import type { Actor, World } from '../world'
 import { allocateId } from '../world'
@@ -6,32 +6,51 @@ import { nearestOpponent } from './targeting'
 
 const SPREAD_STEP = 0.12
 
-/** Step 5: fire timers and projectile spawning. Shared by player and AI. */
+/**
+ * Step 5: fire timers and projectile spawning. Shared by player and AI.
+ * Aim comes from the intent when a controller supplies one (manual aim),
+ * otherwise from the nearest opponent in range (auto aim).
+ */
 export function updateWeapons(world: World): void {
   for (const actor of world.actors.values()) {
     if (!actor.alive) continue
+
+    const angle = resolveAimAngle(world, actor)
+    if (angle !== undefined) actor.aimAngle = angle
+
     if (actor.fireCooldownTicks > 0) {
       actor.fireCooldownTicks -= 1
       continue
     }
     if (actor.attrs.fireRate <= 0) continue
+    if (actor.intent.fire === false) continue
 
     if (actor.behavior === 'boss') {
       fireRadial(world, actor)
+    } else if (angle !== undefined) {
+      fireAt(world, actor, angle)
     } else {
-      const target = nearestOpponent(world, actor, actor.attrs.range)
-      if (!target) continue
-      fireAt(world, actor, target)
+      continue
     }
 
     actor.fireCooldownTicks = Math.max(1, Math.round(TICK_RATE / actor.attrs.fireRate))
   }
 }
 
-function fireAt(world: World, actor: Actor, target: Actor): void {
-  const dir = normalize({ x: target.pos.x - actor.pos.x, y: target.pos.y - actor.pos.y })
+/** Manual aim wins; the boss fires rings and needs no aim at all. */
+function resolveAimAngle(world: World, actor: Actor): number | undefined {
+  if (actor.behavior === 'boss') return undefined
+
+  const aim = actor.intent.aim
+  if (aim && (aim.x !== 0 || aim.y !== 0)) return Math.atan2(aim.y, aim.x)
+
+  const target = nearestOpponent(world, actor, actor.attrs.range)
+  if (!target) return undefined
+  return Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x)
+}
+
+function fireAt(world: World, actor: Actor, baseAngle: number): void {
   const count = Math.max(1, Math.floor(actor.attrs.multishot))
-  const baseAngle = Math.atan2(dir.y, dir.x)
 
   for (let i = 0; i < count; i += 1) {
     const offset = (i - (count - 1) / 2) * SPREAD_STEP

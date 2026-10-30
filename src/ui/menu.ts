@@ -2,16 +2,20 @@ import { renderAttrsSection, type PlayerView } from './sections/attrs'
 import { renderCardsSection, type CardsSectionState } from './sections/cards'
 import { renderHelpSection } from './sections/help'
 import { renderKeysSection } from './sections/keys'
+import { renderSettingsSection } from './sections/settings'
+import type { ControlSettings, SettingKey } from '../app/game'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings'
 
 export interface MenuState extends CardsSectionState {
   readonly player: PlayerView
+  readonly settings: ControlSettings
 }
 
 export interface MenuHandlers {
   readonly onClose: () => void
   readonly onBuy: (cardId: string) => void
+  readonly onSetting: <K extends SettingKey>(key: K, value: ControlSettings[K]) => void
   readonly getState: () => MenuState
 }
 
@@ -28,6 +32,7 @@ const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'keys', label: '按键绑定' },
   { id: 'upgrade', label: '升级面板' },
   { id: 'attrs', label: '角色属性' },
+  { id: 'settings', label: '设置' },
 ]
 
 /**
@@ -84,7 +89,9 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
-    else content.append(renderCardsSection(state, { onBuy: handlers.onBuy }))
+    else if (active === 'settings') {
+      content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy }))
 
     for (const [id, button] of buttons) {
       button.classList.toggle('menu__tab--active', id === active)

@@ -1,13 +1,16 @@
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
-import type { EffectKind, Actor, World } from '../world'
+import type { EffectKind, Actor, FloaterKind, World } from '../world'
 import { tryGetPlayer } from '../world'
 import { breakChain, offenseShards, registerKill, takenShards } from './rewards'
 
 const IFRAME_TICKS = Math.round(0.5 * TICK_RATE)
 const REVIVE_IFRAME_TICKS = Math.round(2 * TICK_RATE)
 const REVIVE_CLEAR_RADIUS = 260
+/** How long a damaged enemy keeps showing its stat card. */
+const DAMAGE_FLASH_TICKS = 90
+const FLOATER_TTL = 46
 
 export interface DamageEvent {
   readonly targetId: number
@@ -41,21 +44,29 @@ export function applyDamage(world: World, event: DamageEvent): void {
 
   target.hp = Math.max(0, target.hp - toHp)
   target.outOfCombatTicks = 0
+  target.damageFlashTicks = DAMAGE_FLASH_TICKS
 
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
 
   if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
     world.stats.damageDealt += effectiveDamage
-    world.shards += offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain
+    const gained = offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain
+    world.shards += gained
     world.score += effectiveDamage + overkill * world.economy.overflowRate
     applyLifesteal(player, effectiveDamage)
+    pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
+    if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)
+    if (gained > 0.05) pushFloater(world, 'shard', gained, target.pos.x, target.pos.y)
   } else if (target.team === 'player') {
     world.stats.damageTaken += event.raw
-    world.shards += takenShards(world, event.raw) * target.attrs.shardGain
+    const gained = takenShards(world, event.raw) * target.attrs.shardGain
+    world.shards += gained
     world.score += event.raw * 0.5
     world.playerTookHit = true
     breakChain(world)
+    pushFloater(world, 'taken', effectiveDamage, target.pos.x, target.pos.y)
+    if (gained > 0.05) pushFloater(world, 'shard', gained, target.pos.x, target.pos.y)
   }
 
   pushEffect(world, event.isCore ? 'coreHit' : 'hit', target.pos.x, target.pos.y, 26)
@@ -116,6 +127,29 @@ function clearNearbyProjectiles(world: World, x: number, y: number, radius: numb
 
 function pushEffect(world: World, kind: EffectKind, x: number, y: number, radius: number): void {
   world.effects.push({ kind, x, y, radius, ttl: 18 })
+}
+
+/** Combat text is cosmetic: it lives in `world.floaters` and never feeds the hash. */
+function pushFloater(world: World, kind: FloaterKind, value: number, x: number, y: number): void {
+  // Stack the kinds vertically so a hit does not print damage, overflow and
+  // shards on top of each other.
+  const lift: Record<FloaterKind, number> = {
+    damage: 26,
+    overflow: 56,
+    shard: 84,
+    taken: -56,
+    heal: -84,
+  }
+  const jitter = ((world.floaters.length % 3) - 1) * 18
+
+  world.floaters.push({
+    kind,
+    value,
+    x: x + jitter,
+    y: y - lift[kind],
+    ttl: FLOATER_TTL,
+    driftX: jitter * 0.08,
+  })
 }
 
 /** Melee contact damage from chasing enemies, gated by the player's iframes. */

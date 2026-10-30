@@ -1,11 +1,21 @@
-import type { EffectKind, EnemyBehavior, EnemyTier, RoomKind, RoomPhase, World } from './world'
+import type {
+  EffectKind,
+  EnemyBehavior,
+  EnemyTier,
+  FloaterKind,
+  RoomKind,
+  RoomPhase,
+  World,
+} from './world'
 import type { Rect, Team } from './types'
+import { TICK_RATE } from './types'
 
 export interface ActorView {
   readonly id: number
   readonly team: Team
   readonly tier: EnemyTier
   readonly behavior: EnemyBehavior
+  readonly name: string | null
   readonly x: number
   readonly y: number
   readonly radius: number
@@ -13,11 +23,20 @@ export interface ActorView {
   readonly coreRadius: number
   readonly hp: number
   readonly maxHp: number
+  /** Normalized movement direction this tick; used for the movement streak. */
+  readonly moveX: number
+  readonly moveY: number
+  readonly armor: number
   readonly shield: number
   readonly alive: boolean
+  readonly aimAngle: number
+  /** Ticks left on the "recently hit" highlight; the renderer shows stats while > 0. */
+  readonly damageFlashTicks: number
   readonly deflectLevel: number
   readonly deflectActive: boolean
   readonly deflectReady: boolean
+  readonly deflectCooldownSeconds: number
+  readonly deflectCooldownTotal: number
   readonly deflectFieldRadius: number
 }
 
@@ -49,6 +68,14 @@ export interface EffectView {
   readonly ttl: number
 }
 
+export interface FloaterView {
+  readonly kind: FloaterKind
+  readonly value: number
+  readonly x: number
+  readonly y: number
+  readonly ttl: number
+}
+
 export interface HudStats {
   readonly kills: number
   readonly chain: number
@@ -65,6 +92,7 @@ export interface Snapshot {
   readonly projectiles: readonly ProjectileView[]
   readonly mines: readonly MineView[]
   readonly effects: readonly EffectView[]
+  readonly floaters: readonly FloaterView[]
   readonly shards: number
   readonly score: number
   readonly roomPhase: RoomPhase
@@ -86,17 +114,24 @@ export function toSnapshot(world: World): Snapshot {
       team: actor.team,
       tier: actor.tier,
       behavior: actor.behavior,
+      name: actor.name ?? null,
       x: actor.pos.x,
       y: actor.pos.y,
-      radius: actor.radius,
-      coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
+      radius: actor.radius,      coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
       hp: actor.hp,
       maxHp: actor.attrs.maxHp,
+      armor: actor.attrs.armor,
       shield: actor.shield,
+      moveX: actor.intent.move.x,
+      moveY: actor.intent.move.y,
       alive: actor.alive,
+      aimAngle: actor.aimAngle,
+      damageFlashTicks: actor.damageFlashTicks,
       deflectLevel: actor.attrs.deflectLevel,
       deflectActive: actor.deflectWindowTicks > 0,
       deflectReady: actor.attrs.deflectLevel > 0 && actor.deflectCooldownTicks <= 0,
+      deflectCooldownSeconds: Math.max(0, actor.deflectCooldownTicks / TICK_RATE),
+      deflectCooldownTotal: actor.attrs.deflectCooldownSeconds,
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
     })
   }
@@ -129,6 +164,14 @@ export function toSnapshot(world: World): Snapshot {
     ttl: e.ttl,
   }))
 
+  const floaters: FloaterView[] = world.floaters.map((f) => ({
+    kind: f.kind,
+    value: f.value,
+    x: f.x,
+    y: f.y,
+    ttl: f.ttl,
+  }))
+
   return {
     tick: world.tick,
     bounds: world.room.bounds,
@@ -137,6 +180,7 @@ export function toSnapshot(world: World): Snapshot {
     projectiles,
     mines,
     effects,
+    floaters,
     shards: world.shards,
     score: world.score,
     roomPhase: world.room.phase,

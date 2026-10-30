@@ -283,3 +283,68 @@ describe('combat', () => {
     expect(world.shards).toBeGreaterThanOrEqual(DEFAULT_ECONOMY.roomClear)
   })
 })
+
+describe('fire control', () => {
+  it('manual aim overrides auto targeting', () => {
+    const world = makeWorld({ enemies: [enemy({ maxHp: 1000 }, { pos: { x: 300, y: 100 } })] })
+    const player = getPlayer(world)
+    player.intent = { move: { x: 0, y: 0 }, aim: { x: -1, y: 0 } }
+
+    step(world, new Map())
+
+    const shot = world.projectiles.find((projectile) => projectile.team === 'player')
+    expect(shot).toBeDefined()
+    expect(shot?.vel.x).toBeLessThan(0)
+    expect(Math.abs(shot?.vel.y ?? 1)).toBeLessThan(1)
+  })
+
+  it('intent.fire = false suppresses the shot without touching the cooldown', () => {
+    const world = makeWorld({ enemies: [enemy({ maxHp: 1000 })] })
+    const player = getPlayer(world)
+    player.intent = { move: { x: 0, y: 0 }, fire: false }
+
+    step(world, new Map())
+
+    expect(world.projectiles.filter((projectile) => projectile.team === 'player')).toHaveLength(0)
+    expect(player.fireCooldownTicks).toBe(0)
+  })
+})
+
+describe('combat text', () => {
+  it('emits damage and shard floaters when the player deals damage', () => {
+    const world = makeWorld({ enemies: [enemy({ maxHp: 1000 })] })
+    const target = firstEnemy(world)
+    world.floaters = []
+
+    applyDamage(world, {
+      targetId: target.id,
+      sourceId: getPlayer(world).id,
+      sourceTeam: 'player',
+      raw: 40,
+      penetration: 0,
+      isCore: false,
+    })
+
+    const kinds = world.floaters.map((floater) => floater.kind)
+    expect(kinds).toContain('damage')
+    expect(kinds).toContain('shard')
+    expect(target.damageFlashTicks).toBeGreaterThan(0)
+  })
+
+  it('separates overflow damage into its own floater', () => {
+    const world = makeWorld({ enemies: [enemy({ maxHp: 10 })] })
+    const target = firstEnemy(world)
+    world.floaters = []
+
+    applyDamage(world, {
+      targetId: target.id,
+      sourceId: getPlayer(world).id,
+      sourceTeam: 'player',
+      raw: 50,
+      penetration: 0,
+      isCore: false,
+    })
+
+    expect(world.floaters.some((floater) => floater.kind === 'overflow')).toBe(true)
+  })
+})

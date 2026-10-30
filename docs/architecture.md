@@ -215,8 +215,8 @@ function resolveAttrs(base: AttrSet, purchased: Purchase[], cards: CardRegistry)
 ```ts
 interface Intent {
   move: Vec2;              // 归一化方向
-  aim?: Vec2;              // 手动瞄准时使用
-  fire?: boolean;          // 自动开火模式下由 core 直接置真
+  aim?: Vec2;              // 手动瞄准方向；缺省时自动索敌
+  fire?: boolean;          // false 表示本 tick 不开火；缺省表示火力全开
   switchWeapon?: boolean;
   placeMine?: boolean;
   skill?: 0 | 1;
@@ -230,6 +230,7 @@ interface Controller { next(world: World, self: EntityId): Intent }
 - `AIController`：与玩家产出**同构意图**，因此类玩家敌人零额外战斗代码。
 - 回放控制器：直接吐录制好的意图序列。
 - **意图不修改世界**，由 `simulation` 统一应用。
+- `aim` / `fire` 让「瞄准 × 射击」的四种自动/手动组合全部落在 `app/` 层，`core/` 不需要知道哪个模式在生效；省略 `aim` 时 `systems/weapons` 自动索敌，所以 AI 与「自动瞄准」走同一条代码路径。
 
 ### 5.4 固定步长 tick 流程（顺序即规则）
 
@@ -239,10 +240,10 @@ interface Controller { next(world: World, self: EntityId): Intent }
 |---|---|---|
 | 1 | 采集意图 | 所有 actor 的 controller 产出 Intent |
 | 2 | 应用意图 | 移动向量、切枪、放雷、技能、面板开关 |
-| 3 | 计时器 | 冷却、无敌帧、连杀超时、地雷倒计时递减 |
+| 3 | 计时器 | 冷却、无敌帧、连杀超时、地雷倒计时、飘字与受击高亮递减 |
 | 3.5 | 房间入场 | 玩家离开入口 `ROOM_ACTIVATION_RADIUS` 后生成 `pendingSpawns` 并进入 `combat` |
 | 4 | 移动 | 位置积分 + 墙体/边界碰撞 |
-| 5 | 开火 | 射速计时到点则生成子弹（瞄准策略在此调用） |
+| 5 | 开火 | 射速计时到点则生成子弹（`Intent.aim` 优先，否则瞄准最近敌人） |
 | 5.5 | 偏转力场 | 场内敌方子弹按 `(1-d/R)²` 获得背离推力（主动窗口 ×5） |
 | 6 | 投射物 | 子弹推进、射程判定、墙体命中、穿透计数 |
 | 7 | 命中结算 | 子弹 × 单位 / 子弹 × 地雷本体 → 产生 `DamageEvent` |
@@ -285,6 +286,10 @@ damage(target, rawDamage, source)
 | 浮点 | 统一使用 `number`，不做跨平台数值比较；状态哈希用定点化（乘以 1e6 取整） |
 | 快照 | 只读拷贝，渲染层无法写回 |
 | 回放 | 录制 `seed + intent[]`，重放时逐 tick 比对状态哈希 |
+
+**什么算「状态」**：`hashWorld` 只覆盖会影响后续模拟的字段（tick、RNG、棱晶、分数、actor 的 id/位置/生命）。
+纯表现层数据——`effects`、`floaters`（飘字）、`damageFlashTicks`（受击高亮）——**故意不参与哈希**，
+否则「换个数字飘字样式」就会让回放回归红掉。
 
 ### 5.7 命中判定的两个陷阱（M2 实测发现）
 
