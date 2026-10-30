@@ -2,6 +2,7 @@ import { combatAttrs } from '../combat'
 import { distance } from '../collision'
 import { firstWallHit } from '../navigation'
 import { TICK_DT, TICK_RATE } from '../types'
+import { MINE_RULES, mineSlowMultiplier } from '../rules'
 import type { Actor, Mine, Projectile, World } from '../world'
 import { allocateId } from '../world'
 import { applyDamage } from './damage'
@@ -26,11 +27,11 @@ export function tryPlaceMine(world: World, actor: Actor): void {
   const multiplier = Math.max(1, attrs.mineSlowMultiplier)
   world.mines.push({ id: allocateId(world), ownerId: actor.id, team: actor.team, pos: { ...actor.pos },
     bodyRadius: MINE_BODY_RADIUS, triggerRadius: attrs.mineTriggerRadius, blastRadius: attrs.mineBlastRadius,
-    slowRadius: attrs.mineSlowRadius, slowMultiplier: attrs.mineIgnoreBullets > 0 ? 1 + (multiplier - 1) * 0.45 : multiplier,
+    slowRadius: attrs.mineSlowRadius, slowMultiplier: mineSlowMultiplier(multiplier, attrs.mineIgnoreBullets > 0),
     damage: attrs.mineDamage, hp: attrs.mineHp, fuseTicks: null, fuseTotalTicks: Math.max(1, Math.round(attrs.mineFuseSeconds * TICK_RATE)),
     ignoreBullets: attrs.mineIgnoreBullets > 0, fragments: Math.floor(attrs.mineFragments),
-    velocity: attrs.grenade > 0 ? { x: direction.x * 160, y: direction.y * 160 } : undefined,
-    travelLeft: attrs.grenade > 0 ? 360 : undefined })
+    velocity: attrs.grenade > 0 ? { x: direction.x * MINE_RULES.grenadeSpeed, y: direction.y * MINE_RULES.grenadeSpeed } : undefined,
+    travelLeft: attrs.grenade > 0 ? MINE_RULES.grenadeTravel : undefined })
   actor.mineCooldownTicks = Math.max(1, Math.round(attrs.mineCooldown / Math.max(0.01, attrs.mineCooldownRate) * TICK_RATE))
 }
 export function updateMines(world: World): void {

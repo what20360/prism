@@ -1,5 +1,7 @@
 import { CARD_REGISTRY } from '../../content/cards'
-import { TEST_MAX_LEVEL, type PracticeState, type PracticeAction } from '../../app/modes/practice'
+import type { PracticeState, PracticeAction } from '../../app/modes/practice'
+import { formatRuleNumber as fmt } from '../../content/format'
+import { CARD_ECONOMY } from '../../core/rules'
 import type { CardState } from '../../core/progress'
 import { formatRequirements } from '../cardInfo'
 
@@ -70,7 +72,7 @@ function cardButton(
     price.textContent = '已满级'
     price.classList.add('card__price--muted')
   } else {
-    price.textContent = `${card.price} 棱晶`
+    price.textContent = `${fmt(card.price)} 棱晶`
     if (card.availability === 'not-enough-shards') price.classList.add('card__price--short')
     else if (card.availability === 'locked') price.classList.add('card__price--muted')
   }
@@ -82,7 +84,7 @@ function cardButton(
   button.append(head)
   if (meta.childElementCount) button.append(meta)
   button.append(element('span', 'card__priority', `优先级 ${card.priority}`))
-  if (card.summary) button.append(element('span', 'card__effect', card.summary))
+  if (card.summary) button.append(element('span', 'card__effect', `${card.availability === 'max-level' ? '当前效果' : '下一级累计'}：${card.summary}`))
   if (requirements) button.append(element('span', 'card__req', `前置：${requirements}`))
   if (card.tags.length) button.append(element('span', 'card__tags', card.tags.join(' / ')))
 
@@ -105,7 +107,9 @@ function cardButton(
   }
   if (state.practice && handlers.onPractice) {
     const edit = element('div', 'card__test-controls')
-    const level = document.createElement('input'); level.type = 'number'; level.min = '0'; level.max = String(Math.min(TEST_MAX_LEVEL, CARD_REGISTRY.get(card.id)?.maxLevel ?? TEST_MAX_LEVEL)); level.step = '1'; level.value = String(card.level); level.required = true; level.setAttribute('aria-label', `${card.name}等级`)
+    const level = document.createElement('input'); level.type = 'number'; level.min = '0'; level.step = '1'; level.value = String(card.level); level.required = true; level.setAttribute('aria-label', `${card.name}等级`)
+    const maximum = CARD_REGISTRY.get(card.id)?.maxLevel
+    if (maximum !== undefined) level.max = String(maximum)
     const apply = document.createElement('button'); apply.type = 'button'; apply.textContent = '设定等级'; apply.setAttribute('aria-label', `设定${card.name}等级`)
     apply.onclick = () => { if (level.reportValidity()) handlers.onPractice?.({ type: 'card-level', id: card.id, level: level.valueAsNumber }) }
     edit.append(level, apply); article.append(edit)
@@ -120,7 +124,7 @@ export function renderCardsSection(
 ): HTMLElement {
   const wrapper = element('div', 'cards')
   wrapper.append(element('p', 'menu__hint', state.practice?.config.freeCards ? '测试场 · 自由购卡' : `可用棱晶 ${Math.floor(state.shards)}`))
-  wrapper.append(element('p', 'cards__intro', '选择自己的战斗方式。操控卡与姿态卡可回收实付价格的 60%；普通成长卡永久生效至本局结束。优先级数值越小越先生效，同值按固定顺序处理。'))
+  wrapper.append(element('p', 'cards__intro', `标有“可回收”的卡可逐级出售，返还实付价格的 ${fmt(CARD_ECONOMY.refundRatio * 100)}%；其他卡持续生效至本局结束。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
 
   const grouped = new Map<string, CardState[]>()
   for (const card of state.cards) {

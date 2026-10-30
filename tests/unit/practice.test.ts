@@ -50,10 +50,18 @@ describe('practice mode isolation and controls', () => {
     expect(mode.action(world, { type: 'card-level', id: 'deflect', level: 0 })).toBe(true)
     expect(player.skillSlots).not.toContain('deflect'); expect(PLAYER_BASE_ATTRS.deflectLevel).toBe(0)
   })
-  it.each([-1, 1.5, 21, NaN])('rejects invalid test level %s without changing the build', (level) => {
+  it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('rejects invalid test level %s without changing the build', (level) => {
     const { mode, world } = setup()
     expect(mode.action(world, { type: 'card-level', id: 'gun-damage', level })).toBe(false)
     expect(world.purchases).toHaveLength(0)
+  })
+  it('edits growth cards above level 20 without allocating a synthetic payment history', () => {
+    const { mode, world, player } = setup()
+    expect(mode.action(world, { type: 'card-level', id: 'gun-damage', level: 100 })).toBe(true)
+    expect(player.attrs.damage).toBe(210)
+    expect(world.purchases[0]).toMatchObject({ level: 100, paid: [] })
+    expect(mode.action(world, { type: 'card-level', id: 'heavy-stance', level: 10000 })).toBe(false)
+    expect(player.attrs.damage).toBe(210)
   })
   it('honours one-time card maxima and rejects unknown cards', () => {
     const { mode, world } = setup()

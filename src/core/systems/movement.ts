@@ -15,7 +15,11 @@ export function updateMovement(world: World, dt: number = TICK_DT): void {
 
     const distance = combatAttrs(actor).speed * dt
     const steps = Math.max(1, Math.ceil(distance / Math.max(4, actor.radius * 0.5)))
-    for (let i = 0; i < steps; i++) moveActor(world, actor, dir.x * distance / steps, dir.y * distance / steps)
+    for (let i = 0; i < steps; i++) {
+      const before = actor.pos
+      moveActor(world, actor, dir.x * distance / steps, dir.y * distance / steps)
+      if (before.x === actor.pos.x && before.y === actor.pos.y) break
+    }
   }
 }
 

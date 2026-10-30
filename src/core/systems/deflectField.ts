@@ -1,7 +1,8 @@
 import type { World } from '../world'
+import { DEFLECT_RULES } from '../rules'
 
 /** The active skill multiplies the field, so it visibly "pushes harder". */
-export const ACTIVE_FIELD_MULTIPLIER = 5
+export const ACTIVE_FIELD_MULTIPLIER = DEFLECT_RULES.activeForceMultiplier
 
 /**
  * Continuous deflection field around an actor (docs/requirements.md 5.7.4).

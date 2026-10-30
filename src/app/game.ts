@@ -6,6 +6,7 @@ import type { SkillId } from '../core/world'
 import type { AttrSet } from '../core/attrs'
 import { shieldCap } from '../core/attrs'
 import type { CardRegistry } from '../core/cards'
+import { purchaseLevel } from '../core/cards'
 import { applyRoom, type RoomSpec } from '../core/dungeon'
 import type { EconomyRates } from '../core/economy'
 import { buyCard as buyCardInWorld, sellCard as sellCardInWorld, listCardStates, type CardState } from '../core/progress'
@@ -309,7 +310,7 @@ export function createGame(options: GameOptions): Game {
   }
 
   const buyCard = (cardId: string): boolean => {
-    options.practice?.credit(world)
+    options.practice?.credit(world, world.registry.get(cardId)?.priceFn(purchaseLevel(world.purchases, cardId) + 1))
     const result = buyCardInWorld(world, cardId)
     if (!result.ok) return false
     options.practice?.credit(world)
@@ -327,10 +328,12 @@ export function createGame(options: GameOptions): Game {
 
   const panelState = (): PanelState => {
     const player = getPlayer(world)
+    const practice = options.practice?.state(world)
     return {
       shards: Math.floor(world.shards),
-      cards: listCardStates(world),
-      practice: options.practice?.state(world),
+      cards: listCardStates(world).map((card) => practice?.config.freeCards && card.availability === 'not-enough-shards' && Number.isFinite(card.price)
+        ? { ...card, availability: 'ok' as const } : card),
+      practice,
       skillSlots: [...player.skillSlots],
       knownSkills: SKILL_IDS.filter((id) => unlocked(player.attrs, id)).map((id) => toSkillView(player, id)),
       settings: { ...settings,

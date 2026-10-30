@@ -1,6 +1,6 @@
 import type { SkillView } from '../../core/snapshot'
 import type { SkillId } from '../../core/world'
-import { SKILL_NAMES, SKILL_DESCRIPTIONS } from '../../content/skills'
+import { SKILL_NAMES, describeSkill } from '../../content/skills'
 export interface SkillsState { readonly skillSlots: readonly (SkillId | null)[]; readonly knownSkills: readonly SkillView[] }
 export function renderSkillsSection(state: SkillsState, onEquip: (slot: number, id: SkillId | null) => void): HTMLElement {
   const root = document.createElement('section'); root.className = 'skills-page'
@@ -21,8 +21,8 @@ export function renderSkillsSection(state: SkillsState, onEquip: (slot: number, 
   for (const skill of state.knownSkills) {
     if (!skill.id) continue
     const id = skill.id, box = document.createElement('article'); box.className = 'skill-owned'
-    const title = document.createElement('h3'); title.textContent = SKILL_NAMES[id]
-    const description = document.createElement('p'); description.textContent = SKILL_DESCRIPTIONS[id]
+    const title = document.createElement('h3'); title.textContent = `${SKILL_NAMES[id]}${id === 'deflect' ? '' : ` Lv${skill.level}`}`
+    const description = document.createElement('p'); description.textContent = describeSkill(id, skill.level)
     const status = document.createElement('p'); status.className = 'settings__hint'; status.textContent = `当前冷却 ${skill.cooldown.toFixed(1)} / ${skill.total.toFixed(1)} 秒${skill.active ? ' · 生效中' : ''}`
     box.append(title, description, status)
     for (const slot of [0, 1]) { const button = document.createElement('button'); button.className = 'settings__option'; button.textContent = `将${SKILL_NAMES[id]}装入槽位 ${slot + 1}`; button.disabled = state.skillSlots[slot] === id; button.onclick = () => onEquip(slot, id); box.append(button) }

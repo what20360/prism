@@ -1,5 +1,6 @@
 import { armorToMitigation, type AttrSet } from '../../core/attrs'
 import { formatNumber } from '../cardInfo'
+import { homingProfile, mineSlowMultiplier, WEAPON_RULES } from '../../core/rules'
 
 export interface PlayerView {
   readonly attrs: AttrSet
@@ -41,7 +42,8 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
   wrapper.className = 'attrs'
 
   const mitigation = armorToMitigation(attrs.armor)
-  const dps = attrs.damage * Math.min(attrs.fireRate, 60 / Math.max(1, (attrs.burstCount - 1) * 4 + 1)) * attrs.multishot * attrs.burstCount
+  const homing = homingProfile(attrs.homing)
+  const dps = attrs.damage * Math.min(attrs.fireRate, 60 / Math.max(1, (attrs.burstCount - 1) * WEAPON_RULES.burstGapTicks + 1)) * attrs.multishot * attrs.burstCount
 
   wrapper.append(
     group('生存', [
@@ -57,8 +59,9 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('单发伤害', formatNumber(attrs.damage)),
       row('射速', `${formatNumber(attrs.fireRate)} 发/秒`),
       row('理论 DPS', formatNumber(dps)),
-      row('射程', formatNumber(attrs.range)),
+      row('射程（路径距离）', formatNumber(attrs.range)),
       row('弹速', formatNumber(attrs.bulletSpeed)),
+      row('发射初速 / 最高弹速', `${formatNumber(attrs.bulletSpeed * homing.initialMultiplier)} / ${formatNumber(attrs.bulletSpeed * homing.cruiseMultiplier)}`),
       row('穿透层数', formatNumber(attrs.pierce)),
       row('子弹大小', formatNumber(attrs.bulletSize)),
       row('护甲穿透', formatNumber(attrs.penetration)),
@@ -66,7 +69,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('多重射击', formatNumber(attrs.multishot)),
       row('弹射', attrs.ricochet > 0 ? '每次消耗 1 穿透' : '未解锁'),
       row('连发轮数', formatNumber(attrs.burstCount)),
-      row('追踪', attrs.homing > 0 ? '已启用（初速 ×0.6）' : '未解锁'),
+      row('追踪转速', attrs.homing > 0 ? `${formatNumber(homing.turnRate)} 弧度/秒` : '未解锁'),
       row('同时存在子弹', attrs.maxProjectiles > 0 ? `${attrs.maxProjectiles} 颗` : '不限'),
       row('视野倍率', `×${formatNumber(attrs.vision)}`),
       row('弹丸爆炸半径', formatNumber(attrs.blastRadius)),
@@ -89,7 +92,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('伤害', formatNumber(attrs.mineDamage)),
       row('爆炸半径', formatNumber(attrs.mineBlastRadius)),
       row('侦测 / 减速半径', `${formatNumber(attrs.mineTriggerRadius)} / ${formatNumber(attrs.mineSlowRadius)}`),
-      row('减速倍率', `÷${formatNumber(attrs.mineIgnoreBullets > 0 ? 1 + (attrs.mineSlowMultiplier - 1) * 0.45 : attrs.mineSlowMultiplier)}`),
+      row('减速倍率', `÷${formatNumber(mineSlowMultiplier(attrs.mineSlowMultiplier, attrs.mineIgnoreBullets > 0))}`),
       row('本体生命 / 引爆延迟', `${formatNumber(attrs.mineHp)} / ${formatNumber(attrs.mineFuseSeconds)} 秒`),
       row('手榴弹 / 破片', `${attrs.grenade > 0 ? '已启用' : '未启用'} / ${attrs.mineFragments} 颗`),
       row('同时存在上限', `${Math.floor(attrs.mineLimit)}（满后替换最早的一颗）`),

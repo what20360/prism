@@ -15,13 +15,15 @@ import { TICK_RATE } from './types'
 
 export interface SkillView {
   readonly id: SkillId | null
+  readonly level: number
   readonly unlocked: boolean
   readonly cooldown: number
   readonly total: number
   readonly active: boolean
 }
 export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
-  return { id, unlocked: id !== null && unlocked(actor.attrs, id), cooldown: id ? skillRemaining(actor, id) : 0,
+  return { id, level: id === null ? 0 : id === 'rage' ? actor.attrs.rageLevel : id === 'dash' ? actor.attrs.dashLevel : actor.attrs.deflectLevel,
+    unlocked: id !== null && unlocked(actor.attrs, id), cooldown: id ? skillRemaining(actor, id) : 0,
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {

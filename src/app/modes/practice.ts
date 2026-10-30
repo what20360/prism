@@ -2,6 +2,7 @@ import { ENEMIES } from '../../content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../content/player'
 import { applyRoom, spawnPendingEnemies, type RoomSpec } from '../../core/dungeon'
 import { reapplyAttrs } from '../../core/progress'
+import { isFiniteBuild, resolveAttrs } from '../../core/cards'
 import { getPlayer, type World, type EnemySpawnSpec } from '../../core/world'
 
 export interface PracticeConfig {
@@ -14,7 +15,6 @@ export interface PracticeConfig {
   readonly freeCards: boolean
 }
 export const DEFAULT_PRACTICE: PracticeConfig = { scenario: 'targets', layout: 'open', count: 3, hp: 10000, armor: 0, invincible: true, freeCards: true }
-export const TEST_MAX_LEVEL = 20
 const CREDIT = 1e12
 export interface PracticeState {
   readonly config: PracticeConfig
@@ -33,7 +33,7 @@ export interface PracticeMode {
   initialize(world: World): void
   beforeStep(world: World): void
   afterStep(world: World): void
-  credit(world: World): void
+  credit(world: World, price?: number): void
   state(world: World): PracticeState
   action(world: World, action: PracticeAction): boolean
 }
@@ -60,7 +60,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
     return { id: 'practice', kind: 'combat', bounds: { x: 0, y: 0, width: 3200, height: 1800 },
       entry: { x: 1600, y: 1280 }, walls: config.layout === 'cover' ? [{ x: 850, y: 950, width: 240, height: 160 }, { x: 2110, y: 950, width: 240, height: 160 }, { x: 1450, y: 420, width: 300, height: 130 }] : [], spawns }
   }
-  const credit = (world: World) => { if (config.freeCards) world.shards = CREDIT }
+  const credit = (world: World, price = 0) => { if (config.freeCards) world.shards = Math.max(CREDIT, Number.isFinite(price) ? price : 0) }
   const resetMeters = (world: World) => { startTick = world.tick; damageBase = world.stats.damageDealt; killBase = world.stats.kills; previousDamage = world.stats.damageDealt; samples = [] }
   const restore = (world: World) => {
     const p = getPlayer(world); p.hp = p.attrs.maxHp; p.shield = p.attrs.shield
@@ -104,9 +104,12 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       else if (action.type === 'clear') { world.projectiles = []; world.mines = []; getPlayer(world).burstRemaining = 0 }
       else if (action.type === 'card-level') {
         const card = world.registry.get(action.id)
-        if (!card || !Number.isFinite(action.level) || action.level < 0 || action.level > Math.min(TEST_MAX_LEVEL, card.maxLevel ?? TEST_MAX_LEVEL) || !Number.isInteger(action.level)) return false
-        world.purchases = world.purchases.filter((purchase) => purchase.id !== action.id)
-        if (action.level > 0) world.purchases.push({ id: action.id, level: action.level, paid: Array.from({ length: action.level }, (_, i) => card.priceFn(i + 1)) })
+        if (!card || !Number.isSafeInteger(action.level) || action.level < 0 || (card.maxLevel !== undefined && action.level > card.maxLevel)) return false
+        const purchases = world.purchases.filter((purchase) => purchase.id !== action.id)
+        // Granted levels have no payment history; do not allocate one entry per level.
+        if (action.level > 0) purchases.push({ id: action.id, level: action.level, paid: [] })
+        if (!isFiniteBuild(resolveAttrs(world.basePlayerAttrs, purchases, world.registry))) return false
+        world.purchases = purchases
         reapplyAttrs(world, getPlayer(world)); credit(world)
       }
       return true

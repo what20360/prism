@@ -31,6 +31,6 @@ export function renderPracticeSection(state: PracticeState, onAction: (action: P
   }
   const restart = document.createElement('button'); restart.className = 'settings__option'; restart.textContent = '重置构筑与场景'; restart.onclick = onRestart; actions.append(restart)
   const defaults = document.createElement('button'); defaults.className = 'settings__option'; defaults.textContent = '恢复默认测试配置'; defaults.onclick = () => onAction({ type: 'configure', config: DEFAULT_PRACTICE }); actions.append(defaults)
-  const note = document.createElement('p'); note.className = 'settings__hint'; note.textContent = '在升级面板可以直接设置卡片等级（0–20，遵守卡片等级上限，可绕过前置）。近 3 秒 DPS 按有效伤害计算；本测试场不会带入正常闯关。'
+  const note = document.createElement('p'); note.className = 'settings__hint'; note.textContent = '在升级面板可直接设置非负整数等级，0 为移除；成长卡不限等级，纯功能开关仅解锁一次，可绕过前置。近 3 秒 DPS 按有效伤害计算；本测试场不会带入正常闯关。'
   root.append(actions, note); return root
 }

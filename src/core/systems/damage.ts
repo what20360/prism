@@ -4,6 +4,7 @@ import { allocateId } from '../world'
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
+import { DROP_RULES } from '../rules'
 import type { EffectKind, Actor, FloaterKind, World } from '../world'
 import { tryGetPlayer } from '../world'
 import { breakChain, offenseShards, registerKill, takenShards } from './rewards'
@@ -62,7 +63,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
     const chance = event.kind === 'mine' ? player.attrs.mineShardChance : event.kind === 'bullet' ? player.attrs.bloodOrbChance : 0
     if (effectiveDamage > 0 && chance > 0 && world.pickups.length < 100 && nextFloat(world.rng) < chance) {
       world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-        value: event.kind === 'mine' ? 2 * player.attrs.shardGain : Math.max(4, player.attrs.maxHp * 0.04), ttl: 30 * TICK_RATE })
+        value: event.kind === 'mine' ? DROP_RULES.shardValue * player.attrs.shardGain : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
     }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
     if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)

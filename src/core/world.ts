@@ -77,6 +77,7 @@ export interface Projectile {
   penetration: number
   pierceLeft: number
   innerMult: number
+  /** Remaining path length, consumed by actual motion rather than elapsed time. */
   travelLeft: number
   /** Targets already hit, so one bullet cannot hit the same actor twice. */
   readonly hitIds: EntityId[]

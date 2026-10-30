@@ -115,7 +115,12 @@ export function meetsRequirements(
   return true
 }
 
-export type BuyFailure = 'unknown-card' | 'max-level' | 'requirements' | 'not-enough-shards'
+/** Numerical validity is independent of game-design level caps. */
+export function isFiniteBuild(attrs: AttrSet): boolean {
+  return Object.values(attrs).every(Number.isFinite) && attrs.maxHp >= 1 && attrs.bulletSpeed > 0 && attrs.range > 0 && attrs.speed >= 0
+}
+
+export type BuyFailure = 'unknown-card' | 'max-level' | 'requirements' | 'not-enough-shards' | 'numeric-range'
 
 export interface BuyResult {
   readonly ok: boolean

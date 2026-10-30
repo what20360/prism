@@ -1,5 +1,6 @@
 import type { AttrKey } from '../core/attrs'
 import type { Requirement } from '../core/cards'
+import { formatRuleNumber } from '../content/format'
 
 /** UI-side labels; core stays free of presentation text. */
 export const ATTR_LABELS: Record<AttrKey, string> = {
@@ -62,7 +63,7 @@ const PERCENT_ATTRS: ReadonlySet<AttrKey> = new Set<AttrKey>([
 ])
 
 export function formatNumber(value: number): string {
-  return String(Number(value.toFixed(2)))
+  return formatRuleNumber(value)
 }
 
 export function formatAttrValue(key: AttrKey, value: number): string {

@@ -110,6 +110,17 @@ describe('game lifecycle', () => {
     game.dispose()
   })
 
+  it('provides free purchases even when a high-level price exceeds the normal test credit', () => {
+    const { game } = idleGame({ practice: createPracticeMode() })
+    game.setUiMode('menu')
+    expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 60 })).toBe(true)
+    expect(game.panelState().cards.find((card) => card.id === 'gun-damage')?.availability).toBe('ok')
+    expect(game.buyCard('gun-damage')).toBe(true)
+    expect(game.panelState().player.attrs.damage).toBe(132)
+    expect(Number.isFinite(game.debug().shards)).toBe(true)
+    game.dispose()
+  })
+
   it('does not grant automatic fire through saved preferences without a card', () => {
     const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' } })
     game.start(); advance(1000); advance(1200)

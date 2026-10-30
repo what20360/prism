@@ -73,9 +73,9 @@ describe('shared target locks', () => {
   it('homing launches slowly, turns toward the lock and accelerates', () => {
     const w = world({ homing: 1 }), p = getPlayer(w), target = enemy(w, 500, 650)
     p.lockTargetId = target.id; emitProjectile(w, p, 0)
-    const shot = w.projectiles[0]!; expect(shot.vel.x).toBe(420)
+    const shot = w.projectiles[0]!; expect(shot.vel.x).toBe(140)
     updateProjectiles(w, 0.2)
-    expect(shot.vel.y).toBeGreaterThan(0); expect(Math.hypot(shot.vel.x, shot.vel.y)).toBeGreaterThan(420)
+    expect(shot.vel.y).toBeGreaterThan(0); expect(Math.hypot(shot.vel.x, shot.vel.y)).toBeGreaterThan(140)
     target.alive = false; p.lockTargetId = null; updateProjectiles(w, 0.1)
     expect(Number.isFinite(shot.pos.x)).toBe(true)
   })

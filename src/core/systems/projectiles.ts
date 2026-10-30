@@ -1,5 +1,6 @@
 import { distance } from '../collision'
 import { firstWallHit } from '../navigation'
+import { HOMING_RULES } from '../rules'
 import type { Projectile, World } from '../world'
 import { resolveProjectilePath } from './hits'
 
@@ -19,11 +20,11 @@ export function updateProjectiles(world: World, dt: number): void {
     steer(world, projectile, dt)
     let travel = Math.min(projectile.travelLeft, Math.hypot(projectile.vel.x, projectile.vel.y) / slowDivisor(world, projectile) * dt)
     let alive = true, reflected = false
-    if (travel <= 0.00001) {
+    if (travel <= 0) {
       const result = resolveProjectilePath(world, projectile, projectile.pos, projectile.pos)
       alive = result !== 'stopped'; reflected = result === 'reflected'
     }
-    for (let bounce = 0; travel > 0.00001 && alive && bounce < 64; bounce++) {
+    for (let bounce = 0; travel > 0 && alive && bounce < 64; bounce++) {
       const speed = Math.hypot(projectile.vel.x, projectile.vel.y)
       if (!speed) break
       const from = { ...projectile.pos }, direction = { x: projectile.vel.x / speed, y: projectile.vel.y / speed }
@@ -34,7 +35,7 @@ export function updateProjectiles(world: World, dt: number): void {
       projectile.pos = end
       const result = resolveProjectilePath(world, projectile, from, end)
       const spent = travel * portion
-      projectile.travelLeft -= spent; travel -= spent
+      projectile.travelLeft = Math.max(0, projectile.travelLeft - spent); travel = Math.max(0, travel - spent)
       if (result === 'stopped') { projectile.pierceLeft = 0; alive = false; break }
       if (result === 'reflected') { reflected = true; break }
       if (!wall) break
@@ -61,6 +62,6 @@ function steer(world: World, projectile: Projectile, dt: number): void {
     const difference = Math.atan2(Math.sin(desired - current), Math.cos(desired - current))
     angle += Math.max(-projectile.homingTurn * dt, Math.min(projectile.homingTurn * dt, difference))
   }
-  const speed = Math.min(projectile.cruiseSpeed ?? Infinity, Math.hypot(projectile.vel.x, projectile.vel.y) + 250 * dt)
+  const speed = Math.min(projectile.cruiseSpeed ?? Infinity, Math.hypot(projectile.vel.x, projectile.vel.y) + HOMING_RULES.acceleration * dt)
   projectile.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }
 }

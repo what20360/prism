@@ -1,7 +1,8 @@
 import { reconcileSkills } from './systems/skills'
 import { shieldCap, type AttrSet } from './attrs'
 import type { BuyResult, Requirement } from './cards'
-import { meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
+import { isFiniteBuild, meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
+import { CARD_ECONOMY } from './rules'
 import type { Actor, World } from './world'
 import { getPlayer } from './world'
 
@@ -37,7 +38,7 @@ export function listCardStates(world: World): CardState[] {
     let availability: CardAvailability = 'ok'
     if (maxed) availability = 'max-level'
     else if (!unlocked) availability = 'locked'
-    else if (world.shards < price) availability = 'not-enough-shards'
+    else if (!Number.isFinite(price) || world.shards < price) availability = 'not-enough-shards'
 
     return {
       id: card.id,
@@ -46,7 +47,7 @@ export function listCardStates(world: World): CardState[] {
       level,
       price,
       availability,
-      summary: card.summary ? card.summary(level + 1) : null,
+      summary: card.summary ? card.summary(maxed ? level : level + 1) : null,
       requires: card.requires ?? [],
       refund: card.resellable && level > 0 ? saleValue(world, card.id) : null,
       tags: card.tags ?? [],
@@ -71,7 +72,10 @@ export function buyCard(world: World, cardId: string): BuyResult {
   }
 
   const price = card.priceFn(level + 1)
+  if (!Number.isSafeInteger(level + 1) || !Number.isFinite(price) || price < 0) return { ok: false, reason: 'numeric-range' }
   if (world.shards < price) return { ok: false, reason: 'not-enough-shards' }
+  const proposed = [...world.purchases.filter((purchase) => purchase.id !== cardId), { id: cardId, level: level + 1 }]
+  if (!isFiniteBuild(resolveAttrs(world.basePlayerAttrs, proposed, world.registry))) return { ok: false, reason: 'numeric-range' }
 
   world.shards -= price
 
@@ -91,7 +95,7 @@ export function saleValue(world: World, cardId: string): number {
   const card = world.registry.get(cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return 0
   const paid = purchase.paid?.[purchase.level - 1] ?? card.priceFn(purchase.level)
-  return Math.max(0, Math.min(paid - 1, Math.floor(paid * 0.6)))
+  return Number.isFinite(paid) ? Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0
 }
 
 function saleBlocker(world: World, cardId: string): string | null {
