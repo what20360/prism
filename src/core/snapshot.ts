@@ -148,14 +148,15 @@ export interface Snapshot {
   readonly stats: HudStats
 }
 
-export function toSnapshot(world: World): Snapshot {
+export function toSnapshot(world: World, viewerId?: number): Snapshot {
   const actors: ActorView[] = []
-  const player = [...world.actors.values()].find((a) => a.team === 'player' && a.alive)
+  const player = viewerId === undefined ? [...world.actors.values()].find((a) => a.team === 'player' && a.alive) : world.actors.get(viewerId)
+  const viewTeam = (team: Team): Team => player?.team === 'enemy' ? team === 'player' ? 'enemy' : 'player' : team
   for (const actor of world.actors.values()) {
     const attrs = combatAttrs(actor)
     actors.push({
       id: actor.id,
-      team: actor.team,
+      team: viewTeam(actor.team),
       tier: actor.tier,
       behavior: actor.behavior,
       name: actor.name ?? null,
@@ -200,7 +201,7 @@ export function toSnapshot(world: World): Snapshot {
 
   const projectiles: ProjectileView[] = world.projectiles.map((p) => ({
     id: p.id,
-    team: p.team,
+    team: viewTeam(p.team),
     x: p.pos.x,
     y: p.pos.y,
     radius: p.radius,
@@ -213,7 +214,7 @@ export function toSnapshot(world: World): Snapshot {
 
   const mines: MineView[] = world.mines.map((m) => ({
     id: m.id,
-    team: m.team,
+    team: viewTeam(m.team),
     x: m.pos.x,
     y: m.pos.y,
     bodyRadius: m.bodyRadius,

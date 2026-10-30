@@ -2,7 +2,7 @@ import type { PracticeState } from '../../app/modes/practice'
 import type { EndlessState } from '../../app/modes/endless'
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
 
-export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState }
+export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState; readonly duel?: boolean }
 export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
@@ -195,13 +195,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
     text('P R I S M', 20, 29, 15, CYAN)
-    text(`${debug.label ?? ''}  /  ${debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
+    text(`${debug.label ?? ''}  /  ${debug.duel ? '标准对决' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
       ctx.fillStyle = '#192538'; ctx.fillRect(20, 65, barWidth, 5)
       ctx.fillStyle = p.hp < p.maxHp * 0.3 ? RED : CYAN; ctx.fillRect(20, 65, barWidth * clamp(p.hp / p.maxHp, 0, 1), 5)
       text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
-      text(debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
+      text(debug.duel ? '同等装备 · J 偏转 · K 冲刺' : debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
       if (debug.endless) {
         text(`种子 ${debug.endless.seed} · 敌人 ${debug.endless.alive + debug.endless.pending}`, 20, 133, 11, PURPLE)
         if (!phone) text(debug.endless.open ? `传送门开放 · 下次补刷收益 ${Number((debug.endless.nextReward * 100).toFixed(1))}%` : '清空敌人，开启下一层', 20, 153, 11, '#8ad9bb')

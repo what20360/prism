@@ -35,7 +35,7 @@
 
 站点的 `/prism/version.json` 中 `commit_sha` 对应该次 GitHub Actions 的 `GITHUB_SHA`。本地普通构建保留 `/` 资源路径；可自行用 `VITE_BASE_PATH=/prism/ npm run build` 检查 Pages 输出。
 
-设置依然保存在访问者自己的浏览器中，Pages 不提供跨设备存档或后端服务。源码保留 `npm run dev` 和 `npm run build:offline`，供用户自行运行；助手不再自动维护本地预览或离线发行文件。
+设置与进度存档保存在访问者自己的浏览器中，可导出 JSON 手动转移设备；Pages 不提供账号云同步或后端服务。真人 1v1 用浏览器数据通道和手动代码配对，STUN 辅助直连，不包含 TURN 中继服务。源码保留 `npm run dev` 和 `npm run build:offline`，供用户自行运行；助手不再自动维护本地预览或离线发行文件。
 
 ## 历史站点
 

@@ -3,10 +3,10 @@ import { normalize } from '../math'
 import { findPath, hasLineOfSight } from '../navigation'
 import type { World } from '../world'
 import { tryGetPlayer } from '../world'
-export function updateAi(world: World): void {
+export function updateAi(world: World, controlled: ReadonlySet<number> = new Set()): void {
   const player = tryGetPlayer(world)
   for (const actor of world.actors.values()) {
-    if (!actor.alive || actor.team !== 'enemy') continue
+    if (!actor.alive || actor.team !== 'enemy' || controlled.has(actor.id)) continue
     if (!player) { actor.intent = { move: { x: 0, y: 0 }, fire: false }; continue }
     if (world.room.walls.some((wall) => circleIntersectsRect(actor.pos.x, actor.pos.y, actor.radius, wall))) {
       actor.pos = resolveSpawnPosition(actor.pos, actor.radius, world.room.walls, world.room.bounds); actor.navTimer = 0

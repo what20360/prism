@@ -12,6 +12,7 @@ export interface CardsSectionState {
 }
 
 export interface CardsSectionHandlers {
+  readonly onQueue?: (cardId: string) => void
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
   readonly collapsed?: Set<string>
@@ -94,6 +95,10 @@ function cardButton(
   })
 
   article.append(button)
+  if (handlers.onQueue && card.availability !== 'max-level') {
+    const queue = document.createElement('button'); queue.type = 'button'; queue.className = 'card__queue'; queue.textContent = `预购${card.name}`
+    queue.onclick = () => handlers.onQueue?.(card.id); article.append(queue)
+  }
   if (card.refund !== null) {
     const sell = document.createElement('button')
     sell.type = 'button'

@@ -10,7 +10,7 @@ export function hashWorld(world: World): string {
     if (Array.isArray(value)) { mix('['); value.forEach(visit); mix(']'); return }
     const object = value as Record<string, unknown>
     mix('{')
-    for (const key of Object.keys(object).sort()) { if (['trail', 'damageFlashTicks', 'segments'].includes(key)) continue; mix(key + ':'); visit(object[key]) }
+    for (const key of Object.keys(object).sort()) { if (object[key] === undefined || ['trail', 'damageFlashTicks', 'segments'].includes(key)) continue; mix(key + ':'); visit(object[key]) }
     mix('}')
   }
   visit({ tick: world.tick, seed: world.seed, rng: world.rng.state, shards: world.shards, score: world.score,

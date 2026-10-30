@@ -42,7 +42,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   updateRoomEntry(world)
 
   // 4. movement (AI authors intents for its own actors)
-  updateAi(world)
+  updateAi(world, new Set(intents.keys()))
   updateMovement(world, TICK_DT)
   separateActors(world)
   updateTargetLocks(world)

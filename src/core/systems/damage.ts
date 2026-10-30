@@ -84,8 +84,8 @@ export function applyDamage(world: World, event: DamageEvent): void {
 
   pushEffect(world, event.isCore ? 'coreHit' : 'hit', target.pos.x, target.pos.y, 26)
 
-  if (hpLost > 0 && target.team === 'player') {
-    target.iframesTicks = IFRAME_TICKS
+  if (hpLost > 0) {
+    target.iframesTicks = target.damageIframesTicks ?? (target.team === 'player' ? IFRAME_TICKS : 0)
   }
 
   if (target.hp <= 0) {

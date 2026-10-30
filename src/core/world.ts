@@ -22,6 +22,7 @@ export interface Actor {
   readonly contactDamage: number
   readonly hasCore: boolean
   readonly rewardMultiplier: number
+  readonly damageIframesTicks?: number
   /** Display name from content; enemies leave it undefined for plain shapes. */
   readonly name?: string
   /** Replaced wholesale when the card pipeline re-resolves. */
@@ -220,6 +221,7 @@ export interface RoomTemplate {
 export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number }
 
 export interface EnemySpawnSpec {
+  readonly damageIframesTicks?: number
   readonly pos: Vec2
   readonly attrs: AttrSet
   readonly tier: EnemyTier
@@ -304,6 +306,7 @@ export function createWorld(options: CreateWorldOptions): World {
 }
 
 interface CreateActorSpec {
+  readonly damageIframesTicks?: number
   readonly team: Team
   readonly tier: EnemyTier
   readonly behavior: EnemyBehavior
@@ -327,6 +330,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     contactDamage: spec.contactDamage,
     hasCore: spec.hasCore,
     rewardMultiplier: spec.rewardMultiplier ?? 1,
+    damageIframesTicks: spec.damageIframesTicks,
     name: spec.name,
     attrs: spec.attrs,
     pos: spec.pos,

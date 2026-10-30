@@ -581,3 +581,52 @@ body { background: #050a13; color: #c2d3e3; }
 .home__action--endless .home__arrow { color: #e9c48f; }
 .endless-page > p { max-width: 900px; line-height: 1.9; }
 .endless-page .practice__metrics dd { font-size: clamp(14px, 2vw, 22px); word-break: break-all; }
+
+.save-slot { border: 1px solid #294654; background: #0c1a28; border-radius: 14px; padding: 18px; margin: 14px 0; }
+.save-slot h3 { margin: 0 0 8px; color: #c5eef7; }
+.save-slot p { line-height: 1.6; }
+.save-slot__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.save-status { min-height: 24px; color: #a3ecd2; line-height: 1.6; }
+.home__action--duel { background: linear-gradient(130deg, #202b44, #28213b); border-color: #77628b; }
+.home__actions { padding-block: 28px; }
+
+.duel-layer { position: fixed; inset: 0; z-index: 35; pointer-events: none; }
+.duel-lobby { pointer-events: auto; position: absolute; inset: 0; overflow-y: auto; background: radial-gradient(ellipse at 15% 0, #193847, #07101c 65%); padding: clamp(24px, 6vw, 72px) max(20px, calc((100vw - 850px)/2)); }
+.duel-lobby h1 { color: #b7edfb; letter-spacing: .08em; font-size: 36px; }
+.duel-lobby p { line-height: 1.8; }
+.duel-code { display: block; margin: 18px 0 10px; color: #b5d7e5; }
+.duel-code textarea { display: block; width: 100%; margin-top: 8px; border: 1px solid #39566b; border-radius: 10px; padding: 12px; background: #081421; color: #c2e9f5; resize: vertical; font: 12px ui-monospace, monospace; box-sizing: border-box; }
+.duel-connection { min-height: 28px; color: #ace8cd; }
+.duel-hud { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 7px; border: 1px solid #496879; background: #081421ed; border-radius: 14px; padding: 12px 22px; color: #bcecf1; font-size: 13px; }
+.duel-hud strong { font-size: 22px; letter-spacing: .08em; }
+.duel-hud span:last-child { color: #8bacba; font-size: 11px; }
+.duel-round, .duel-menu { pointer-events: auto; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(420px, calc(100vw - 64px)); text-align: center; background: #0a192aef; border: 1px solid #4c6c80; border-radius: 20px; padding: 26px; box-shadow: 0 24px 80px #020711a0; }
+.duel-round h2 { color: #b5f1f5; font-size: 30px; }
+.duel-round p, .duel-menu p { color: #9fbaca; font-size: 13px; line-height: 1.8; }
+.duel-menu { z-index: 2; }
+.duel-menu button { margin: 6px; }
+.is-duel .practice-shortcut { display: none; }
+@media (max-width: 700px) { .duel-hud { top: 138px; min-width: 160px; padding: 8px 12px; } .duel-hud strong { font-size: 17px; } .duel-round { top: 47%; } }
+.duel-layer [hidden] { display: none !important; }
+
+.plan-field { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; color: #a6c4d6; }
+.plan-field input, .plan-field select { min-width: 100px; max-width: 100%; background: #0a1827; border: 1px solid #39576d; color: #d4e9f5; border-radius: 8px; padding: 9px 12px; font: inherit; }
+.plan-field input[type=number] { width: 90px; }
+.plan-queue { padding-left: 24px; }
+.plan-queue li { padding: 10px 0; border-bottom: 1px solid #223d50; }
+.plan-queue li span { display: block; margin-bottom: 8px; color: #c3dfed; line-height: 1.6; }
+.plans-page .settings__option { margin: 3px; }
+.plans-page h3 { margin-top: 30px; color: #aedce9; }
+.preset-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px),1fr)); gap: 12px; }
+.preset-list .save-slot { margin: 0; }
+.preset-list h4 { margin: 0; color: #d0eaf5; }
+.quick-editor { display: flex; flex-wrap: wrap; gap: 0 18px; }
+.quick-editor .plan-field { flex-direction: column; align-items: start; }
+.card__queue { border: 1px solid #36566a; border-radius: 7px; padding: 6px 10px; background: #0c1e2b; color: #83b7c5; cursor: pointer; font-size: 11px; margin: 5px 0; }
+.quick-buy { position: fixed; bottom: 57px; left: 50%; transform: translateX(-50%); z-index: 18; max-width: 90vw; }
+.quick-buy[hidden] { display: none !important; }
+.quick-buy__tray { display: flex; gap: 6px; overflow-x: auto; padding: 5px; background: #081320db; border: 1px solid #284758; border-radius: 12px; }
+.quick-buy__card { white-space: nowrap; background: #132c3d; color: #a9e2ed; border: 1px solid #3a6577; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; }
+.quick-buy__card:disabled { opacity: .4; cursor: default; }
+.quick-buy__toggle { display: none; }
+@media (max-width: 700px) { .home__header { flex-wrap: wrap; } .home__nav { overflow-x: auto; max-width: 100%; } .quick-buy { top: 270px; bottom: auto; max-width: calc(100vw - 28px); } .quick-buy__toggle { display: block; margin: 0 auto 6px; background: #0d2030e8; color: #9bc9d8; border: 1px solid #35546a; border-radius: 9px; padding: 8px 14px; font-size: 11px; } .quick-buy__tray { display: none; } .quick-buy.is-open .quick-buy__tray { display: flex; } }

@@ -1,4 +1,6 @@
 import { renderEndlessSection } from './sections/endless'
+import { renderSavesSection, type SavesHandlers, type SavesState } from './sections/saves'
+import { renderPlansSection, type PlansHandlers, type PlanView } from './sections/plans'
 import type { EndlessState } from '../app/modes/endless'
 import { renderPracticeSection } from './sections/practice'
 import type { PracticeState, PracticeAction } from '../app/modes/practice'
@@ -11,7 +13,7 @@ import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
 import type { ControlSettings, SettingKey } from '../storage/config'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice' | 'endless'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice' | 'endless' | 'saves' | 'plans'
 
 export interface MenuState extends CardsSectionState, SkillsState {
   readonly player: PlayerView
@@ -21,6 +23,11 @@ export interface MenuState extends CardsSectionState, SkillsState {
 }
 
 export interface MenuHandlers {
+  readonly saves?: SavesHandlers
+  readonly getSaves?: () => SavesState
+  readonly plans?: PlansHandlers
+  readonly getPlans?: () => PlanView
+  readonly onQueue?: (id: string) => void
   readonly onClose: () => void
   readonly onRestart: () => void
   readonly onHome: () => void
@@ -49,6 +56,8 @@ const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'settings', label: '设置' },
   { id: 'practice', label: '测试控制' },
   { id: 'endless', label: '无尽状态' },
+  { id: 'saves', label: '存档' },
+  { id: 'plans', label: '构筑与预购' },
 ]
 
 /**
@@ -115,7 +124,9 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     if ((active === 'practice' && !state.practice) || (active === 'endless' && !state.endless)) active = 'upgrade'
     content.replaceChildren()
 
-    if (active === 'practice' && state.practice) content.append(renderPracticeSection(state.practice, handlers.onPractice, handlers.onRestart))
+    if (active === 'plans' && handlers.plans && handlers.getPlans) content.append(renderPlansSection(handlers.getPlans(), handlers.plans))
+    else if (active === 'saves' && handlers.saves && handlers.getSaves) content.append(renderSavesSection(handlers.getSaves(), handlers.saves))
+    else if (active === 'practice' && state.practice) content.append(renderPracticeSection(state.practice, handlers.onPractice, handlers.onRestart))
     else if (active === 'endless' && state.endless) content.append(renderEndlessSection(state.endless))
     else if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
@@ -123,7 +134,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
     else if (active === 'settings') {
       content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.player.attrs))
-    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, collapsed, onPractice: handlers.onPractice }))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, onQueue: handlers.onQueue, collapsed, onPractice: handlers.onPractice }))
 
     for (const [id, button] of buttons) {
       button.hidden = (id === 'practice' && !state.practice) || (id === 'endless' && !state.endless)

@@ -3,8 +3,15 @@ import type { ControlSettings, SettingKey } from '../storage/config'
 import { renderHelpSection } from './sections/help'
 import { renderSettingsSection } from './sections/settings'
 import { worldSeed } from '../app/modes/endless'
+import { renderSavesSection, type SavesHandlers, type SavesState } from './sections/saves'
+import { renderPlansSection, type PlansHandlers, type PlanView } from './sections/plans'
 export interface HomeState { readonly canResume: boolean; readonly practice: boolean; readonly endless?: boolean; readonly settings: ControlSettings; readonly attrs: AttrSet }
 export interface HomeHandlers {
+  readonly saves?: SavesHandlers
+  readonly getSaves?: () => SavesState
+  readonly onDuel?: () => void
+  readonly plans?: PlansHandlers
+  readonly getPlans?: () => PlanView
   readonly getState: () => HomeState
   readonly onDungeon: () => void
   readonly onPractice: () => void
@@ -19,11 +26,11 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
   const mark = document.createElement('span'); mark.className = 'home__mark'; mark.textContent = 'P R I S M'; header.append(mark)
   const navigation = document.createElement('nav'); navigation.className = 'home__nav'; navigation.setAttribute('aria-label', '主菜单导航'); header.append(navigation)
   const content = document.createElement('div'); content.className = 'home__content'; overlay.append(header, content); root.append(overlay)
-  let page: 'hub' | 'help' | 'settings' = 'hub'
+  let page: 'hub' | 'help' | 'settings' | 'saves' | 'plans' = 'hub'
   let seedText = '20261030'
   const tabs = new Map<string, HTMLButtonElement>()
   const select = (next: typeof page) => { page = next; render(); content.scrollTop = 0 }
-  for (const [id, label] of [['hub', '主页'], ['help', '帮助'], ['settings', '设置']] as const) {
+  for (const [id, label] of [['hub', '主页'], ['help', '帮助'], ['settings', '设置'], ['saves', '存档'], ['plans', '预设']] as const) {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => select(id); navigation.append(button); tabs.set(id, button)
   }
   const action = (title: string, description: string, className: string, run: () => void): HTMLButtonElement => {
@@ -38,6 +45,8 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
     for (const [id, button] of tabs) button.setAttribute('aria-current', id === page ? 'page' : 'false')
     content.classList.toggle('home__content--page', page !== 'hub')
     if (page === 'help') { content.append(renderHelpSection()); return }
+    if (page === 'saves' && handlers.saves && handlers.getSaves) { content.append(renderSavesSection(handlers.getSaves(), handlers.saves)); return }
+    if (page === 'plans' && handlers.plans && handlers.getPlans) { content.append(renderPlansSection(handlers.getPlans(), handlers.plans)); return }
     if (page === 'settings') { const title = document.createElement('h1'); title.textContent = '设置'; content.append(title, renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.attrs)); return }
     const hero = document.createElement('section'); hero.className = 'home__hero'
     const eyebrow = document.createElement('p'); eyebrow.className = 'home__eyebrow'; eyebrow.textContent = '几何地牢 · 局内构筑'
@@ -52,7 +61,9 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
     const seedLabel = document.createElement('label'); seedLabel.className = 'home__seed'; seedLabel.textContent = '无尽世界种子'
     const seed = document.createElement('input'); seed.type = 'text'; seed.value = seedText; seed.maxLength = 80; seed.setAttribute('aria-label', '无尽世界种子'); seed.oninput = () => { seedText = seed.value }; seedLabel.append(seed)
     actions.append(seedLabel, action('无尽模式', '种子生成 · 清场推进 · 每五层可跳过战斗', 'home__action--endless', () => handlers.onEndless(worldSeed(seed.value))))
-    const note = document.createElement('p'); note.className = 'home__note'; note.textContent = 'WASD 移动 · 左键射击 · 右键锁定 · Esc 暂停\n手机使用双摇杆与独立技能按钮。设置自动保存，局内进度不保存。'
+    if (handlers.onDuel) actions.append(action('联网 1v1', '邀请好友 · 标准装备 · 两胜制', 'home__action--duel', handlers.onDuel))
+    if (handlers.getSaves?.().slots.find((s) => s.id === 'auto')?.available) actions.append(action('载入自动存档', '恢复上次闯关或无尽进度', 'home__action--resume', () => handlers.saves?.onLoad('auto')))
+    const note = document.createElement('p'); note.className = 'home__note'; note.textContent = 'WASD 移动 · 左键射击 · 右键锁定 · Esc 菜单\n手机使用双摇杆。单人进度自动保存，新局更新自动槽；手动存档独立保留。'
     actions.append(note); content.append(hero, actions)
   }
   const onKey = (event: KeyboardEvent) => { if (!overlay.hidden && event.code === 'Escape' && page !== 'hub') { select('hub'); event.preventDefault() } }

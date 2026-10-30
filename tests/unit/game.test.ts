@@ -7,6 +7,7 @@ import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { createPracticeMode, DEFAULT_PRACTICE } from '../../src/app/modes/practice'
 import { createEndlessMode } from '../../src/app/modes/endless'
 import type { RoomSpec } from '../../src/core/dungeon'
+import { readCheckpoint } from '../../src/app/checkpoints'
 
 describe('game lifecycle', () => {
   let frames: Map<number, FrameRequestCallback>
@@ -93,6 +94,33 @@ describe('game lifecycle', () => {
     expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 10 })).toBe(false)
     expect(game.panelState().practice).toBeUndefined(); expect(game.panelState().player.attrs.damage).toBe(10)
     game.dispose()
+  })
+  it('only spends on a preorder while playing and waits for funds', () => {
+    const { game } = idleGame(); game.start(); advance(1000); advance(1200); game.setUiMode('menu')
+    expect(game.queueUpgrade('gun-damage')).toBe(true); expect(game.queueUpgrade('gun-range', 2)).toBe(true)
+    advance(1400); expect(game.panelState().player.attrs.damage).toBe(10)
+    game.setUiMode('play'); advance(1500); advance(1700)
+    expect(game.panelState().player.attrs.damage).toBe(12); expect(game.debug().shards).toBe(5)
+    expect(game.plan().targets).toEqual([{ id: 'gun-range', level: 2 }]); game.dispose()
+  })
+  it('does not bypass prerequisites and can reorder blocked preorders', () => {
+    const { game } = idleGame({ rooms: [{ id: 'funded', kind: 'safe', bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], entry: { x: 500, y: 500 }, spawns: [], pickups: [{ kind: 'shard', pos: { x: 500, y: 500 }, value: 100 }] }] })
+    game.queueUpgrade('ricochet'); game.queueUpgrade('gun-pierce'); game.start(); advance(1000); advance(1200)
+    expect(game.debug().purchases).toBe(0); expect(game.debug().shards).toBe(100)
+    game.moveQueued(1, -1); advance(1400)
+    expect(game.panelState().player.attrs.ricochet).toBe(1); expect(game.debug().shards).toBe(54); expect(game.plan().targets).toHaveLength(0)
+    expect(game.setPlan([{ id: 'unknown', level: 1 }])).toBe(false); expect(game.queueUpgrade('ricochet', 2)).toBe(false)
+    game.dispose()
+  })
+  it('restores a live run and its paused purchase plan without catching up or regenerating resources', () => {
+    const { game } = idleGame(); game.start(); advance(1000); advance(1200); game.buyCard('gun-damage'); game.queueUpgrade('gun-range', 2); game.setAutoBuy(false)
+    const checkpoint = readCheckpoint(JSON.stringify(game.checkpoint())), tick = game.debug().tick
+    game.dispose(); const loaded = idleGame({ seed: checkpoint.initialSeed, checkpoint, initialUiMode: 'menu' }).game
+    loaded.start(); advance(20000)
+    expect(loaded.debug().tick).toBe(tick); expect(loaded.panelState().player.attrs.damage).toBe(12)
+    expect(loaded.plan()).toEqual({ enabled: false, targets: [{ id: 'gun-range', level: 2 }] })
+    expect(loaded.checkpoint()?.world.pickups).toEqual(checkpoint.world.pickups)
+    loaded.setUiMode('play'); advance(30000); expect(loaded.debug().tick).toBe(tick); loaded.dispose()
   })
   it('boots and restarts endless mode with the same seed, first floor and no test privileges', () => {
     const { game } = idleGame({ endless: createEndlessMode(), seed: 4321 })

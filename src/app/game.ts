@@ -1,5 +1,8 @@
 import type { PracticeMode, PracticeAction, PracticeState } from './modes/practice'
 import type { EndlessMode, EndlessState } from './modes/endless'
+import type { RunCheckpoint } from './checkpoints'
+import { restoreWorld, serializeWorld } from '../core/serialization'
+import { validateTargets, type PurchasePlan, type UpgradeTarget } from './upgradePlans'
 import { combatAttrs } from '../core/combat'
 import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
 import { toSkillView, type SkillView } from '../core/snapshot'
@@ -80,9 +83,17 @@ export interface GameOptions {
   readonly initialUiMode?: UiMode
   readonly practice?: PracticeMode
   readonly endless?: EndlessMode
+  readonly checkpoint?: RunCheckpoint
 }
 
 export interface Game {
+  plan(): PurchasePlan
+  queueUpgrade(id: string, level?: number): boolean
+  setPlan(targets: readonly UpgradeTarget[]): boolean
+  moveQueued(index: number, direction: -1 | 1): void
+  removeQueued(index: number): void
+  setAutoBuy(enabled: boolean): void
+  checkpoint(): RunCheckpoint | null
   start(): void
   stop(): void
   dispose(): void
@@ -125,7 +136,7 @@ const MAX_FRAME_SECONDS = 0.25
 
 export function createGame(options: GameOptions): Game {
   if (options.practice && options.endless) throw new Error('a session can only have one mode')
-  let roomIndex = 0
+  let roomIndex = options.checkpoint?.roomIndex ?? 0
   let runEnded = false
 
   const spawnWorld = (seed: number): World => {
@@ -143,14 +154,16 @@ export function createGame(options: GameOptions): Game {
     return created
   }
 
-  let world = spawnWorld(options.seed)
+  let world = options.checkpoint ? restoreWorld(options.checkpoint.world, options.registry, options.economy, Object.keys(options.playerAttrs)) : spawnWorld(options.seed)
+  if (options.checkpoint?.endless) options.endless?.restore(world, options.checkpoint.endless)
   let playerId = getPlayer(world).id
-  let restarts = 0
+  let restarts = options.checkpoint?.restarts ?? 0
+  let plan: PurchasePlan = options.checkpoint?.plan ? structuredClone(options.checkpoint.plan) : { enabled: true, targets: [] }
 
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
   let uiMode: UiMode = options.initialUiMode ?? 'play'
-  let hasStarted = uiMode !== 'home'
+  let hasStarted = Boolean(options.checkpoint) || uiMode !== 'home'
   world.paused = uiMode !== 'play'
   let settings: ControlSettings = { ...DEFAULT_SETTINGS, ...options.initialSettings }
   let running = false
@@ -178,6 +191,7 @@ export function createGame(options: GameOptions): Game {
     restarts += 1
     roomIndex = 0
     runEnded = false
+    plan = { enabled: true, targets: [] }
     world = spawnWorld(options.endless ? options.seed : options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
@@ -290,6 +304,13 @@ export function createGame(options: GameOptions): Game {
       world.paused = true
       options.onRunEnd?.(summary())
     }
+    if (!world.paused && !world.gameOver && !world.victory && plan.enabled) {
+      for (let i = 0; i < 4 && plan.targets.length; i++) {
+        const target = plan.targets[0]!
+        if (purchaseLevel(world.purchases, target.id) >= target.level) { plan.targets.shift(); continue }
+        if (!buyCard(target.id)) break
+      }
+    }
 
     const endless = options.endless?.state(world)
     const label = options.practice ? '测试场' : endless ? `无尽 · 第 ${endless.floor} 层` : `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
@@ -401,6 +422,19 @@ export function createGame(options: GameOptions): Game {
     lastTime = 0; accumulator = 0
     return true
   }
-  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard,
+  const checkpoint = (): RunCheckpoint | null => options.practice || !hasStarted || world.gameOver || world.victory ? null : ({
+    format: 'prism-save', version: 1, savedAt: new Date().toISOString(), mode: options.endless ? 'endless' : 'dungeon',
+    initialSeed: options.seed, restarts, roomIndex, world: serializeWorld(world), endless: options.endless?.checkpoint(),
+    plan: structuredClone(plan),
+  })
+  const setPlan = (targets: readonly UpgradeTarget[]): boolean => { try { plan.targets = validateTargets(targets); return true } catch { return false } }
+  const queueUpgrade = (id: string, level?: number): boolean => {
+    const next = level ?? Math.max(purchaseLevel(world.purchases, id), plan.targets.find((t) => t.id === id)?.level ?? 0) + 1
+    return setPlan(plan.targets.some((t) => t.id === id) ? plan.targets.map((t) => t.id === id ? { id, level: next } : t) : [...plan.targets, { id, level: next }])
+  }
+  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, checkpoint,
+    plan: () => structuredClone(plan), queueUpgrade, setPlan, setAutoBuy: (enabled) => { plan.enabled = enabled },
+    moveQueued: (index, direction) => { const other = index + direction; if (index < 0 || other < 0 || index >= plan.targets.length || other >= plan.targets.length) return; [plan.targets[index], plan.targets[other]] = [plan.targets[other]!, plan.targets[index]!] },
+    removeQueued: (index) => { if (index >= 0 && index < plan.targets.length) plan.targets.splice(index, 1) },
     session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice), endless: Boolean(options.endless) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
 }

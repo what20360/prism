@@ -55,7 +55,10 @@ export interface EndlessMode {
   afterStep(world: World): void
   advance(world: World): void
   state(world: World): EndlessState
+  checkpoint(): EndlessCheckpoint
+  restore(world: World, saved: EndlessCheckpoint): void
 }
+export interface EndlessCheckpoint { readonly floor: number; readonly rngState: number; readonly respawned: number; readonly spawnQueue: readonly number[] }
 export function createEndlessMode(): EndlessMode {
   let floor = 1, seed = 0, rng = createRng(0), population = 0, respawned = 0, queue: number[] = []
   const room = (): RoomSpec => ({ id: 'endless', kind: 'combat', bounds: ARENA, walls: [], entry: ENTRY, spawns: [], pickups: [] })
@@ -92,6 +95,8 @@ export function createEndlessMode(): EndlessMode {
   }
   const advance = (world: World) => { floor += 1; enter(world) }
   return { room, initialize: (world) => { seed = world.seed; floor = 1; enter(world) }, advance,
+    checkpoint: () => ({ floor, rngState: rng.state, respawned, spawnQueue: [...queue] }),
+    restore: (world, saved) => { seed = world.seed; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = endlessCount(floor) },
     afterStep: (world) => {
       if (world.gameOver) return
       if (world.exitReached) { advance(world); return }

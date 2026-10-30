@@ -15,6 +15,11 @@ import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
 import { createPracticeMode } from './modes/practice'
 import { createEndlessMode } from './modes/endless'
 import { createGame, type Game, type UiMode } from './game'
+import type { RunCheckpoint } from './checkpoints'
+import { createSaveManager } from './saveManager'
+import { createDuelSession } from './duelSession'
+import { createPlanManager } from './planManager'
+import { createQuickBuy } from '../ui/quickBuy'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) throw new Error('missing #game canvas')
@@ -22,7 +27,8 @@ const renderer = createCanvasRenderer(canvas), input = createKeyboardInput(windo
 const settingsStore = createSettingsStore(), audio = createAudioEngine()
 let preferences = settingsStore.load(), game: Game | undefined, home: HomeMenu, sessionCounter = 0
 const ui: { menu?: Menu; result?: ResultPanel } = {}
-const touch = createTouchControls(document.body, () => game?.setUiMode('menu'))
+let duel: ReturnType<typeof createDuelSession> | undefined
+const touch = createTouchControls(document.body, () => duel ? duel.toggleMenu() : game?.setUiMode('menu'))
 const testButton = document.createElement('button'); testButton.className = 'practice-shortcut'; testButton.textContent = '测试控制'; testButton.hidden = true
 const openTest = () => { if (game?.session().practice) { game.setUiMode('menu'); ui.menu?.open('practice') } }
 testButton.onclick = openTest; document.body.append(testButton)
@@ -33,25 +39,43 @@ const saveSettings = (settings: ControlSettings) => { preferences = settings; se
 const onSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]) => { if (game) game.setSetting(key, value); else saveSettings({ ...preferences, [key]: value }) }
 const returnHome = () => game?.setUiMode('home')
 const showMode = (mode: UiMode) => {
+  if (mode !== 'play') saves.autoSave()
   document.body.classList.toggle('is-home', mode === 'home')
   ui.result?.hide(); testButton.hidden = mode !== 'play' || !game?.session().practice
   if (mode === 'home') { ui.menu?.close(); home.show() }
   else if (mode === 'menu') { home.hide(); ui.menu?.open() }
   else { home.hide(); ui.menu?.close() }
 }
-const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number) => {
+const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number, checkpoint?: RunCheckpoint) => {
+  saves.autoSave()
   game?.dispose(); input.reset(); pointer.reset(); touch.reset(); ui.result?.hide(); ui.menu?.close(); home.hide()
   const mode = kind === 'practice' ? createPracticeMode() : undefined, endless = kind === 'endless' ? createEndlessMode() : undefined
   game = createGame({ rooms: mode ? [mode.room()] : endless ? [endless.room()] : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: seed ?? 20261029 + ++sessionCounter * 997,
     economy: DEFAULT_ECONOMY, registry: CARD_REGISTRY, playerAttrs: PLAYER_BASE_ATTRS, input, pointer, touch, renderer,
-    initialSettings: preferences, initialUiMode, practice: mode, endless, onSettingsChange: saveSettings,
+    initialSettings: preferences, initialUiMode, practice: mode, endless, checkpoint, onSettingsChange: saveSettings,
     onSnapshot: (snapshot, paused) => { touch.update(snapshot, paused); audio.update(snapshot, paused) },
     onUiModeChange: showMode,
     onRunEnd: (summary) => { ui.menu?.close(); testButton.hidden = true; ui.result?.show(summary) },
   })
   game.start()
+  saves.autoSave()
+}
+const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
+const plans = createPlanManager({ game: () => !duel && game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); quickBuy?.refresh() }, saved: saves.autoSave })
+const quickBuy = createQuickBuy(document.body, {
+  active: () => !duel && Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', slots: plans.quickSlots,
+  cards: () => game?.panelState().cards ?? [], buy: (id) => { if (game?.buyCard(id)) { audio.notify('buy'); saves.autoSave() } },
+})
+const openDuel = () => {
+  saves.autoSave(); game?.setUiMode('home'); game?.stop(); home.hide(); ui.menu?.close(); ui.result?.hide(); testButton.hidden = true
+  document.body.classList.remove('is-home'); document.body.classList.add('is-duel')
+  duel = createDuelSession({ root: document.body, input, pointer, touch, renderer, leave: () => {
+    duel?.dispose(); duel = undefined; document.body.classList.remove('is-duel'); game?.setUiMode('home'); game?.start()
+  } })
 }
 home = createHomeMenu(document.body, {
+  saves: saves.handlers, getSaves: saves.state, onDuel: openDuel,
+  plans: plans.actions, getPlans: plans.state,
   getState: () => {
     const session = game?.session(), attrs = session?.canResume ? game!.panelState().player.attrs : PLAYER_BASE_ATTRS
     return { canResume: session?.canResume ?? false, practice: session?.practice ?? false, endless: session?.endless ?? false, attrs,
@@ -60,20 +84,28 @@ home = createHomeMenu(document.body, {
   onDungeon: () => launch('dungeon'), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
 })
 ui.menu = createMenu(document.body, {
+  saves: saves.handlers, getSaves: saves.state,
+  plans: plans.actions, getPlans: plans.state, onQueue: (id) => { game?.queueUpgrade(id); saves.autoSave(); ui.menu?.open('plans') },
   onClose: () => game?.setUiMode('play'), onRestart: () => game?.restart(), onHome: returnHome,
-  onBuy: (id) => { if (game?.buyCard(id)) audio.notify('buy'); ui.menu?.refresh() },
-  onSell: (id) => { if (game?.sellCard(id)) audio.notify('sell'); ui.menu?.refresh() },
-  onEquip: (slot, id) => { game?.equipSkill(slot, id); ui.menu?.refresh() },
+  onBuy: (id) => { if (game?.buyCard(id)) audio.notify('buy'); saves.autoSave(); ui.menu?.refresh() },
+  onSell: (id) => { if (game?.sellCard(id)) audio.notify('sell'); saves.autoSave(); ui.menu?.refresh() },
+  onEquip: (slot, id) => { game?.equipSkill(slot, id); saves.autoSave(); ui.menu?.refresh() },
   onPractice: (action) => { game?.practiceAction(action); ui.menu?.refresh() },
   onSetting, getState: () => game!.panelState(),
 })
 ui.result = createResultPanel(document.body, { onRestart: () => game?.restart(), onHome: returnHome })
 launch('dungeon', 'home')
+const saveTimer = window.setInterval(saves.autoSave, 10000)
+const saveOnHide = () => { if (document.hidden) saves.autoSave() }
+window.addEventListener('pagehide', saves.autoSave); document.addEventListener('visibilitychange', saveOnHide)
 if (import.meta.env.DEV) {
   const hooks = window as Window & { __prism?: Game }
   Object.defineProperty(hooks, '__prism', { get: () => game, configurable: true })
 }
 if (import.meta.hot) import.meta.hot.dispose(() => {
+  duel?.dispose()
+  quickBuy.dispose()
+  clearInterval(saveTimer); window.removeEventListener('pagehide', saves.autoSave); document.removeEventListener('visibilitychange', saveOnHide)
   game?.dispose(); input.dispose(); pointer.dispose(); renderer.dispose(); touch.dispose(); audio.dispose(); home.dispose(); testButton.remove()
   document.removeEventListener('pointerdown', unlockAudio); document.removeEventListener('keydown', unlockAudio)
 })
