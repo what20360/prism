@@ -1,65 +1,66 @@
-import { circleIntersectsRect, distance } from '../collision'
+import { distance } from '../collision'
+import { firstWallHit } from '../navigation'
 import type { Projectile, World } from '../world'
+import { resolveProjectilePath } from './hits'
 
-/** Step 6: move projectiles, expire on range, stop at walls. */
+export function slowDivisor(world: World, projectile: Projectile): number {
+  let divisor = 1
+  for (const mine of world.mines) {
+    if (mine.team === projectile.team || distance(mine.pos, projectile.pos) > mine.slowRadius) continue
+    divisor = Math.max(divisor, mine.slowMultiplier)
+  }
+  return divisor
+}
 export function updateProjectiles(world: World, dt: number): void {
   const survivors: Projectile[] = []
-
   for (const projectile of world.projectiles) {
-    const speed = Math.hypot(projectile.vel.x, projectile.vel.y)
-    const slow = slowMultiplier(world, projectile)
-    const travel = speed * slow * dt
-
-    projectile.prevPos = projectile.pos
-
-    if (speed > 0) {
-      projectile.pos = {
-        x: projectile.pos.x + (projectile.vel.x / speed) * travel,
-        y: projectile.pos.y + (projectile.vel.y / speed) * travel,
-      }
+    projectile.prevPos = { ...projectile.pos }
+    projectile.trail ??= []; projectile.trail.push({ ...projectile.pos }); if (projectile.trail.length > 9) projectile.trail.shift()
+    steer(world, projectile, dt)
+    let travel = Math.min(projectile.travelLeft, Math.hypot(projectile.vel.x, projectile.vel.y) / slowDivisor(world, projectile) * dt)
+    let alive = true, reflected = false
+    if (travel <= 0.00001) {
+      const result = resolveProjectilePath(world, projectile, projectile.pos, projectile.pos)
+      alive = result !== 'stopped'; reflected = result === 'reflected'
     }
-
-    projectile.travelLeft -= travel
-    if (projectile.travelLeft <= 0) continue
-    if (hitsWall(world, projectile)) {
-      if ((projectile.bouncesLeft ?? 0) <= 0) continue
-      const blockedX = hitsWall(world, { ...projectile, pos: { x: projectile.pos.x, y: projectile.prevPos.y } })
-      const blockedY = hitsWall(world, { ...projectile, pos: { x: projectile.prevPos.x, y: projectile.pos.y } })
-      projectile.vel = {
-        x: blockedX || !blockedY ? -projectile.vel.x : projectile.vel.x,
-        y: blockedY ? -projectile.vel.y : projectile.vel.y,
-      }
-      projectile.pos = { ...projectile.prevPos }
-      projectile.bouncesLeft = (projectile.bouncesLeft ?? 0) - 1
+    for (let bounce = 0; travel > 0.00001 && alive && bounce < 64; bounce++) {
+      const speed = Math.hypot(projectile.vel.x, projectile.vel.y)
+      if (!speed) break
+      const from = { ...projectile.pos }, direction = { x: projectile.vel.x / speed, y: projectile.vel.y / speed }
+      const to = { x: from.x + direction.x * travel, y: from.y + direction.y * travel }
+      const wall = firstWallHit(world.room, from, to, projectile.radius)
+      const portion = wall ? Math.max(0, wall.t) : 1
+      const end = { x: from.x + (to.x - from.x) * portion, y: from.y + (to.y - from.y) * portion }
+      projectile.pos = end
+      const result = resolveProjectilePath(world, projectile, from, end)
+      const spent = travel * portion
+      projectile.travelLeft -= spent; travel -= spent
+      if (result === 'stopped') { projectile.pierceLeft = 0; alive = false; break }
+      if (result === 'reflected') { reflected = true; break }
+      if (!wall) break
+      if (!projectile.ricochet || projectile.pierceLeft <= 1) { projectile.pierceLeft = 0; alive = false; break }
+      projectile.pierceLeft -= 1
+      projectile.vel = { x: wall.nx ? -projectile.vel.x : projectile.vel.x, y: wall.ny ? -projectile.vel.y : projectile.vel.y }
+      projectile.pos = { x: end.x + wall.nx * 0.01, y: end.y + wall.ny * 0.01 }
+      projectile.trail.push({ ...projectile.pos }); if (projectile.trail.length > 9) projectile.trail.shift()
     }
-
-    survivors.push(projectile)
+    projectile.resolvedTick = world.tick
+    if (alive && (projectile.travelLeft > 0 || reflected)) survivors.push(projectile)
   }
-
   world.projectiles = survivors
 }
-
-/** Opposing mines slow bullets inside their field; strongest slow wins. */
-function slowMultiplier(world: World, projectile: Projectile): number {
-  let factor = 1
-  for (const mine of world.mines) {
-    if (mine.team === projectile.team) continue
-    if (distance(mine.pos, projectile.pos) > mine.slowRadius) continue
-    if (mine.slowFactor < factor) factor = mine.slowFactor
+function steer(world: World, projectile: Projectile, dt: number): void {
+  if (!projectile.homingTurn) return
+  const owner = world.actors.get(projectile.ownerId)
+  if (owner?.alive) projectile.targetId = owner.lockTargetId
+  const target = projectile.targetId == null ? undefined : world.actors.get(projectile.targetId)
+  const current = Math.atan2(projectile.vel.y, projectile.vel.x)
+  let angle = current
+  if (target?.alive && target.team !== projectile.team) {
+    const desired = Math.atan2(target.pos.y - projectile.pos.y, target.pos.x - projectile.pos.x)
+    const difference = Math.atan2(Math.sin(desired - current), Math.cos(desired - current))
+    angle += Math.max(-projectile.homingTurn * dt, Math.min(projectile.homingTurn * dt, difference))
   }
-  return factor
-}
-
-function hitsWall(world: World, projectile: Projectile): boolean {
-  const { bounds, walls } = world.room
-  const { x, y } = projectile.pos
-  const r = projectile.radius
-
-  if (x - r < bounds.x || x + r > bounds.x + bounds.width) return true
-  if (y - r < bounds.y || y + r > bounds.y + bounds.height) return true
-
-  for (const wall of walls) {
-    if (circleIntersectsRect(x, y, r, wall)) return true
-  }
-  return false
+  const speed = Math.min(projectile.cruiseSpeed ?? Infinity, Math.hypot(projectile.vel.x, projectile.vel.y) + 250 * dt)
+  projectile.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }
 }

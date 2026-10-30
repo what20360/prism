@@ -1,3 +1,6 @@
+import { combatAttrs } from './combat'
+import { skillRemaining, skillTotal, unlocked } from './systems/skills'
+import type { Actor, SkillId, Pickup } from './world'
 import type {
   EffectKind,
   EnemyBehavior,
@@ -10,6 +13,17 @@ import type {
 import type { Rect, Team } from './types'
 import { TICK_RATE } from './types'
 
+export interface SkillView {
+  readonly id: SkillId | null
+  readonly unlocked: boolean
+  readonly cooldown: number
+  readonly total: number
+  readonly active: boolean
+}
+export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
+  return { id, unlocked: id !== null && unlocked(actor.attrs, id), cooldown: id ? skillRemaining(actor, id) : 0,
+    total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
+}
 export interface ActorView {
   readonly id: number
   readonly team: Team
@@ -27,6 +41,9 @@ export interface ActorView {
   readonly moveX: number
   readonly moveY: number
   readonly armor: number
+  readonly damage: number
+  readonly fireRate: number
+  readonly movementSpeed: number
   readonly shield: number
   readonly alive: boolean
   readonly aimAngle: number
@@ -45,6 +62,12 @@ export interface ActorView {
   readonly mineCooldownTotal: number
   readonly autoAim: boolean
   readonly autoFire: boolean
+  readonly vision: number
+  readonly skills: readonly SkillView[]
+  readonly locked: boolean
+  readonly manualLocked: boolean
+  readonly enraged: boolean
+  readonly dashing: boolean
 }
 
 export interface ProjectileView {
@@ -55,6 +78,8 @@ export interface ProjectileView {
   readonly radius: number
   readonly vx: number
   readonly vy: number
+  readonly speed: number
+  readonly trail: readonly { x: number; y: number }[]
 }
 
 export interface MineView {
@@ -67,6 +92,9 @@ export interface MineView {
   readonly blastRadius: number
   readonly slowRadius: number
   readonly fuseTicks: number | null
+  readonly fuseTotal: number
+  readonly grenade: boolean
+  readonly ignoreBullets: boolean
 }
 
 export interface EffectView {
@@ -100,6 +128,7 @@ export interface Snapshot {
   readonly actors: readonly ActorView[]
   readonly projectiles: readonly ProjectileView[]
   readonly mines: readonly MineView[]
+  readonly pickups: readonly Pickup[]
   readonly effects: readonly EffectView[]
   readonly floaters: readonly FloaterView[]
   readonly shards: number
@@ -117,7 +146,9 @@ export interface Snapshot {
 
 export function toSnapshot(world: World): Snapshot {
   const actors: ActorView[] = []
+  const player = [...world.actors.values()].find((a) => a.team === 'player' && a.alive)
   for (const actor of world.actors.values()) {
+    const attrs = combatAttrs(actor)
     actors.push({
       id: actor.id,
       team: actor.team,
@@ -129,11 +160,14 @@ export function toSnapshot(world: World): Snapshot {
       radius: actor.radius,
       coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
       hp: actor.hp,
-      maxHp: actor.attrs.maxHp,
-      armor: actor.attrs.armor,
+      maxHp: attrs.maxHp,
+      armor: attrs.armor,
+      damage: attrs.damage,
+      fireRate: attrs.fireRate,
+      movementSpeed: attrs.speed,
       shield: actor.shield,
-      moveX: actor.intent.move.x,
-      moveY: actor.intent.move.y,
+      moveX: actor.dashTicks > 0 ? actor.dashDirection.x : actor.intent.move.x,
+      moveY: actor.dashTicks > 0 ? actor.dashDirection.y : actor.intent.move.y,
       alive: actor.alive,
       aimAngle: actor.aimAngle,
       damageFlashTicks: actor.damageFlashTicks,
@@ -141,15 +175,21 @@ export function toSnapshot(world: World): Snapshot {
       deflectActive: actor.deflectWindowTicks > 0,
       deflectReady: actor.attrs.deflectLevel > 0 && actor.deflectCooldownTicks <= 0,
       deflectCooldownSeconds: Math.max(0, actor.deflectCooldownTicks / TICK_RATE),
-      deflectCooldownTotal: actor.attrs.deflectCooldownSeconds,
+      deflectCooldownTotal: skillTotal(actor, 'deflect'),
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
       range: actor.attrs.range,
       fireCooldownSeconds: actor.fireCooldownTicks / TICK_RATE,
-      fireCooldownTotal: 1 / Math.max(0.001, actor.attrs.fireRate),
+      fireCooldownTotal: 1 / Math.max(0.001, attrs.fireRate),
       mineCooldownSeconds: actor.mineCooldownTicks / TICK_RATE,
-      mineCooldownTotal: actor.attrs.mineCooldown,
+      mineCooldownTotal: actor.attrs.mineCooldown / Math.max(0.01, actor.attrs.mineCooldownRate),
       autoAim: actor.attrs.autoAim > 0,
       autoFire: actor.attrs.autoFire > 0,
+      vision: actor.attrs.vision,
+      skills: actor.skillSlots.map((id) => toSkillView(actor, id)),
+      locked: player?.lockTargetId === actor.id,
+      manualLocked: player?.manualLockId === actor.id,
+      enraged: actor.rageTicks > 0,
+      dashing: actor.dashTicks > 0,
     })
   }
 
@@ -161,6 +201,8 @@ export function toSnapshot(world: World): Snapshot {
     radius: p.radius,
     vx: p.vel.x,
     vy: p.vel.y,
+    speed: Math.hypot(p.pos.x - p.prevPos.x, p.pos.y - p.prevPos.y) * TICK_RATE,
+    trail: p.trail?.map((point) => ({ ...point })) ?? [],
   }))
 
   const mines: MineView[] = world.mines.map((m) => ({
@@ -173,6 +215,9 @@ export function toSnapshot(world: World): Snapshot {
     blastRadius: m.blastRadius,
     slowRadius: m.slowRadius,
     fuseTicks: m.fuseTicks,
+    fuseTotal: (m.fuseTotalTicks ?? 5) / TICK_RATE,
+    grenade: m.velocity !== undefined,
+    ignoreBullets: m.ignoreBullets === true,
   }))
 
   const effects: EffectView[] = world.effects.map((e) => ({
@@ -198,6 +243,7 @@ export function toSnapshot(world: World): Snapshot {
     actors,
     projectiles,
     mines,
+    pickups: world.pickups.map((p) => ({ ...p, pos: { ...p.pos } })),
     effects,
     floaters,
     shards: world.shards,

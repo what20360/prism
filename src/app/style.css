@@ -473,3 +473,24 @@ body { background: #050a13; color: #c2d3e3; }
   .touch-controls.touch-forced .touch-stick, .touch-stick { width: 96px; height: 96px; bottom: 18px; }
   .touch-controls.touch-forced .touch-action, .touch-action { bottom: 130px; width: 50px; height: 50px; }
 }
+
+.card__priority { color: #91a9c0; font-size: 11px; letter-spacing: .04em; }
+.cards__category > summary { cursor: pointer; padding: 12px 6px; border-bottom: 1px solid #20374a; margin-bottom: 14px; }
+.cards__category > summary::marker { color: #83d7e6; }
+.skills__slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.skill-slot, .skill-owned { background: linear-gradient(135deg,#122233,#0c1523); border: 1px solid #2f475c; border-radius: 12px; padding: 18px; margin: 12px 0; }
+.skill-owned p { color: #a3bbcf; line-height: 1.7; }
+.skill-owned button { margin: 12px 10px 0 0; }
+.touch-controls .touch-skill--second, .touch-controls.touch-forced .touch-skill--second { right: 183px; }
+.touch-action.is-skill-active { box-shadow: 0 0 18px #bca3ff; border-color: #e5d4ff; }
+@media (max-width: 720px) { .menu__nav { padding: 8px 10px; } .menu__brand { font-size: 14px; } .menu__tab { padding: 8px; font-size: 12px; } .menu__actions { gap: 6px; } }
+
+.help__toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
+.help__toc button { font-size: 12px; }
+.help__chapter { border: 1px solid #253e52; border-radius: 12px; padding: 0 20px 6px; margin: 14px 0; background: #0a1521; scroll-margin-top: 12px; }
+.help__chapter > summary { cursor: pointer; color: #c6e8f2; padding: 18px 0; font-size: 15px; }
+.help__chapter .help__row { padding: 12px 0; line-height: 1.85; grid-template-columns: 140px 1fr; border-top: 1px solid #1b2e3e; }
+.help__term { font-weight: 500; }
+@media (max-width: 720px) { .help__chapter { padding: 0 14px 4px; } .help__chapter .help__row { grid-template-columns: 1fr; font-size: 13px; } }
+
+.card__sell:disabled { cursor: not-allowed; color: #829d99; background: #15231f; }

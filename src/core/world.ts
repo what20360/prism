@@ -11,6 +11,7 @@ export type EnemyTier = 'normal' | 'elite' | 'boss'
 export type EnemyBehavior = 'chase' | 'turret' | 'boss'
 
 export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
+export type SkillId = 'deflect' | 'rage' | 'dash'
 
 export interface Actor {
   readonly id: EntityId
@@ -45,6 +46,20 @@ export interface Actor {
   deflectCooldownTicks: number
   /** Ticks since last taking damage, used for shield regeneration. */
   outOfCombatTicks: number
+  lockTargetId: EntityId | null
+  manualLockId: EntityId | null
+  skillSlots: [SkillId | null, SkillId | null]
+  rageTicks: number
+  dashTicks: number
+  rageCooldownTicks: number
+  dashCooldownTicks: number
+  dashDirection: Vec2
+  burstRemaining: number
+  burstTimer: number
+  burstAngle: number
+  navPath: Vec2[]
+  navTimer: number
+  navGoal: Vec2
 }
 
 export interface Projectile {
@@ -65,27 +80,46 @@ export interface Projectile {
   travelLeft: number
   /** Targets already hit, so one bullet cannot hit the same actor twice. */
   readonly hitIds: EntityId[]
-  bouncesLeft?: number
+  ricochet?: boolean
   blastRadius?: number
+  resolvedTick?: number
+  targetId?: EntityId | null
+  homingTurn?: number
+  cruiseSpeed?: number
+  trail?: Vec2[]
+  segments?: { from: Vec2; to: Vec2 }[]
 }
 
 export interface Mine {
   readonly id: EntityId
   readonly ownerId: EntityId
   readonly team: Team
-  readonly pos: Vec2
+  pos: Vec2
   readonly bodyRadius: number
   readonly triggerRadius: number
   readonly blastRadius: number
   readonly slowRadius: number
-  readonly slowFactor: number
+  readonly slowMultiplier: number
   readonly damage: number
   hp: number
   /** null until triggered, then counts down to detonation. */
   fuseTicks: number | null
+  fuseTotalTicks?: number
+  ignoreBullets?: boolean
+  velocity?: Vec2
+  travelLeft?: number
+  fragments?: number
 }
 
-export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death' | 'deflect' | 'reflect' | 'revive'
+export interface Pickup {
+  readonly id: EntityId
+  readonly kind: 'blood' | 'shard'
+  pos: Vec2
+  readonly value: number
+  ttl: number
+}
+
+export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death' | 'deflect' | 'reflect' | 'revive' | 'rage' | 'dash' | 'pickup'
 
 export interface Effect {
   readonly kind: EffectKind
@@ -144,6 +178,7 @@ export interface World {
   pendingSpawns: EnemySpawnSpec[]
   projectiles: Projectile[]
   mines: Mine[]
+  pickups: Pickup[]
   effects: Effect[]
   /** Cosmetic combat text; not part of the deterministic state hash. */
   floaters: Floater[]
@@ -210,6 +245,7 @@ export function createWorld(options: CreateWorldOptions): World {
     pendingSpawns: [],
     projectiles: [],
     mines: [],
+    pickups: [],
     effects: [],
     floaters: [],
     purchases: [],
@@ -291,6 +327,13 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     deflectWindowTicks: 0,
     deflectCooldownTicks: 0,
     outOfCombatTicks: 0,
+    lockTargetId: null,
+    manualLockId: null,
+    skillSlots: initialSkills(spec.attrs),
+    rageTicks: 0, dashTicks: 0, rageCooldownTicks: 0, dashCooldownTicks: 0,
+    dashDirection: { x: 1, y: 0 },
+    burstRemaining: 0, burstTimer: 0, burstAngle: 0,
+    navPath: [], navTimer: 0, navGoal: spec.pos,
   }
 
   world.actors.set(id, actor)
@@ -325,4 +368,12 @@ export function allocateId(world: World): EntityId {
   const id = world.nextEntityId
   world.nextEntityId += 1
   return id
+}
+
+function initialSkills(attrs: AttrSet): [SkillId | null, SkillId | null] {
+  const ids: SkillId[] = []
+  if (attrs.deflectLevel > 0) ids.push('deflect')
+  if (attrs.rageLevel > 0) ids.push('rage')
+  if (attrs.dashLevel > 0) ids.push('dash')
+  return [ids[0] ?? null, ids[1] ?? null]
 }

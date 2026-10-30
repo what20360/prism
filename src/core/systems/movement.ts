@@ -1,4 +1,5 @@
-import { clamp, normalize } from '../math'
+import { combatAttrs } from '../combat'
+import { clamp } from '../math'
 import type { Rect } from '../types'
 import { TICK_DT } from '../types'
 import type { Actor, World } from '../world'
@@ -6,11 +7,15 @@ import type { Actor, World } from '../world'
 /** Step 4 of the tick order (see docs/architecture.md 5.4). */
 export function updateMovement(world: World, dt: number = TICK_DT): void {
   for (const actor of world.actors.values()) {
-    const dir = normalize(actor.intent.move)
+    if (!actor.alive) continue
+    const raw = actor.dashTicks > 0 ? actor.dashDirection : actor.intent.move
+    const magnitude = Math.max(1, Math.hypot(raw.x, raw.y))
+    const dir = { x: raw.x / magnitude, y: raw.y / magnitude }
     if (dir.x === 0 && dir.y === 0) continue
 
-    const distance = actor.attrs.speed * dt
-    moveActor(world, actor, dir.x * distance, dir.y * distance)
+    const distance = combatAttrs(actor).speed * dt
+    const steps = Math.max(1, Math.ceil(distance / Math.max(4, actor.radius * 0.5)))
+    for (let i = 0; i < steps; i++) moveActor(world, actor, dir.x * distance / steps, dir.y * distance / steps)
   }
 }
 
@@ -49,4 +54,23 @@ export function circleIntersectsRect(x: number, y: number, radius: number, rect:
   const dx = x - nearestX
   const dy = y - nearestY
   return dx * dx + dy * dy < radius * radius
+}
+
+export function separateActors(world: World): void {
+  const actors = [...world.actors.values()].filter((actor) => actor.alive)
+  for (let pass = 0; pass < 2; pass++) for (let i = 0; i < actors.length; i++) for (let j = i + 1; j < actors.length; j++) {
+    const a = actors[i]!, b = actors[j]!
+    if (a.team === 'player' && b.team === 'player') continue
+    let dx = b.pos.x - a.pos.x, dy = b.pos.y - a.pos.y
+    const length = Math.hypot(dx, dy), overlap = a.radius + b.radius - length
+    if (overlap <= 0) continue
+    if (length < 0.001) { const angle = (a.id * 13 + b.id * 7) * 0.7; dx = Math.cos(angle); dy = Math.sin(angle) }
+    else { dx /= length; dy /= length }
+    const pushA = a.team !== 'player' && a.attrs.speed > 0, pushB = b.team !== 'player' && b.attrs.speed > 0
+    const count = Number(pushA) + Number(pushB)
+    if (!count) continue
+    const amount = Math.min(8, overlap * 0.4) / count
+    if (pushA) moveActor(world, a, -dx * amount, -dy * amount)
+    if (pushB) moveActor(world, b, dx * amount, dy * amount)
+  }
 }

@@ -30,6 +30,18 @@ export function updateDeflectFields(world: World, dt: number): void {
       const distance = Math.hypot(dx, dy)
       if (distance > radius || distance === 0) continue
 
+      if (active) {
+        const cap = actor.attrs.maxProjectiles
+        const owned = world.projectiles.filter((p) => p.ownerId === actor.id && p.team === actor.team && p.pierceLeft > 0).length
+        if (cap > 0 && owned >= cap) { projectile.pierceLeft = 0; continue }
+        projectile.team = actor.team; projectile.ownerId = actor.id; projectile.hitIds.length = 0
+        projectile.targetId = actor.lockTargetId; projectile.travelLeft = Math.max(500, projectile.travelLeft)
+        const rebound = strength * (1 - distance / radius) ** 2 * dt
+        projectile.vel = { x: -projectile.vel.x + dx / distance * rebound, y: -projectile.vel.y + dy / distance * rebound }
+        if (actor.attrs.deflectLevel >= 2) projectile.damage *= actor.attrs.reflectDamageMult
+        world.effects.push({ kind: actor.attrs.deflectLevel >= 2 ? 'reflect' : 'deflect', x: projectile.pos.x, y: projectile.pos.y, radius: 30, ttl: 12 })
+        continue
+      }
       const falloff = 1 - distance / radius
       const push = strength * falloff * falloff * dt
 
@@ -39,4 +51,5 @@ export function updateDeflectFields(world: World, dt: number): void {
       }
     }
   }
+  world.projectiles = world.projectiles.filter((projectile) => projectile.pierceLeft > 0)
 }

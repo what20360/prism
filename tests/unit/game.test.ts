@@ -82,6 +82,24 @@ describe('game lifecycle', () => {
     game.dispose()
   })
 
+  it('keeps manual aim stable with a stationary pointer across variable-frame catch-up ticks', () => {
+    const angles: number[] = []
+    let lastDrawn = { x: 500, y: 500 }
+    const { game } = idleGame({
+      input: { read: () => ({ move: { x: 1, y: 0 } }), consumeMenuToggle: () => false, consumeRestart: () => false, reset: () => {}, dispose: () => {} },
+      renderer: {
+        draw: (snapshot) => { const p = snapshot.actors.find((a) => a.team === 'player')!; lastDrawn = { x: p.x, y: p.y }; if (snapshot.tick > 0) angles.push(p.aimAngle) },
+        viewToWorld: (_x, _y, focus) => ({ x: (focus ?? lastDrawn).x + 300, y: (focus ?? lastDrawn).y - 200 }),
+        dispose: () => {},
+      },
+    })
+    game.start()
+    for (const now of [1000, 1018, 1033, 1067, 1084, 1134, 1150, 1185]) advance(now)
+    expect(angles.length).toBeGreaterThan(4)
+    for (const angle of angles) expect(angle).toBeCloseTo(Math.atan2(-200, 300), 12)
+    game.dispose()
+  })
+
   it('keeps the animation loop alive after a lethal hit with manual aim', () => {
     const room: RoomSpec = {
       id: 'lethal-contact',

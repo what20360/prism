@@ -33,7 +33,7 @@ describe('keyboard commands', () => {
       for (const code of ['KeyD', 'KeyE', 'KeyJ', 'KeyR', 'Escape']) down(code)
       expect(input.read().move.x).toBe(1)
       reset()
-      expect(input.read()).toEqual({ move: { x: 0, y: 0 }, placeMine: false, skill: undefined })
+      expect(input.read()).toEqual({ move: { x: 0, y: 0 }, placeMine: false, skill: undefined, skills: [] })
       expect(input.consumeRestart()).toBe(false)
       expect(input.consumeMenuToggle()).toBe(false)
     }

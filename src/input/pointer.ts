@@ -3,6 +3,7 @@ export interface PointerSource {
   position(): { x: number; y: number } | null
   /** True while the primary button is held. */
   firing(): boolean
+  consumeLock?(): { x: number; y: number } | null | undefined
   /** Releases the trigger while retaining the latest aim position. */
   reset(): void
   dispose(): void
@@ -18,15 +19,19 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   let y = 0
   let seen = false
   let down = false
+  let pendingLock: { x: number; y: number } | null | undefined
 
   const onMove = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') return
     x = event.clientX
     y = event.clientY
     seen = true
   }
 
   const onDown = (event: PointerEvent): void => {
+    if (event.button === 2) { pendingLock = null; return }
     if (event.button !== 0) return
+    pendingLock = { x: event.clientX, y: event.clientY }
     down = true
     onMove(event)
   }
@@ -41,9 +46,12 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   }
 
   const onBlur = (): void => {
+    pendingLock = undefined
     down = false
   }
 
+  const onContext = (event: Event) => event.preventDefault()
+  target.addEventListener('contextmenu', onContext)
   target.addEventListener('pointermove', onMove)
   target.addEventListener('pointerdown', onDown)
   window.addEventListener('pointerup', onUp)
@@ -53,8 +61,10 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   return {
     position: () => (seen ? { x, y } : null),
     firing: () => down,
+    consumeLock: () => { const value = pendingLock; pendingLock = undefined; return value },
     reset: onBlur,
     dispose: () => {
+      target.removeEventListener('contextmenu', onContext)
       target.removeEventListener('pointermove', onMove)
       target.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerup', onUp)

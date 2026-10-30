@@ -1,3 +1,5 @@
+import { renderSkillsSection, type SkillsState } from './sections/skills'
+import type { SkillId } from '../core/world'
 import { renderAttrsSection, type PlayerView } from './sections/attrs'
 import { renderCardsSection, type CardsSectionState } from './sections/cards'
 import { renderHelpSection } from './sections/help'
@@ -5,9 +7,9 @@ import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
 import type { ControlSettings, SettingKey } from '../storage/config'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills'
 
-export interface MenuState extends CardsSectionState {
+export interface MenuState extends CardsSectionState, SkillsState {
   readonly player: PlayerView
   readonly settings: ControlSettings
 }
@@ -17,6 +19,7 @@ export interface MenuHandlers {
   readonly onRestart: () => void
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
+  readonly onEquip: (slot: number, id: SkillId | null) => void
   readonly onSetting: <K extends SettingKey>(key: K, value: ControlSettings[K]) => void
   readonly getState: () => MenuState
 }
@@ -34,6 +37,7 @@ const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'keys', label: '按键绑定' },
   { id: 'upgrade', label: '升级面板' },
   { id: 'attrs', label: '角色属性' },
+  { id: 'skills', label: '主动技能' },
   { id: 'settings', label: '设置' },
 ]
 
@@ -93,6 +97,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
   root.append(overlay)
 
   let active: MenuSection = 'upgrade'
+  const collapsed = new Set<string>()
 
   const render = (): void => {
     const state = handlers.getState()
@@ -100,10 +105,11 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
 
     if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
+    else if (active === 'skills') content.append(renderSkillsSection(state, handlers.onEquip))
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
     else if (active === 'settings') {
       content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.player.attrs))
-    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell }))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, collapsed }))
 
     for (const [id, button] of buttons) {
       button.classList.toggle('menu__tab--active', id === active)

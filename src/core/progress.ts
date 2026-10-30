@@ -1,3 +1,4 @@
+import { reconcileSkills } from './systems/skills'
 import { shieldCap, type AttrSet } from './attrs'
 import type { BuyResult, Requirement } from './cards'
 import { meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
@@ -19,6 +20,8 @@ export interface CardState {
   readonly requires: readonly Requirement[]
   readonly refund: number | null
   readonly tags: readonly string[]
+  readonly priority: number
+  readonly saleBlocked: string | null
 }
 
 /** Read-only view for the upgrade panel. */
@@ -47,6 +50,8 @@ export function listCardStates(world: World): CardState[] {
       requires: card.requires ?? [],
       refund: card.resellable && level > 0 ? saleValue(world, card.id) : null,
       tags: card.tags ?? [],
+      priority: card.priority,
+      saleBlocked: saleBlocker(world, card.id),
     }
   })
 }
@@ -89,15 +94,19 @@ export function saleValue(world: World, cardId: string): number {
   return Math.max(0, Math.min(paid - 1, Math.floor(paid * 0.6)))
 }
 
+function saleBlocker(world: World, cardId: string): string | null {
+  const nextLevel = purchaseLevel(world.purchases, cardId) - 1
+  const dependent = world.purchases.find((item) => item.id !== cardId && item.level > 0 &&
+    world.registry.get(item.id)?.requires?.some((requirement) => requirement.card === cardId && (requirement.level ?? 1) > nextLevel))
+  return dependent ? world.registry.get(dependent.id)?.name ?? dependent.id : null
+}
+
 export function sellCard(world: World, cardId: string): boolean {
   const card = world.registry.get(cardId)
   const purchase = world.purchases.find((item) => item.id === cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return false
   const nextLevel = purchase.level - 1
-  const dependent = world.purchases.some((item) => item.id !== cardId && item.level > 0 &&
-    world.registry.get(item.id)?.requires?.some((requirement) =>
-      requirement.card === cardId && (requirement.level ?? 1) > nextLevel))
-  if (dependent) return false
+  if (saleBlocker(world, cardId)) return false
   world.shards += saleValue(world, cardId)
   purchase.level = nextLevel
   purchase.paid?.pop()
@@ -112,7 +121,13 @@ export function reapplyAttrs(world: World, player: Actor): void {
   const hpGain = next.maxHp - player.attrs.maxHp
   const shieldGain = next.shield - player.attrs.shield
 
+  const previous = player.attrs
   player.attrs = next
+  reconcileSkills(player, previous)
+  if (next.maxProjectiles > 0) {
+    let count = 0
+    world.projectiles = world.projectiles.filter((bullet) => bullet.ownerId !== player.id || bullet.team !== player.team || ++count <= next.maxProjectiles)
+  }
   player.radius = next.radius
   if (hpGain > 0) player.hp = Math.min(next.maxHp, player.hp + hpGain)
   player.hp = Math.min(player.hp, next.maxHp)

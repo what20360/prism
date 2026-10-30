@@ -1,3 +1,6 @@
+import { combatAttrs } from '../combat'
+import { nextFloat } from '../rng'
+import { allocateId } from '../world'
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
@@ -19,6 +22,7 @@ export interface DamageEvent {
   readonly raw: number
   readonly penetration: number
   readonly isCore: boolean
+  readonly kind?: 'bullet' | 'mine' | 'contact'
 }
 
 /**
@@ -32,7 +36,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
   // Invulnerability nullifies the hit entirely: no damage, no rewards.
   if (target.iframesTicks > 0) return
 
-  const actual = resolveDamage(event.raw, target.attrs.armor, event.penetration)
+  const actual = resolveDamage(event.raw, combatAttrs(target).armor, event.penetration)
   if (actual <= 0) return
 
   const hpBefore = target.hp
@@ -55,6 +59,11 @@ export function applyDamage(world: World, event: DamageEvent): void {
     world.shards += gained
     world.score += effectiveDamage + overkill * world.economy.overflowRate
     applyLifesteal(player, effectiveDamage)
+    const chance = event.kind === 'mine' ? player.attrs.mineShardChance : event.kind === 'bullet' ? player.attrs.bloodOrbChance : 0
+    if (effectiveDamage > 0 && chance > 0 && world.pickups.length < 100 && nextFloat(world.rng) < chance) {
+      world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
+        value: event.kind === 'mine' ? 2 * player.attrs.shardGain : Math.max(4, player.attrs.maxHp * 0.04), ttl: 30 * TICK_RATE })
+    }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
     if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)
     if (gained > 0.05) pushFloater(world, 'shard', gained, target.pos.x, target.pos.y)
@@ -84,8 +93,9 @@ export function applyDamage(world: World, event: DamageEvent): void {
 function applyLifesteal(player: Actor, damage: number): void {
   if (damage <= 0) return
 
-  if (player.attrs.lifesteal > 0) {
-    player.hp = Math.min(player.attrs.maxHp, player.hp + damage * player.attrs.lifesteal)
+  const attrs = combatAttrs(player)
+  if (attrs.lifesteal > 0) {
+    player.hp = Math.min(player.attrs.maxHp, player.hp + damage * attrs.lifesteal)
   }
 
   const shieldGain = damage * player.attrs.shieldSteal

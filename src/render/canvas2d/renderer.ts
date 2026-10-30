@@ -1,9 +1,10 @@
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
 
 export interface RenderDebug { readonly fps: number; readonly label?: string }
+export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
-  viewToWorld(clientX: number, clientY: number): { x: number; y: number }
+  viewToWorld(clientX: number, clientY: number, focus?: CameraFocus): { x: number; y: number }
   dispose(): void
 }
 interface Camera { x: number; y: number; width: number; height: number }
@@ -14,6 +15,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   if (!context) throw new Error('Canvas2D context is unavailable')
   const ctx = context
   let width = 1, height = 1
+  let lastScene: Snapshot | undefined
   let camera: Camera = { x: 0, y: 0, width: 1920, height: 1080 }
   const resize = () => {
     width = canvas.clientWidth || window.innerWidth
@@ -31,11 +33,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const ring = (x: number, y: number, r: number, color: string, line = 2) => {
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.strokeStyle = color; ctx.lineWidth = line; ctx.stroke()
   }
-  const cameraFor = (s: Snapshot): Camera => {
+  const cameraFor = (s: Snapshot, focus?: CameraFocus): Camera => {
     const aspect = width / height
-    const viewWidth = Math.max(1080 * aspect, 1050)
+    const player = focus ?? s.actors.find((a) => a.team === 'player')
+    const viewWidth = Math.max(1080 * aspect, 1050) * (player?.vision ?? 1)
     const viewHeight = viewWidth / aspect
-    const player = s.actors.find((a) => a.team === 'player')
     const b = s.bounds
     const center = (value: number, start: number, extent: number, view: number) =>
       view >= extent ? start + extent / 2 : clamp(value, start + view / 2, start + extent - view / 2)
@@ -131,7 +133,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.closePath()
     }
-    const color = player ? CYAN : a.behavior === 'boss' ? PURPLE : RED
+    const color = player ? a.enraged ? GOLD : CYAN : a.behavior === 'boss' ? PURPLE : RED
     ctx.shadowColor = color; ctx.shadowBlur = player ? 16 : 9
     ctx.fillStyle = player ? '#18394b' : '#341c32'; ctx.fill()
     ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke(); ctx.shadowBlur = 0
@@ -145,8 +147,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (a.shield > 0) ring(a.x, a.y, r + 5, 'rgba(180,210,255,0.5)', 2)
     if (player) {
       cooldown(a, r + 13, a.fireCooldownSeconds, a.fireCooldownTotal, 0.3, CYAN)
-      if (a.deflectLevel > 0) cooldown(a, r + 23, a.deflectCooldownSeconds, a.deflectCooldownTotal, 0.5, PURPLE)
-      if (a.mineCooldownSeconds > 0) cooldown(a, r + 33, a.mineCooldownSeconds, a.mineCooldownTotal, 0.5, GOLD)
+      for (const [index, skill] of a.skills.entries()) if (skill.id) cooldown(a, r + 23 + index * 11, skill.cooldown, skill.total, 0.5, skill.id === 'rage' ? RED : skill.id === 'dash' ? '#9feac7' : PURPLE)
+      if (a.mineCooldownSeconds > 0) cooldown(a, r + 46, a.mineCooldownSeconds, a.mineCooldownTotal, 0.5, GOLD)
+    }
+    if (a.locked) {
+      const edge = r + 16, inset = 12
+      ctx.strokeStyle = a.manualLocked ? GOLD : CYAN; ctx.lineWidth = 3
+      ctx.beginPath()
+      for (const x of [-1, 1]) for (const y of [-1, 1]) {
+        ctx.moveTo(a.x + x * edge, a.y + y * (edge - inset)); ctx.lineTo(a.x + x * edge, a.y + y * edge); ctx.lineTo(a.x + x * (edge - inset), a.y + y * edge)
+      }
+      ctx.stroke()
     }
     if (!player && (a.hp < a.maxHp || a.damageFlashTicks > 0)) {
       const ratio = clamp(a.hp / a.maxHp, 0, 1)
@@ -174,8 +185,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawFloater = (f: FloaterView) => {
     ctx.globalAlpha = Math.min(1, f.ttl / 20); ctx.textAlign = 'center'
     const value = Math.round(f.value * 10) / 10
-    const label = f.kind === 'shard' ? `◆ ${value}` : f.kind === 'overflow' ? `溢 ${Math.round(value)}` : f.kind === 'taken' ? `−${Math.round(value)}` : `${Math.round(value)}`
-    const color = f.kind === 'shard' ? '#91eacb' : f.kind === 'overflow' ? GOLD : f.kind === 'taken' ? RED : '#e7f5ff'
+    const label = f.kind === 'shard' ? `◆ ${value}` : f.kind === 'overflow' ? `溢 ${Math.round(value)}` : f.kind === 'taken' ? `−${Math.round(value)}` : f.kind === 'heal' ? `+${Math.round(value)}` : `${Math.round(value)}`
+    const color = f.kind === 'shard' ? '#91eacb' : f.kind === 'overflow' ? GOLD : f.kind === 'taken' ? RED : f.kind === 'heal' ? '#9ff4c3' : '#e7f5ff'
     ctx.shadowColor = '#02050c'; ctx.shadowBlur = 5; text(label, f.x, f.y, f.kind === 'shard' ? 19 : 25, color)
     ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.globalAlpha = 1
   }
@@ -190,7 +201,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
       text(`◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
       if (s.stats.chain > 1) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
-      if (!phone) text(p.autoFire ? '扳机模组已装备' : '按住鼠标左键射击', 20, height - 25, 12, '#7591a9')
+      if (!phone) {
+        text(p.autoFire ? '扳机模组已装备' : '按住鼠标左键射击 · 点击目标锁定 · 右键取消', 20, height - 25, 12, '#7591a9')
+        for (const [i, skill] of p.skills.entries()) if (skill.id) {
+          const name = skill.id === 'deflect' ? '偏转' : skill.id === 'rage' ? '狂暴' : '冲刺'
+          text(`${i === 0 ? 'J' : 'K'}  ${name}  ${skill.active ? '生效中' : skill.cooldown > 0 ? skill.cooldown.toFixed(1) + 's' : '就绪'}`, width / 2 - 115 + i * 170, height - 25, 12, PURPLE)
+        }
+      }
     }
     const mw = phone ? 100 : 180, mh = mw * s.bounds.height / s.bounds.width, mx = width - mw - 18, my = 66
     ctx.fillStyle = 'rgba(3,8,17,0.8)'; ctx.fillRect(mx, my, mw, mh)
@@ -208,7 +225,40 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     else if (s.roomCleared) text('区域已净空 · 前往传送门', width / 2, phone ? height * 0.43 : height - 58, phone ? 12 : 14, '#8ad9bb')
     ctx.textAlign = 'left'
   }
+  const drawTarget = (s: Snapshot) => {
+    const target = s.actors.find((a) => a.locked && a.alive)
+    if (!target) return
+    const phone = width < 700, w = phone ? 190 : 220, x = phone ? 20 : width - w - 18, y = phone ? 150 : 190
+    ctx.fillStyle = 'rgba(5,14,25,0.92)'; ctx.fillRect(x, y, w, 113)
+    ctx.strokeStyle = target.manualLocked ? '#9c8354' : '#37687d'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, 113)
+    text(`${target.manualLocked ? '◆' : '◇'} ${target.name ?? '目标'} · ${target.manualLocked ? '手动锁定' : '方向锁定'}`, x + 10, y + 19, 11, target.manualLocked ? GOLD : CYAN)
+    ctx.fillStyle = '#253244'; ctx.fillRect(x + 10, y + 29, w - 20, 3)
+    ctx.fillStyle = RED; ctx.fillRect(x + 10, y + 29, (w - 20) * clamp(target.hp / target.maxHp, 0, 1), 3)
+    text(`生命 ${Math.ceil(target.hp)} / ${Math.round(target.maxHp)}   盾 ${Math.ceil(target.shield)}`, x + 10, y + 49, 11)
+    text(`护甲 ${Math.round(target.armor)}   移速 ${Math.round(target.movementSpeed)}`, x + 10, y + 70, 11)
+    text(`伤害 ${Number(target.damage.toFixed(1))}   攻速 ${Number(target.fireRate.toFixed(2))}/s`, x + 10, y + 91, 11)
+  }
+  const drawBullet = (bullet: Snapshot['projectiles'][number]) => {
+    const color = bullet.team === 'player' ? '#a5efff' : '#ff8ea9'
+    const count = Math.min(bullet.trail.length, Math.ceil(bullet.speed / 160))
+    const trail = bullet.trail.slice(-count)
+    if (count > 0 && bullet.speed > 35) {
+      const first = trail[0]!, fade = ctx.createLinearGradient(first.x, first.y, bullet.x + 0.01, bullet.y + 0.01)
+      fade.addColorStop(0, 'rgba(90,160,220,0)'); fade.addColorStop(1, color)
+      ctx.strokeStyle = fade; ctx.lineWidth = Math.max(2, bullet.radius * 0.65)
+      ctx.beginPath(); ctx.moveTo(first.x, first.y)
+      for (const point of trail) ctx.lineTo(point.x, point.y)
+      ctx.lineTo(bullet.x, bullet.y); ctx.stroke()
+    }
+    const glow = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, bullet.radius * 2.2)
+    glow.addColorStop(0, bullet.team === 'player' ? 'rgba(135,229,255,0.35)' : 'rgba(255,110,150,0.3)'); glow.addColorStop(1, 'rgba(80,150,220,0)')
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 2.2, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 0.72, 0, Math.PI * 2); ctx.fill()
+    ring(bullet.x, bullet.y, bullet.radius, color, 1.2)
+    ctx.fillStyle = '#f6fcff'; ctx.beginPath(); ctx.arc(bullet.x - bullet.radius * 0.17, bullet.y - bullet.radius * 0.17, Math.max(2, bullet.radius * 0.29), 0, Math.PI * 2); ctx.fill()
+  }
   const draw = (s: Snapshot, debug: RenderDebug) => {
+    lastScene = s
     camera = cameraFor(s)
     ctx.fillStyle = '#050a13'; ctx.fillRect(0, 0, width, height)
     ctx.save(); const zoom = width / camera.width; ctx.scale(zoom, zoom); ctx.translate(-camera.x, -camera.y)
@@ -217,14 +267,23 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = 'rgba(255,207,135,0.035)'; ctx.beginPath(); ctx.arc(mine.x, mine.y, mine.slowRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([10, 16]); ring(mine.x, mine.y, mine.blastRadius, 'rgba(251,209,142,0.18)', 2); ctx.setLineDash([])
       ring(mine.x, mine.y, mine.bodyRadius, mine.fuseTicks !== null ? RED : GOLD, 3)
-      ctx.fillStyle = GOLD; ctx.fillRect(mine.x - 7, mine.y - 7, 14, 14)
+      ctx.fillStyle = mine.grenade ? '#b8c5a5' : GOLD
+      ctx.beginPath(); ctx.arc(mine.x, mine.y, 12, 0, Math.PI * 2); ctx.fill()
+      if (mine.ignoreBullets) { ctx.setLineDash([3, 4]); ring(mine.x, mine.y, 21, '#9de6bd', 1.5); ctx.setLineDash([]) }
+      if (mine.fuseTicks !== null && mine.fuseTotal >= 0.5) {
+        ctx.textAlign = 'center'; text(`${(mine.fuseTicks / 60).toFixed(1)}s`, mine.x, mine.y - mine.bodyRadius - 15, 24, '#ffe5b4'); ctx.textAlign = 'left'
+      }
     }
     ctx.lineCap = 'round'
-    for (const bullet of s.projectiles) {
-      const length = Math.hypot(bullet.vx, bullet.vy) || 1
-      ctx.beginPath(); ctx.moveTo(bullet.x - bullet.vx / length * bullet.radius * 2.6, bullet.y - bullet.vy / length * bullet.radius * 2.6)
-      ctx.lineTo(bullet.x, bullet.y); ctx.lineWidth = Math.max(3, bullet.radius * 1.1)
-      ctx.strokeStyle = bullet.team === 'player' ? '#b8f2ff' : '#ff8da5'; ctx.stroke()
+    for (const bullet of s.projectiles) drawBullet(bullet)
+    for (const pickup of s.pickups) {
+      const { x, y } = pickup.pos
+      ctx.shadowBlur = 14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'
+      ctx.fillStyle = pickup.kind === 'blood' ? '#f48da7' : '#8cf0dc'; ctx.beginPath()
+      if (pickup.kind === 'blood') ctx.arc(x, y, 12, 0, Math.PI * 2)
+      else { ctx.moveTo(x, y - 15); ctx.lineTo(x + 10, y); ctx.lineTo(x, y + 15); ctx.lineTo(x - 10, y); ctx.closePath() }
+      ctx.fill(); ctx.shadowBlur = 0
+      if (pickup.kind === 'blood') { ctx.fillStyle = '#fff0f4'; ctx.fillRect(x - 6, y - 2, 12, 4); ctx.fillRect(x - 2, y - 6, 4, 12) }
     }
     for (const a of s.actors) if (a.alive) drawActor(a, s.tick)
     for (const effect of s.effects) drawEffect(effect)
@@ -234,9 +293,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     vignette.addColorStop(0, 'rgba(2,5,12,0)'); vignette.addColorStop(1, 'rgba(2,5,12,0.52)')
     ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height)
     drawHud(s, debug)
+    drawTarget(s)
   }
-  return { draw, viewToWorld: (x, y) => {
-    const rect = canvas.getBoundingClientRect(), zoom = width / camera.width
-    return { x: camera.x + (x - rect.left) / zoom, y: camera.y + (y - rect.top) / zoom }
+  return { draw, viewToWorld: (x, y, focus) => {
+    // Pointer conversion uses this simulation tick's camera, not the previous rendered frame.
+    const current = focus && lastScene ? cameraFor(lastScene, focus) : camera
+    const rect = canvas.getBoundingClientRect(), zoom = width / current.width
+    return { x: current.x + (x - rect.left) / zoom, y: current.y + (y - rect.top) / zoom }
   }, dispose: () => window.removeEventListener('resize', resize) }
 }

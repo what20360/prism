@@ -1,7 +1,7 @@
 import type { Snapshot } from '../core/snapshot'
 import type { ControlSettings } from '../storage/config'
 
-export type Sound = 'shot' | 'hit' | 'coreHit' | 'explosion' | 'hurt' | 'buy' | 'sell' | 'deflect' | 'revive' | 'victory' | 'failure' | 'mine'
+export type Sound = 'shot' | 'hit' | 'coreHit' | 'explosion' | 'hurt' | 'buy' | 'sell' | 'deflect' | 'revive' | 'victory' | 'failure' | 'mine' | 'rage' | 'dash' | 'pickup'
 
 /** Procedural audio stays outside the deterministic simulation and needs no assets. */
 export function createAudioEngine() {
@@ -51,6 +51,9 @@ export function createAudioEngine() {
       const notes = sound === 'buy' ? [523, 659, 784] : [784, 659, 440]
       notes.forEach((note, i) => play(note, 0.17, 0.13, 'sine', note, i * 0.065))
     } else if (sound === 'deflect') { play(320, 0.24, 0.16, 'sine', 1600); play(960, 0.18, 0.1) }
+    else if (sound === 'rage') { play(110, 0.35, 0.2, 'sawtooth', 440); play(220, 0.25, 0.1) }
+    else if (sound === 'dash') play(300, 0.18, 0.14, 'triangle', 1300)
+    else if (sound === 'pickup') { play(660, 0.14, 0.1); play(990, 0.14, 0.07, 'sine', 990, 0.04) }
     else if (sound === 'mine') play(660, 0.1, 0.1, 'triangle', 330)
     else if (sound === 'revive' || sound === 'victory') {
       ;[262, 330, 392, 523].forEach((note, i) => play(note, 0.45, 0.14, 'sine', note, i * 0.12))

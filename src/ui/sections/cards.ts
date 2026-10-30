@@ -9,6 +9,7 @@ export interface CardsSectionState {
 export interface CardsSectionHandlers {
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
+  readonly collapsed?: Set<string>
 }
 
 const CATEGORY_ORDER: readonly string[] = [
@@ -72,7 +73,7 @@ function cardButton(
     meta.append(element('span', 'card__status', '前置未满足'))
   }
 
-  button.append(head, meta)
+  button.append(head, meta, element('span', 'card__priority', `优先级 ${card.priority}`))
   if (card.summary) button.append(element('span', 'card__effect', card.summary))
   if (requirements) button.append(element('span', 'card__req', `前置：${requirements}`))
   if (card.tags.length) button.append(element('span', 'card__tags', card.tags.join(' / ')))
@@ -87,7 +88,9 @@ function cardButton(
     const sell = document.createElement('button')
     sell.type = 'button'
     sell.className = 'card__sell'
-    sell.textContent = `出售 · 返还 ${card.refund} 棱晶`
+    sell.disabled = card.saleBlocked !== null
+    sell.title = card.saleBlocked ? `被“${card.saleBlocked}”依赖，当前不可出售` : '回收当前等级的效果'
+    sell.textContent = card.saleBlocked ? `被${card.saleBlocked}依赖 · 不可出售` : `出售 · 返还 ${card.refund} 棱晶`
     sell.setAttribute('aria-label', `出售${card.name}，返还 ${card.refund} 棱晶`)
     sell.addEventListener('click', () => handlers.onSell(card.id))
     article.append(sell)
@@ -102,7 +105,7 @@ export function renderCardsSection(
 ): HTMLElement {
   const wrapper = element('div', 'cards')
   wrapper.append(element('p', 'menu__hint', `可用棱晶 ${Math.floor(state.shards)}`))
-  wrapper.append(element('p', 'cards__intro', '选择自己的战斗方式。操控卡与姿态卡可回收实付价格的 60%；普通成长卡永久生效至本局结束。'))
+  wrapper.append(element('p', 'cards__intro', '选择自己的战斗方式。操控卡与姿态卡可回收实付价格的 60%；普通成长卡永久生效至本局结束。优先级数值越小越先生效，同值按固定顺序处理。'))
 
   const grouped = new Map<string, CardState[]>()
   for (const card of state.cards) {
@@ -118,8 +121,12 @@ export function renderCardsSection(
   })
 
   for (const category of categories) {
-    const section = element('section', 'menu__section')
-    section.append(element('h3', 'menu__heading', CATEGORY_LABELS[category] ?? category))
+    const section = document.createElement('details')
+    section.className = 'menu__section cards__category'
+    section.open = !handlers.collapsed?.has(category)
+    const summary = element('summary', 'menu__heading', `${CATEGORY_LABELS[category] ?? category} · ${grouped.get(category)?.length ?? 0}`)
+    section.append(summary)
+    section.addEventListener('toggle', () => { if (section.open) handlers.collapsed?.delete(category); else handlers.collapsed?.add(category) })
 
     const grid = element('div', 'cards__grid')
     for (const card of grouped.get(category) ?? []) {

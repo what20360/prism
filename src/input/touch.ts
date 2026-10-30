@@ -1,3 +1,4 @@
+import { SKILL_NAMES } from '../content/skills'
 import type { Intent } from '../core/controller'
 import type { Snapshot } from '../core/snapshot'
 
@@ -26,6 +27,8 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   let firing = false
   let mine = false
   let skill = false
+  let skill2 = false
+  let pendingSkill2 = false
   let pendingMine = false
   let pendingSkill = false
   let paused = false
@@ -105,22 +108,23 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   layer.append(stick('move', '移动'), stick('fire', '瞄准 / 射击'))
   const mineButton = action('地雷', 'touch-mine', (value) => { mine = value; pendingMine ||= value })
   const skillButton = action('偏转', 'touch-skill', (value) => { skill = value; pendingSkill ||= value })
-  layer.append(mineButton, skillButton)
+  const secondSkillButton = action('技能2', 'touch-skill touch-skill--second', (value) => { skill2 = value; pendingSkill2 ||= value })
+  layer.append(mineButton, skillButton, secondSkillButton)
   root.append(layer)
   const reset = () => {
     for (const clear of resets) clear()
-    pendingMine = false; pendingSkill = false
+    pendingMine = false; pendingSkill = false; pendingSkill2 = false
     paused = false
     layer.classList.remove('is-paused')
   }
   const setPaused = (value: boolean) => {
     if (paused === value) return
     for (const clear of resets) clear()
-    pendingMine = false; pendingSkill = false
+    pendingMine = false; pendingSkill = false; pendingSkill2 = false
     paused = value
     layer.classList.toggle('is-paused', value)
   }
-  const loseFocus = () => { for (const clear of resets) clear(); pendingMine = false; pendingSkill = false }
+  const loseFocus = () => { for (const clear of resets) clear(); pendingMine = false; pendingSkill = false; pendingSkill2 = false }
   window.addEventListener('blur', loseFocus)
   window.addEventListener('orientationchange', loseFocus)
   cleaners.push(() => window.removeEventListener('blur', loseFocus), () => window.removeEventListener('orientationchange', loseFocus))
@@ -128,8 +132,8 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     read: () => {
       if (paused) return { move: { x: 0, y: 0 }, fire: false }
       // A quick tap must survive until the next fixed simulation tick.
-      const intent = { move, aim, fire: firing, placeMine: mine || pendingMine, skill: skill || pendingSkill ? 0 : undefined }
-      pendingMine = false; pendingSkill = false
+      const intent = { move, aim, fire: firing, placeMine: mine || pendingMine, skills: [...(skill || pendingSkill ? [0] : []), ...(skill2 || pendingSkill2 ? [1] : [])] }
+      pendingMine = false; pendingSkill = false; pendingSkill2 = false
       return intent
     },
     reset, setPaused,
@@ -138,16 +142,19 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
       setPaused(isPaused || snapshot.gameOver || snapshot.victory)
       const player = snapshot.actors.find((actor) => actor.team === 'player')
       if (!player) return
-      for (const [button, remaining, total, label] of [
-        [mineButton, player.mineCooldownSeconds, player.mineCooldownTotal, '地雷'],
-        [skillButton, player.deflectCooldownSeconds, player.deflectCooldownTotal, '偏转'],
-      ] as const) {
-        const ratio = Math.max(0, Math.min(1, 1 - remaining / Math.max(0.01, total)))
-        button.style.setProperty('--ready', `${ratio * 360}deg`)
-        button.textContent = remaining > 0.3 ? `${label} ${remaining.toFixed(1)}` : label
+      const mineRatio = Math.max(0, Math.min(1, 1 - player.mineCooldownSeconds / Math.max(0.01, player.mineCooldownTotal)))
+      mineButton.style.setProperty('--ready', `${mineRatio * 360}deg`)
+      mineButton.textContent = player.mineCooldownSeconds > 0.3 ? `地雷 ${player.mineCooldownSeconds.toFixed(1)}` : '地雷'
+      for (const [index, button] of [skillButton, secondSkillButton].entries()) {
+        const state = player.skills[index]
+        const label = state?.id ? SKILL_NAMES[state.id] : `技能${index + 1}`
+        button.disabled = !state?.id
+        button.setAttribute('aria-label', `技能${index + 1}：${label}`)
+        button.title = state?.id ? '在菜单的主动技能页换装' : '在主动技能页装备'
+        button.style.setProperty('--ready', `${Math.max(0, Math.min(1, 1 - (state?.cooldown ?? 0) / Math.max(0.01, state?.total ?? 1))) * 360}deg`)
+        button.textContent = (state?.cooldown ?? 0) > 0.3 ? `${label} ${state!.cooldown.toFixed(1)}` : label
+        button.classList.toggle('is-skill-active', state?.active === true)
       }
-      skillButton.disabled = player.deflectLevel <= 0
-      skillButton.title = skillButton.disabled ? '购买偏转力场后解锁' : '偏转 / 反射'
     },
     dispose: () => { loseFocus(); cleaners.forEach((clean) => clean()); layer.remove() },
   }

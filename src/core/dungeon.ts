@@ -19,6 +19,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
 
   world.projectiles = []
   world.mines = []
+  world.pickups = []
   world.effects = []
 
   world.room.kind = room.kind
@@ -35,6 +36,8 @@ export function applyRoom(world: World, room: RoomSpec): void {
   player.pos = room.entry
   player.iframesTicks = 0
   player.deflectWindowTicks = 0
+  player.lockTargetId = null; player.manualLockId = null
+  player.burstRemaining = 0; player.rageTicks = 0; player.dashTicks = 0
   player.shield = Math.min(player.shield, shieldCap(player.attrs))
 }
 

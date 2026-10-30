@@ -1,3 +1,5 @@
+import { updateTargetLocks } from './systems/targeting'
+import { updatePickups } from './systems/pickups'
 import type { Intent } from './controller'
 import { updateAi } from './systems/ai'
 import { updateBoss } from './systems/boss'
@@ -7,10 +9,10 @@ import { updateRoomEntry } from './systems/entry'
 import { updateExit } from './systems/exit'
 import { resolveHits } from './systems/hits'
 import { tryPlaceMine, updateMines } from './systems/mines'
-import { updateMovement } from './systems/movement'
+import { updateMovement, separateActors } from './systems/movement'
 import { updateProjectiles } from './systems/projectiles'
 import { updateRoom } from './systems/room'
-import { tryActivateDeflect } from './systems/skills'
+import { tryActivateSkill } from './systems/skills'
 import { updateTimers } from './systems/timers'
 import { updateWeapons } from './systems/weapons'
 import type { EntityId } from './types'
@@ -30,7 +32,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
     if (!actor || !actor.alive) continue
     actor.intent = intent
     if (intent.placeMine) tryPlaceMine(world, actor)
-    if (intent.skill === 0) tryActivateDeflect(world, actor)
+    for (const slot of new Set([...(intent.skills ?? []), ...(intent.skill === undefined ? [] : [intent.skill])])) tryActivateSkill(world, actor, slot)
   }
 
   // 3. timers
@@ -42,6 +44,8 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   // 4. movement (AI authors intents for its own actors)
   updateAi(world)
   updateMovement(world, TICK_DT)
+  separateActors(world)
+  updateTargetLocks(world)
 
   // 5. weapons
   updateWeapons(world)
@@ -61,6 +65,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
 
   // 8. mines
   updateMines(world)
+  updatePickups(world)
 
   // 11. room state
   updateRoom(world)

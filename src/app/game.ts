@@ -1,3 +1,7 @@
+import { combatAttrs } from '../core/combat'
+import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
+import { toSkillView, type SkillView } from '../core/snapshot'
+import type { SkillId } from '../core/world'
 import type { AttrSet } from '../core/attrs'
 import { shieldCap } from '../core/attrs'
 import type { CardRegistry } from '../core/cards'
@@ -33,6 +37,8 @@ export interface PanelState {
   readonly cards: readonly CardState[]
   readonly player: PlayerView
   readonly settings: ControlSettings
+  readonly skillSlots: readonly (SkillId | null)[]
+  readonly knownSkills: readonly SkillView[]
 }
 
 export interface RunSummary {
@@ -73,6 +79,7 @@ export interface Game {
   setUiMode(mode: UiMode): void
   buyCard(cardId: string): boolean
   sellCard(cardId: string): boolean
+  equipSkill(slot: number, id: SkillId | null): boolean
   setSetting<K extends SettingKey>(key: K, value: ControlSettings[K]): void
   panelState(): PanelState
   /** Dev-only inspection hook used by browser verification. */
@@ -174,11 +181,11 @@ export function createGame(options: GameOptions): Game {
 
   const manualAim = (): Vec2 | undefined => {
     const player = tryGetPlayer(world)
-    if (!player || (player.attrs.autoAim > 0 && settings.aimMode === 'auto')) return undefined
+    if (!player) return undefined
     const pointer = options.pointer?.position()
     if (!pointer) return undefined
 
-    const target = options.renderer.viewToWorld(pointer.x, pointer.y)
+    const target = options.renderer.viewToWorld(pointer.x, pointer.y, { x: player.pos.x, y: player.pos.y, vision: player.attrs.vision })
     const dx = target.x - player.pos.x
     const dy = target.y - player.pos.y
     const length = Math.hypot(dx, dy)
@@ -194,10 +201,19 @@ export function createGame(options: GameOptions): Game {
     const move = touch && (touch.move.x !== 0 || touch.move.y !== 0) ? touch.move : base.move
     const automaticAim = player.attrs.autoAim > 0 && settings.aimMode === 'auto'
     const fallback = Math.hypot(move.x, move.y) > 0 ? move : { x: Math.cos(player.aimAngle), y: Math.sin(player.aimAngle) }
-    const aim = touch?.aim ?? (automaticAim ? undefined : manualAim() ?? fallback)
+    const aim = touch?.aim ?? manualAim() ?? fallback
+    const selection = options.pointer?.consumeLock?.()
+    let lockTarget: number | null | undefined
+    if (selection !== undefined) {
+      const point = selection === null ? null : options.renderer.viewToWorld(selection.x, selection.y, { x: player.pos.x, y: player.pos.y, vision: player.attrs.vision })
+      const candidates = point ? [...world.actors.values()].filter((target) => target.alive && target.team !== player.team && Math.hypot(target.pos.x - point.x, target.pos.y - point.y) <= target.radius + 16) : []
+      candidates.sort((a, b) => Math.hypot(a.pos.x - point!.x, a.pos.y - point!.y) - Math.hypot(b.pos.x - point!.x, b.pos.y - point!.y))
+      lockTarget = candidates[0]?.id ?? null
+    }
     const automaticFire = player.attrs.autoFire > 0 && settings.fireMode === 'auto'
     const fire = automaticFire ? undefined : Boolean(touch?.fire || options.pointer?.firing())
-    return { ...base, move, aim, fire, placeMine: base.placeMine || touch?.placeMine, skill: touch?.skill ?? base.skill }
+    return { ...base, move, aim, fire, autoAim: automaticAim, lockTarget, placeMine: base.placeMine || touch?.placeMine,
+      skills: [...(base.skills ?? []), ...(touch?.skills ?? []), ...(base.skill === undefined ? [] : [base.skill]), ...(touch?.skill === undefined ? [] : [touch.skill])] }
   }
 
   const setSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]): void => {
@@ -292,11 +308,13 @@ export function createGame(options: GameOptions): Game {
     return {
       shards: Math.floor(world.shards),
       cards: listCardStates(world),
+      skillSlots: [...player.skillSlots],
+      knownSkills: SKILL_IDS.filter((id) => unlocked(player.attrs, id)).map((id) => toSkillView(player, id)),
       settings: { ...settings,
         aimMode: player.attrs.autoAim > 0 ? settings.aimMode : 'manual',
         fireMode: player.attrs.autoFire > 0 ? settings.fireMode : 'manual' },
       player: {
-        attrs: player.attrs,
+        attrs: combatAttrs(player),
         hp: player.hp,
         shield: player.shield,
         shieldCap: shieldCap(player.attrs),
@@ -338,5 +356,5 @@ export function createGame(options: GameOptions): Game {
     }
   }
 
-  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, setSetting, panelState, debug }
+  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
 }

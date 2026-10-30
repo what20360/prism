@@ -11,6 +11,10 @@ export interface Intent {
   readonly placeMine?: boolean
   /** Index of the skill slot to activate this tick (0 = first slot). */
   readonly skill?: number
+  readonly skills?: readonly number[]
+  /** undefined preserves manual lock, null clears it. */
+  readonly lockTarget?: number | null
+  readonly autoAim?: boolean
   /**
    * Unit direction to shoot at. When absent the actor aims at the nearest
    * opponent in range, which is what every AI controller wants.

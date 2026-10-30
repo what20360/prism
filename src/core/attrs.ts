@@ -30,7 +30,25 @@ export interface AttrSet {
   mineBlastRadius: number
   mineCooldown: number
   mineLimit: number
-  mineSlow: number
+  mineSlowMultiplier: number
+  mineTriggerRadius: number
+  mineSlowRadius: number
+  mineCooldownRate: number
+  mineHp: number
+  mineFuseSeconds: number
+  mineIgnoreBullets: number
+  grenade: number
+  mineFragments: number
+  mineShardChance: number
+  bloodOrbChance: number
+  pickupRadius: number
+  burstCount: number
+  homing: number
+  maxProjectiles: number
+  vision: number
+  rageLevel: number
+  dashLevel: number
+  skillCooldownRate: number
 
   lifesteal: number
   shieldSteal: number

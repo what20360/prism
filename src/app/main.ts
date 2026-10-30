@@ -66,6 +66,7 @@ ui.menu = createMenu(document.body, {
     if (game.buyCard(cardId)) audio.notify('buy')
     ui.menu?.refresh()
   },
+  onEquip: (slot, id) => { game.equipSkill(slot, id); ui.menu?.refresh() },
   onSell: (cardId) => {
     if (game.sellCard(cardId)) audio.notify('sell')
     ui.menu?.refresh()

@@ -74,7 +74,7 @@ function mineAt(x: number, y: number, overrides: Partial<Mine> = {}): Mine {
     triggerRadius: MINE_TRIGGER_RADIUS,
     blastRadius: MINE_BLAST_RADIUS,
     slowRadius: MINE_SLOW_RADIUS,
-    slowFactor: 0.6,
+    slowMultiplier: 2,
     damage: 30,
     hp: 1,
     fuseTicks: null,

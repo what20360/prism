@@ -23,7 +23,7 @@ const MOVE_KEYS = new Set([
   'ArrowRight',
 ])
 
-const ACTION_KEYS = new Set(['KeyE', 'KeyJ'])
+const ACTION_KEYS = new Set(['KeyE', 'KeyJ', 'KeyK'])
 
 export function createKeyboardInput(target: Window): IntentSource {
   const pressed = new Set<string>()
@@ -73,7 +73,8 @@ export function createKeyboardInput(target: Window): IntentSource {
     return {
       move: normalize({ x, y }),
       placeMine: pressed.has('KeyE'),
-      skill: pressed.has('KeyJ') ? 0 : undefined,
+      skill: pressed.has('KeyJ') ? 0 : pressed.has('KeyK') ? 1 : undefined,
+      skills: [...(pressed.has('KeyJ') ? [0] : []), ...(pressed.has('KeyK') ? [1] : [])],
     }
   }
 

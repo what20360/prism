@@ -3,7 +3,7 @@ import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { createCardRegistry } from '../../src/core/cards'
-import { buyCard, sellCard, saleValue } from '../../src/core/progress'
+import { buyCard, sellCard, saleValue, listCardStates } from '../../src/core/progress'
 import { resolveHits } from '../../src/core/systems/hits'
 import { tryPlaceMine } from '../../src/core/systems/mines'
 import { updateProjectiles } from '../../src/core/systems/projectiles'
@@ -59,12 +59,13 @@ describe('builds and card recycling', () => {
     w.shards = 100
     buyCard(w, 'auto-aim'); buyCard(w, 'dependent')
     expect(sellCard(w, 'auto-aim')).toBe(false)
+    expect(listCardStates(w).find((card) => card.id === 'auto-aim')!.saleBlocked).toBe(dependent.name)
   })
 
   it('reverses a sold stance and clamps health after a maximum health tradeoff', () => {
     const w = world(), p = getPlayer(w)
     buyCard(w, 'heavy-stance')
-    expect(p.attrs.damage).toBeCloseTo(13)
+    expect(p.attrs.damage).toBeCloseTo(13.5)
     sellCard(w, 'heavy-stance')
     expect(p.attrs.damage).toBe(10)
     buyCard(w, 'glass-cannon')
@@ -75,8 +76,8 @@ describe('builds and card recycling', () => {
     const w = world(), p = getPlayer(w)
     buyCard(w, 'mine-power'); buyCard(w, 'mine-radius'); buyCard(w, 'mine-cooldown'); buyCard(w, 'mine-slow')
     tryPlaceMine(w, p)
-    expect(w.mines[0]).toMatchObject({ damage: 38, blastRadius: 225, triggerRadius: 135 })
-    expect(w.mines[0]?.slowFactor).toBeCloseTo(0.54)
+    expect(w.mines[0]).toMatchObject({ damage: 38, blastRadius: 225, triggerRadius: 120 })
+    expect(w.mines[0]?.slowMultiplier).toBeCloseTo(2.5)
     expect(p.mineCooldownTicks).toBeLessThan(120)
   })
 
@@ -92,17 +93,17 @@ describe('builds and card recycling', () => {
 
 function bullet(): Projectile {
   return { id: 99, ownerId: 1, team: 'player', pos: { x: 980, y: 400 }, prevPos: { x: 980, y: 400 },
-    vel: { x: 500, y: 0 }, radius: 8, damage: 10, penetration: 0, pierceLeft: 1, innerMult: 1.5,
-    travelLeft: 2000, hitIds: [], bouncesLeft: 1, blastRadius: 0 }
+    vel: { x: 500, y: 0 }, radius: 8, damage: 10, penetration: 0, pierceLeft: 2, innerMult: 1.5,
+    travelLeft: 2000, hitIds: [], ricochet: true, blastRadius: 0 }
 }
 
 describe('projectile build mechanics', () => {
-  it('reflects from walls, consumes one bounce and still spends range', () => {
+  it('reflects from walls, consumes one pierce and still spends range', () => {
     const w = world(), b = bullet()
     w.projectiles = [b]
     updateProjectiles(w, 0.1)
     expect(w.projectiles).toHaveLength(1)
-    expect(b.vel.x).toBeLessThan(0); expect(b.bouncesLeft).toBe(0)
+    expect(b.vel.x).toBeLessThan(0); expect(b.pierceLeft).toBe(1)
     expect(b.travelLeft).toBeLessThan(2000)
     b.pos = { x: 980, y: 400 }; b.vel = { x: 500, y: 0 }
     updateProjectiles(w, 0.1)

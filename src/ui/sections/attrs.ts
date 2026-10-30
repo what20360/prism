@@ -41,7 +41,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
   wrapper.className = 'attrs'
 
   const mitigation = armorToMitigation(attrs.armor)
-  const dps = attrs.damage * attrs.fireRate * attrs.multishot
+  const dps = attrs.damage * Math.min(attrs.fireRate, 60 / Math.max(1, (attrs.burstCount - 1) * 4 + 1)) * attrs.multishot * attrs.burstCount
 
   wrapper.append(
     group('生存', [
@@ -64,7 +64,11 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('护甲穿透', formatNumber(attrs.penetration)),
       row('内层伤害倍率', `×${formatNumber(attrs.innerDamageMult)}`),
       row('多重射击', formatNumber(attrs.multishot)),
-      row('反弹次数', formatNumber(attrs.ricochet)),
+      row('弹射', attrs.ricochet > 0 ? '每次消耗 1 穿透' : '未解锁'),
+      row('连发轮数', formatNumber(attrs.burstCount)),
+      row('追踪', attrs.homing > 0 ? '已启用（初速 ×0.6）' : '未解锁'),
+      row('同时存在子弹', attrs.maxProjectiles > 0 ? `${attrs.maxProjectiles} 颗` : '不限'),
+      row('视野倍率', `×${formatNumber(attrs.vision)}`),
       row('弹丸爆炸半径', formatNumber(attrs.blastRadius)),
       row('自动索敌 / 扳机', `${attrs.autoAim > 0 ? '已装配' : '未购买'} / ${attrs.autoFire > 0 ? '已装配' : '未购买'}`),
     ]),
@@ -78,16 +82,18 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('力场半径', formatNumber(attrs.deflectFieldRadius)),
       row('力场强度', formatNumber(attrs.deflectFieldStrength)),
       row('主动窗口', `${formatNumber(attrs.deflectWindowSeconds)} 秒`),
-      row('技能冷却', `${formatNumber(attrs.deflectCooldownSeconds)} 秒`),
+      row('技能冷却', `${formatNumber(attrs.deflectCooldownSeconds / attrs.skillCooldownRate)} 秒`),
       row('反射伤害倍率', `×${formatNumber(attrs.reflectDamageMult)}`),
     ]),
     group('雷场装备', [
       row('伤害', formatNumber(attrs.mineDamage)),
       row('爆炸半径', formatNumber(attrs.mineBlastRadius)),
-      row('触发 / 减速半径', `${formatNumber(attrs.mineBlastRadius * 0.6)} / ${formatNumber(attrs.mineBlastRadius * 0.6)}`),
-      row('减速幅度', `${formatNumber(Math.min(0.95, attrs.mineSlow) * 100)}%`),
+      row('侦测 / 减速半径', `${formatNumber(attrs.mineTriggerRadius)} / ${formatNumber(attrs.mineSlowRadius)}`),
+      row('减速倍率', `÷${formatNumber(attrs.mineIgnoreBullets > 0 ? 1 + (attrs.mineSlowMultiplier - 1) * 0.45 : attrs.mineSlowMultiplier)}`),
+      row('本体生命 / 引爆延迟', `${formatNumber(attrs.mineHp)} / ${formatNumber(attrs.mineFuseSeconds)} 秒`),
+      row('手榴弹 / 破片', `${attrs.grenade > 0 ? '已启用' : '未启用'} / ${attrs.mineFragments} 颗`),
       row('同时存在上限', `${Math.floor(attrs.mineLimit)}（满后替换最早的一颗）`),
-      row('布置冷却', `${formatNumber(attrs.mineCooldown)} 秒`),
+      row('布置冷却', `${formatNumber(attrs.mineCooldown / attrs.mineCooldownRate)} 秒`),
     ]),
   )
 
