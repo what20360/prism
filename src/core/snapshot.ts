@@ -38,6 +38,13 @@ export interface ActorView {
   readonly deflectCooldownSeconds: number
   readonly deflectCooldownTotal: number
   readonly deflectFieldRadius: number
+  readonly range: number
+  readonly fireCooldownSeconds: number
+  readonly fireCooldownTotal: number
+  readonly mineCooldownSeconds: number
+  readonly mineCooldownTotal: number
+  readonly autoAim: boolean
+  readonly autoFire: boolean
 }
 
 export interface ProjectileView {
@@ -46,6 +53,8 @@ export interface ProjectileView {
   readonly x: number
   readonly y: number
   readonly radius: number
+  readonly vx: number
+  readonly vy: number
 }
 
 export interface MineView {
@@ -117,7 +126,8 @@ export function toSnapshot(world: World): Snapshot {
       name: actor.name ?? null,
       x: actor.pos.x,
       y: actor.pos.y,
-      radius: actor.radius,      coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
+      radius: actor.radius,
+      coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
       hp: actor.hp,
       maxHp: actor.attrs.maxHp,
       armor: actor.attrs.armor,
@@ -133,6 +143,13 @@ export function toSnapshot(world: World): Snapshot {
       deflectCooldownSeconds: Math.max(0, actor.deflectCooldownTicks / TICK_RATE),
       deflectCooldownTotal: actor.attrs.deflectCooldownSeconds,
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
+      range: actor.attrs.range,
+      fireCooldownSeconds: actor.fireCooldownTicks / TICK_RATE,
+      fireCooldownTotal: 1 / Math.max(0.001, actor.attrs.fireRate),
+      mineCooldownSeconds: actor.mineCooldownTicks / TICK_RATE,
+      mineCooldownTotal: actor.attrs.mineCooldown,
+      autoAim: actor.attrs.autoAim > 0,
+      autoFire: actor.attrs.autoFire > 0,
     })
   }
 
@@ -142,6 +159,8 @@ export function toSnapshot(world: World): Snapshot {
     x: p.pos.x,
     y: p.pos.y,
     radius: p.radius,
+    vx: p.vel.x,
+    vy: p.vel.y,
   }))
 
   const mines: MineView[] = world.mines.map((m) => ({

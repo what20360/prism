@@ -16,6 +16,7 @@ export interface MenuHandlers {
   readonly onClose: () => void
   readonly onRestart: () => void
   readonly onBuy: (cardId: string) => void
+  readonly onSell: (cardId: string) => void
   readonly onSetting: <K extends SettingKey>(key: K, value: ControlSettings[K]) => void
   readonly getState: () => MenuState
 }
@@ -101,8 +102,8 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     else if (active === 'keys') content.append(renderKeysSection())
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
     else if (active === 'settings') {
-      content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }))
-    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy }))
+      content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.player.attrs))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell }))
 
     for (const [id, button] of buttons) {
       button.classList.toggle('menu__tab--active', id === active)

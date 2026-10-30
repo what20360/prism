@@ -21,7 +21,7 @@ export function tryPlaceMine(world: World, actor: Actor): void {
   if (actor.mineCooldownTicks > 0) return
 
   const owned = world.mines.filter((mine) => mine.ownerId === actor.id)
-  const oldest = owned.length >= MAX_MINES_PER_TEAM ? owned[0] : undefined
+  const oldest = owned.length >= Math.max(1, Math.floor(actor.attrs.mineLimit)) ? owned[0] : undefined
   if (oldest) removeMine(world, oldest)
 
   world.mines.push({
@@ -30,16 +30,16 @@ export function tryPlaceMine(world: World, actor: Actor): void {
     team: actor.team,
     pos: { x: actor.pos.x, y: actor.pos.y },
     bodyRadius: MINE_BODY_RADIUS,
-    triggerRadius: MINE_TRIGGER_RADIUS,
-    blastRadius: MINE_BLAST_RADIUS,
-    slowRadius: MINE_SLOW_RADIUS,
-    slowFactor: MINE_SLOW_FACTOR,
-    damage: MINE_DAMAGE,
+    triggerRadius: actor.attrs.mineBlastRadius * MINE_PROXIMITY_RATIO,
+    blastRadius: actor.attrs.mineBlastRadius,
+    slowRadius: actor.attrs.mineBlastRadius * MINE_PROXIMITY_RATIO,
+    slowFactor: Math.max(0.05, 1 - actor.attrs.mineSlow),
+    damage: actor.attrs.mineDamage,
     hp: 1,
     fuseTicks: null,
   })
 
-  actor.mineCooldownTicks = MINE_PLACE_COOLDOWN_TICKS
+  actor.mineCooldownTicks = Math.max(1, Math.round(actor.attrs.mineCooldown * TICK_RATE))
 }
 
 /** Step 8: trigger, fuse, slow field and area clear. */

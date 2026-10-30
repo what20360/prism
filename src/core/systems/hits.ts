@@ -38,6 +38,17 @@ export function resolveHits(world: World): void {
         isCore,
       })
 
+      if ((projectile.blastRadius ?? 0) > 0) {
+        const radius = projectile.blastRadius ?? 0
+        world.effects.push({ kind: 'explosion', x: target.pos.x, y: target.pos.y, radius, ttl: 14 })
+        for (const other of world.actors.values()) {
+          if (!other.alive || other.team === projectile.team || other.id === target.id) continue
+          if (distance(other.pos, target.pos) > radius + other.radius) continue
+          applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId,
+            sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false })
+        }
+      }
+
       projectile.hitIds.push(target.id)
       projectile.pierceLeft -= isCore ? 2 : 1
       if (projectile.pierceLeft <= 0) continue

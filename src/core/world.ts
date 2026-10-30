@@ -65,6 +65,8 @@ export interface Projectile {
   travelLeft: number
   /** Targets already hit, so one bullet cannot hit the same actor twice. */
   readonly hitIds: EntityId[]
+  bouncesLeft?: number
+  blastRadius?: number
 }
 
 export interface Mine {

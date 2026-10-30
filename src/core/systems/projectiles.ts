@@ -21,7 +21,17 @@ export function updateProjectiles(world: World, dt: number): void {
 
     projectile.travelLeft -= travel
     if (projectile.travelLeft <= 0) continue
-    if (hitsWall(world, projectile)) continue
+    if (hitsWall(world, projectile)) {
+      if ((projectile.bouncesLeft ?? 0) <= 0) continue
+      const blockedX = hitsWall(world, { ...projectile, pos: { x: projectile.pos.x, y: projectile.prevPos.y } })
+      const blockedY = hitsWall(world, { ...projectile, pos: { x: projectile.prevPos.x, y: projectile.pos.y } })
+      projectile.vel = {
+        x: blockedX || !blockedY ? -projectile.vel.x : projectile.vel.x,
+        y: blockedY ? -projectile.vel.y : projectile.vel.y,
+      }
+      projectile.pos = { ...projectile.prevPos }
+      projectile.bouncesLeft = (projectile.bouncesLeft ?? 0) - 1
+    }
 
     survivors.push(projectile)
   }

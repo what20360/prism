@@ -356,7 +356,7 @@ describe('card info', () => {
       expect(typeof card.summary, card.id).toBe('function')
       const first = card.summary?.(1)
       expect(first, card.id).toBeTruthy()
-      expect(card.summary?.(2), card.id).not.toBe(first)
+      if (card.maxLevel !== 1) expect(card.summary?.(2), card.id).not.toBe(first)
     }
   })
 

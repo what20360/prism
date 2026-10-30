@@ -18,6 +18,16 @@ function memoryStorage(raw: string | null = null): ConfigStorage {
 }
 
 describe('settings persistence', () => {
+  it('migrates legacy automatic preferences to manual defaults', () => {
+    const old = memoryStorage(JSON.stringify({ version: 1, settings: { aimMode: 'auto', fireMode: 'auto' } }))
+    expect(createSettingsStore(old).load()).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('persists independent music and sound effect preferences', () => {
+    const storage = memoryStorage()
+    createSettingsStore(storage).save({ ...DEFAULT_SETTINGS, music: false, sfx: true, touchControls: true })
+    expect(createSettingsStore(storage).load()).toMatchObject({ music: false, sfx: true, touchControls: true })
+  })
   it('loads defaults on first launch', () => {
     expect(createSettingsStore(memoryStorage()).load()).toEqual(DEFAULT_SETTINGS)
   })
@@ -26,7 +36,7 @@ describe('settings persistence', () => {
     const storage = memoryStorage()
     const settings = { aimMode: 'manual', fireMode: 'manual' } as const
     expect(createSettingsStore(storage).save(settings)).toBe(true)
-    expect(createSettingsStore(storage).load()).toEqual(settings)
+    expect(createSettingsStore(storage).load()).toEqual({ ...DEFAULT_SETTINGS, ...settings })
   })
 
   it('writes a versioned config containing preferences only', () => {
@@ -34,8 +44,8 @@ describe('settings persistence', () => {
     const settings = { aimMode: 'manual', fireMode: 'auto', tick: 42, shards: 100 } as const
     createSettingsStore(storage).save(settings)
     expect(JSON.parse(storage.getItem(CONFIG_STORAGE_KEY) ?? '')).toEqual({
-      version: 1,
-      settings: { aimMode: 'manual', fireMode: 'auto' },
+      version: 2,
+      settings: { ...DEFAULT_SETTINGS, aimMode: 'manual', fireMode: 'auto' },
     })
   })
 
@@ -48,12 +58,12 @@ describe('settings persistence', () => {
 
   it('keeps valid preferences while replacing missing or invalid fields', () => {
     const storage = memoryStorage(JSON.stringify({
-      version: 1,
+      version: 2,
       settings: { aimMode: 'unsupported', fireMode: 'manual' },
     }))
-    expect(createSettingsStore(storage).load()).toEqual({ aimMode: 'auto', fireMode: 'manual' })
-    storage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ version: 1, settings: { aimMode: 'manual' } }))
-    expect(createSettingsStore(storage).load()).toEqual({ aimMode: 'manual', fireMode: 'auto' })
+    expect(createSettingsStore(storage).load()).toEqual(DEFAULT_SETTINGS)
+    storage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ version: 2, settings: { aimMode: 'manual' } }))
+    expect(createSettingsStore(storage).load()).toEqual(DEFAULT_SETTINGS)
   })
 
   it('does not crash when storage reads or writes are denied', () => {

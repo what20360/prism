@@ -94,5 +94,7 @@ function emit(world: World, actor: Actor, angle: number): void {
     innerMult: actor.attrs.innerDamageMult,
     travelLeft: actor.attrs.range,
     hitIds: [],
+    bouncesLeft: Math.max(0, Math.floor(actor.attrs.ricochet)),
+    blastRadius: actor.attrs.blastRadius,
   })
 }

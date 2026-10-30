@@ -23,6 +23,14 @@ export interface AttrSet {
   blastRadius: number
   penetration: number
   multishot: number
+  ricochet: number
+  autoAim: number
+  autoFire: number
+  mineDamage: number
+  mineBlastRadius: number
+  mineCooldown: number
+  mineLimit: number
+  mineSlow: number
 
   lifesteal: number
   shieldSteal: number

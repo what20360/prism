@@ -36,11 +36,14 @@ export interface Card {
   readonly summary?: (level: number) => string
   readonly requires?: readonly Requirement[]
   readonly maxLevel?: number
+  readonly resellable?: boolean
+  readonly tags?: readonly string[]
 }
 
 export interface Purchase {
   readonly id: string
   level: number
+  paid?: number[]
 }
 
 export interface CardRegistry {

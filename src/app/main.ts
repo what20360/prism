@@ -5,6 +5,8 @@ import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { createKeyboardInput } from '../input/keyboard'
 import { createPointerInput } from '../input/pointer'
+import { createTouchControls } from '../input/touch'
+import { createAudioEngine } from '../audio/audio'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
 import { createSettingsStore } from '../storage/config'
 import { createMenu, type Menu } from '../ui/menu'
@@ -18,6 +20,14 @@ const renderer = createCanvasRenderer(canvas)
 const input = createKeyboardInput(window)
 const pointer = createPointerInput(canvas)
 const settingsStore = createSettingsStore()
+const audio = createAudioEngine()
+const touch = createTouchControls(document.body, () => game.setUiMode('menu'))
+const unlockAudio = () => audio.unlock()
+document.addEventListener('pointerdown', unlockAudio)
+document.addEventListener('keydown', unlockAudio)
+const initialSettings = settingsStore.load()
+audio.configure(initialSettings)
+touch.setVisible(initialSettings.touchControls === true)
 
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 
@@ -30,9 +40,11 @@ const game: Game = createGame({
   playerAttrs: PLAYER_BASE_ATTRS,
   input,
   pointer,
+  touch,
   renderer,
-  initialSettings: settingsStore.load(),
-  onSettingsChange: settingsStore.save,
+  initialSettings,
+  onSettingsChange: (settings) => { settingsStore.save(settings); audio.configure(settings); touch.setVisible(settings.touchControls === true) },
+  onSnapshot: (snapshot, paused) => { touch.update(snapshot, paused); audio.update(snapshot, paused) },
   onUiModeChange: (mode) => {
     if (mode === 'menu') {
       ui.menu?.open()
@@ -51,7 +63,11 @@ ui.menu = createMenu(document.body, {
   onClose: () => game.setUiMode('play'),
   onRestart: () => game.restart(),
   onBuy: (cardId) => {
-    game.buyCard(cardId)
+    if (game.buyCard(cardId)) audio.notify('buy')
+    ui.menu?.refresh()
+  },
+  onSell: (cardId) => {
+    if (game.sellCard(cardId)) audio.notify('sell')
     ui.menu?.refresh()
   },
   onSetting: (key, value) => {
@@ -79,5 +95,9 @@ if (import.meta.hot) {
     input.dispose()
     pointer.dispose()
     renderer.dispose()
+    touch.dispose()
+    audio.dispose()
+    document.removeEventListener('pointerdown', unlockAudio)
+    document.removeEventListener('keydown', unlockAudio)
   })
 }

@@ -3,9 +3,9 @@ import { shieldCap } from '../core/attrs'
 import type { CardRegistry } from '../core/cards'
 import { applyRoom, type RoomSpec } from '../core/dungeon'
 import type { EconomyRates } from '../core/economy'
-import { buyCard as buyCardInWorld, listCardStates, type CardState } from '../core/progress'
+import { buyCard as buyCardInWorld, sellCard as sellCardInWorld, listCardStates, type CardState } from '../core/progress'
 import { step } from '../core/simulation'
-import { toSnapshot } from '../core/snapshot'
+import { toSnapshot, type Snapshot } from '../core/snapshot'
 import { TICK_DT } from '../core/types'
 import type { EntityId, Vec2 } from '../core/types'
 import type { Intent } from '../core/controller'
@@ -14,6 +14,7 @@ import type { IntentSource } from '../input/keyboard'
 import type { PointerSource } from '../input/pointer'
 import type { Renderer } from '../render/canvas2d/renderer'
 import type { PlayerView } from '../ui/sections/attrs'
+import type { TouchSource } from '../input/touch'
 import {
   DEFAULT_SETTINGS,
   type AimMode,
@@ -56,6 +57,8 @@ export interface GameOptions {
   readonly input: IntentSource
   readonly pointer?: PointerSource
   readonly renderer: Renderer
+  readonly touch?: TouchSource
+  readonly onSnapshot?: (snapshot: Snapshot, paused: boolean) => void
   readonly initialSettings?: ControlSettings
   readonly onSettingsChange?: (settings: ControlSettings) => void
   readonly onUiModeChange?: (mode: UiMode) => void
@@ -68,7 +71,8 @@ export interface Game {
   dispose(): void
   restart(): void
   setUiMode(mode: UiMode): void
-  buyCard(cardId: string): void
+  buyCard(cardId: string): boolean
+  sellCard(cardId: string): boolean
   setSetting<K extends SettingKey>(key: K, value: ControlSettings[K]): void
   panelState(): PanelState
   /** Dev-only inspection hook used by browser verification. */
@@ -150,6 +154,7 @@ export function createGame(options: GameOptions): Game {
     intents.clear()
     options.input.reset()
     options.pointer?.reset()
+    options.touch?.reset()
     lastTime = 0
     accumulator = 0
     fps = 0
@@ -161,19 +166,19 @@ export function createGame(options: GameOptions): Game {
     if (uiMode === mode && world.paused === (mode !== 'play')) return
     uiMode = mode
     world.paused = mode !== 'play'
+    options.touch?.setPaused(mode !== 'play')
     lastTime = 0
     accumulator = 0
     options.onUiModeChange?.(mode)
   }
 
   const manualAim = (): Vec2 | undefined => {
-    if (settings.aimMode !== 'manual') return undefined
+    const player = tryGetPlayer(world)
+    if (!player || (player.attrs.autoAim > 0 && settings.aimMode === 'auto')) return undefined
     const pointer = options.pointer?.position()
     if (!pointer) return undefined
 
     const target = options.renderer.viewToWorld(pointer.x, pointer.y)
-    const player = tryGetPlayer(world)
-    if (!player) return undefined
     const dx = target.x - player.pos.x
     const dy = target.y - player.pos.y
     const length = Math.hypot(dx, dy)
@@ -184,9 +189,15 @@ export function createGame(options: GameOptions): Game {
   /** Settings only change how the player's intent is authored. */
   const playerIntent = (): Intent => {
     const base = options.input.read()
-    const aim = manualAim()
-    const fire = settings.fireMode === 'auto' ? undefined : options.pointer?.firing() ?? false
-    return { ...base, aim, fire }
+    const touch = options.touch?.read()
+    const player = getPlayer(world)
+    const move = touch && (touch.move.x !== 0 || touch.move.y !== 0) ? touch.move : base.move
+    const automaticAim = player.attrs.autoAim > 0 && settings.aimMode === 'auto'
+    const fallback = Math.hypot(move.x, move.y) > 0 ? move : { x: Math.cos(player.aimAngle), y: Math.sin(player.aimAngle) }
+    const aim = touch?.aim ?? (automaticAim ? undefined : manualAim() ?? fallback)
+    const automaticFire = player.attrs.autoFire > 0 && settings.fireMode === 'auto'
+    const fire = automaticFire ? undefined : Boolean(touch?.fire || options.pointer?.firing())
+    return { ...base, move, aim, fire, placeMine: base.placeMine || touch?.placeMine, skill: touch?.skill ?? base.skill }
   }
 
   const setSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]): void => {
@@ -237,7 +248,9 @@ export function createGame(options: GameOptions): Game {
     }
 
     const label = `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
-    options.renderer.draw(toSnapshot(world), { fps, label })
+    const snapshot = toSnapshot(world)
+    options.renderer.draw(snapshot, { fps, label })
+    options.onSnapshot?.(snapshot, world.paused)
     frameHandle = requestAnimationFrame(frame)
   }
 
@@ -259,8 +272,19 @@ export function createGame(options: GameOptions): Game {
     intents.clear()
   }
 
-  const buyCard = (cardId: string): void => {
-    buyCardInWorld(world, cardId)
+  const buyCard = (cardId: string): boolean => {
+    const result = buyCardInWorld(world, cardId)
+    if (!result.ok) return false
+    if (cardId === 'auto-aim') setSetting('aimMode', 'auto')
+    if (cardId === 'auto-fire') setSetting('fireMode', 'auto')
+    return true
+  }
+
+  const sellCard = (cardId: string): boolean => {
+    if (!sellCardInWorld(world, cardId)) return false
+    if (cardId === 'auto-aim') setSetting('aimMode', 'manual')
+    if (cardId === 'auto-fire') setSetting('fireMode', 'manual')
+    return true
   }
 
   const panelState = (): PanelState => {
@@ -268,7 +292,9 @@ export function createGame(options: GameOptions): Game {
     return {
       shards: Math.floor(world.shards),
       cards: listCardStates(world),
-      settings,
+      settings: { ...settings,
+        aimMode: player.attrs.autoAim > 0 ? settings.aimMode : 'manual',
+        fireMode: player.attrs.autoFire > 0 ? settings.fireMode : 'manual' },
       player: {
         attrs: player.attrs,
         hp: player.hp,
@@ -307,10 +333,10 @@ export function createGame(options: GameOptions): Game {
       deflectLevel: player.attrs.deflectLevel,
       purchases: world.purchases.reduce((sum, purchase) => sum + purchase.level, 0),
       enemies,
-      aimMode: settings.aimMode,
-      fireMode: settings.fireMode,
+      aimMode: player.attrs.autoAim > 0 ? settings.aimMode : 'manual',
+      fireMode: player.attrs.autoFire > 0 ? settings.fireMode : 'manual',
     }
   }
 
-  return { start, stop, dispose, restart, setUiMode, buyCard, setSetting, panelState, debug }
+  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, setSetting, panelState, debug }
 }

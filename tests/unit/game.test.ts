@@ -63,6 +63,25 @@ describe('game lifecycle', () => {
     return { game, input, pointer }
   }
 
+  it('does not grant automatic fire through saved preferences without a card', () => {
+    const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' } })
+    game.start(); advance(1000); advance(1200)
+    expect(game.debug().projectiles).toBe(0)
+    game.dispose()
+  })
+
+  it('combines touch movement, aim, shooting and mine input in the same tick', () => {
+    const { game } = idleGame({ touch: {
+      read: () => ({ move: { x: 1, y: 0 }, aim: { x: 0, y: -1 }, fire: true, placeMine: true }),
+      reset: () => {}, setPaused: () => {}, setVisible: () => {}, update: () => {}, dispose: () => {},
+    } })
+    game.start(); advance(1000); advance(1200)
+    expect(game.debug().playerX).toBeGreaterThan(500)
+    expect(game.debug().projectiles).toBeGreaterThan(0)
+    expect(game.debug().mines).toBe(1)
+    game.dispose()
+  })
+
   it('keeps the animation loop alive after a lethal hit with manual aim', () => {
     const room: RoomSpec = {
       id: 'lethal-contact',
@@ -179,16 +198,16 @@ describe('game lifecycle', () => {
   it('restores preferences on startup, reports changes and retains them across restarts', () => {
     const onSettingsChange = vi.fn()
     const { game } = idleGame({
-      initialSettings: { aimMode: 'manual', fireMode: 'auto' },
+      initialSettings: { aimMode: 'manual', fireMode: 'manual', music: false },
       onSettingsChange,
     })
-    expect(game.panelState().settings).toEqual({ aimMode: 'manual', fireMode: 'auto' })
-    game.setSetting('fireMode', 'manual')
-    expect(onSettingsChange).toHaveBeenCalledWith({ aimMode: 'manual', fireMode: 'manual' })
-    game.setSetting('fireMode', 'manual')
+    expect(game.panelState().settings).toMatchObject({ aimMode: 'manual', fireMode: 'manual', music: false })
+    game.setSetting('music', true)
+    expect(onSettingsChange).toHaveBeenCalledWith(expect.objectContaining({ music: true }))
+    game.setSetting('music', true)
     expect(onSettingsChange).toHaveBeenCalledOnce()
     game.restart()
-    expect(game.panelState().settings).toEqual({ aimMode: 'manual', fireMode: 'manual' })
+    expect(game.panelState().settings).toMatchObject({ aimMode: 'manual', fireMode: 'manual' })
     game.dispose()
   })
 })

@@ -17,6 +17,8 @@ export interface CardState {
   readonly summary: string | null
   /** Prerequisites as data; the UI decides how to phrase them. */
   readonly requires: readonly Requirement[]
+  readonly refund: number | null
+  readonly tags: readonly string[]
 }
 
 /** Read-only view for the upgrade panel. */
@@ -43,6 +45,8 @@ export function listCardStates(world: World): CardState[] {
       availability,
       summary: card.summary ? card.summary(level + 1) : null,
       requires: card.requires ?? [],
+      refund: card.resellable && level > 0 ? saleValue(world, card.id) : null,
+      tags: card.tags ?? [],
     }
   })
 }
@@ -67,11 +71,39 @@ export function buyCard(world: World, cardId: string): BuyResult {
   world.shards -= price
 
   const existing = world.purchases.find((purchase) => purchase.id === cardId)
-  if (existing) existing.level += 1
-  else world.purchases.push({ id: cardId, level: 1 })
+  if (existing) {
+    existing.paid ??= Array.from({ length: level }, (_, i) => card.priceFn(i + 1))
+    existing.paid.push(price)
+    existing.level += 1
+  } else world.purchases.push({ id: cardId, level: 1, paid: [price] })
 
   reapplyAttrs(world, player)
   return { ok: true }
+}
+
+export function saleValue(world: World, cardId: string): number {
+  const purchase = world.purchases.find((item) => item.id === cardId)
+  const card = world.registry.get(cardId)
+  if (!card?.resellable || !purchase || purchase.level < 1) return 0
+  const paid = purchase.paid?.[purchase.level - 1] ?? card.priceFn(purchase.level)
+  return Math.max(0, Math.min(paid - 1, Math.floor(paid * 0.6)))
+}
+
+export function sellCard(world: World, cardId: string): boolean {
+  const card = world.registry.get(cardId)
+  const purchase = world.purchases.find((item) => item.id === cardId)
+  if (!card?.resellable || !purchase || purchase.level < 1) return false
+  const nextLevel = purchase.level - 1
+  const dependent = world.purchases.some((item) => item.id !== cardId && item.level > 0 &&
+    world.registry.get(item.id)?.requires?.some((requirement) =>
+      requirement.card === cardId && (requirement.level ?? 1) > nextLevel))
+  if (dependent) return false
+  world.shards += saleValue(world, cardId)
+  purchase.level = nextLevel
+  purchase.paid?.pop()
+  if (nextLevel === 0) world.purchases = world.purchases.filter((item) => item !== purchase)
+  reapplyAttrs(world, getPlayer(world))
+  return true
 }
 
 /** Re-runs the card pipeline and keeps derived actor values consistent. */
@@ -83,6 +115,7 @@ export function reapplyAttrs(world: World, player: Actor): void {
   player.attrs = next
   player.radius = next.radius
   if (hpGain > 0) player.hp = Math.min(next.maxHp, player.hp + hpGain)
+  player.hp = Math.min(player.hp, next.maxHp)
 
   const cap = shieldCap(next)
   // Buying a shield card has to hand over the shield points it promises.

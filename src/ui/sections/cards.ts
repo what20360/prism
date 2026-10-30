@@ -8,6 +8,7 @@ export interface CardsSectionState {
 
 export interface CardsSectionHandlers {
   readonly onBuy: (cardId: string) => void
+  readonly onSell: (cardId: string) => void
 }
 
 const CATEGORY_ORDER: readonly string[] = [
@@ -46,6 +47,7 @@ function cardButton(
     state.cards.find((candidate) => candidate.id === id)?.name ?? id
   const requirements = formatRequirements(card.requires, nameOf)
 
+  const article = element('article', `card-shell${card.level > 0 ? ' card-shell--owned' : ''}`)
   const button = document.createElement('button')
   button.type = 'button'
   button.className = `card card--${card.availability}`
@@ -73,13 +75,24 @@ function cardButton(
   button.append(head, meta)
   if (card.summary) button.append(element('span', 'card__effect', card.summary))
   if (requirements) button.append(element('span', 'card__req', `前置：${requirements}`))
+  if (card.tags.length) button.append(element('span', 'card__tags', card.tags.join(' / ')))
 
   button.addEventListener('click', () => {
     if (button.getAttribute('aria-disabled') === 'true') return
     handlers.onBuy(card.id)
   })
 
-  return button
+  article.append(button)
+  if (card.refund !== null) {
+    const sell = document.createElement('button')
+    sell.type = 'button'
+    sell.className = 'card__sell'
+    sell.textContent = `出售 · 返还 ${card.refund} 棱晶`
+    sell.setAttribute('aria-label', `出售${card.name}，返还 ${card.refund} 棱晶`)
+    sell.addEventListener('click', () => handlers.onSell(card.id))
+    article.append(sell)
+  }
+  return article
 }
 
 /** Upgrade browser: one section per category, every card carries its own numbers. */
@@ -89,6 +102,7 @@ export function renderCardsSection(
 ): HTMLElement {
   const wrapper = element('div', 'cards')
   wrapper.append(element('p', 'menu__hint', `可用棱晶 ${Math.floor(state.shards)}`))
+  wrapper.append(element('p', 'cards__intro', '选择自己的战斗方式。操控卡与姿态卡可回收实付价格的 60%；普通成长卡永久生效至本局结束。'))
 
   const grouped = new Map<string, CardState[]>()
   for (const card of state.cards) {

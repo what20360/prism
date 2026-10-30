@@ -17,7 +17,7 @@ export const KEY_BINDINGS: readonly KeyGroup[] = [
     section: '移动与战斗',
     items: [
       { keys: 'W A S D / 方向键', action: '移动' },
-      { keys: '自动', action: '射击（自动索敌，无需按键）' },
+      { keys: '鼠标 / 左键', action: '瞄准 / 按住射击；自动操作需购买卡片' },
       { keys: 'E', action: '放置地雷（满 3 颗时替换最早的一颗）' },
       { keys: 'J', action: '偏转 / 反射（力场 ×5，并把接触的子弹转为己方）' },
     ],

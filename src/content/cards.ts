@@ -177,8 +177,8 @@ export const CARDS: readonly Card[] = [
       ...attrs,
       deflectLevel: Math.max(attrs.deflectLevel, 1),
       deflectWindowSeconds: attrs.deflectWindowSeconds + 0.05 * (level - 1),
-      deflectFieldRadius: level === 1 ? 220 : attrs.deflectFieldRadius + 40,
-      deflectFieldStrength: level === 1 ? 600 : attrs.deflectFieldStrength + 150,
+      deflectFieldRadius: attrs.deflectFieldRadius + 220 + 40 * (level - 1),
+      deflectFieldStrength: attrs.deflectFieldStrength + 600 + 150 * (level - 1),
     }),
     summary: (level) =>
       level <= 1
@@ -207,4 +207,70 @@ export const CARDS: readonly Card[] = [
   },
 ]
 
-export const CARD_REGISTRY = createCardRegistry(CARDS)
+type Modifier = readonly [AttrKey, 'add' | 'multiply', number, string]
+
+function buildCard(id: string, name: string, category: Card['category'], cost: number,
+  modifiers: readonly Modifier[], tags: readonly string[], resellable = false,
+  requires?: readonly Requirement[]): Card {
+  return {
+    id, name, category, tags, priority: 100, priceFn: priceFor(cost),
+    maxLevel: resellable ? 1 : undefined, resellable, requires,
+    effectFn: (level, attrs) => {
+      const next = { ...attrs }
+      for (const [key, op, value] of modifiers) {
+        next[key] = op === 'add' ? next[key] + value * level : next[key] * value ** level
+      }
+      next.armor = Math.max(0, next.armor)
+      next.maxHp = Math.max(1, next.maxHp)
+      return next
+    },
+    summary: (level) => modifiers.map(([, op, value, label]) =>
+      op === 'add' ? `${label} ${value >= 0 ? '+' : ''}${fmt(value * level)}` :
+        `${label} ×${fmt(value ** level)}`).join(' · '),
+  }
+}
+
+export const BUILD_CARDS: readonly Card[] = [
+  { id: 'auto-aim', name: '自动索敌', category: 'special', priority: 0, priceFn: priceFor(12),
+    maxLevel: 1, resellable: true, tags: ['操控'],
+    effectFn: (_level, attrs) => ({ ...attrs, autoAim: 1 }),
+    summary: () => '解锁并启用自动瞄准；设置中可切回手动 · 可回收 60%' },
+  { id: 'auto-fire', name: '自动扳机', category: 'special', priority: 0, priceFn: priceFor(12),
+    maxLevel: 1, resellable: true, tags: ['操控'],
+    effectFn: (_level, attrs) => ({ ...attrs, autoFire: 1 }),
+    summary: () => '解锁并启用自动射击；设置中可切回手动 · 可回收 60%' },
+  buildCard('scatter', '分形弹匣', 'gun', 40,
+    [['multishot', 'add', 1, '弹数'], ['damage', 'multiply', 0.88, '伤害']], ['弹幕']),
+  buildCard('ricochet', '棱镜跳弹', 'gun', 26, [['ricochet', 'add', 1, '反弹次数']], ['跳弹']),
+  buildCard('explosive', '星爆弹头', 'gun', 32,
+    [['blastRadius', 'add', 45, '爆炸半径'], ['damage', 'multiply', 0.94, '伤害']], ['爆破']),
+  buildCard('heavy-stance', '重弹姿态', 'gun', 24,
+    [['damage', 'multiply', 1.3, '伤害'], ['bulletSpeed', 'multiply', 0.85, '弹速']], ['重炮', '可回收'], true),
+  buildCard('rapid-stance', '极速姿态', 'gun', 24,
+    [['fireRate', 'multiply', 1.3, '射速'], ['damage', 'multiply', 0.9, '伤害']], ['弹幕', '可回收'], true),
+  buildCard('precision-stance', '狙击姿态', 'gun', 28,
+    [['damage', 'multiply', 1.25, '伤害'], ['range', 'add', 100, '射程'], ['fireRate', 'multiply', 0.9, '射速']], ['精准', '可回收'], true),
+  buildCard('mine-power', '聚变雷芯', 'mine', 12, [['mineDamage', 'add', 8, '地雷伤害']], ['雷场']),
+  buildCard('mine-radius', '扩域雷场', 'mine', 14, [['mineBlastRadius', 'add', 25, '爆炸半径']], ['雷场']),
+  buildCard('mine-cooldown', '快速布雷', 'mine', 18, [['mineCooldown', 'multiply', 0.88, '地雷冷却']], ['雷场']),
+  buildCard('mine-stock', '雷阵编织', 'mine', 20, [['mineLimit', 'add', 1, '地雷上限']], ['雷场']),
+  buildCard('mine-slow', '滞缓晶核', 'mine', 16, [['mineSlow', 'add', 0.06, '地雷减速比例']], ['雷场']),
+  buildCard('shield-regen', '自愈电容', 'recovery', 20, [['shieldRegen', 'add', 2, '护盾回复 / 秒']], ['护盾']),
+  buildCard('thruster', '矢量推进', 'mobility', 12, [['speed', 'add', 25, '移速']], ['机动']),
+  buildCard('core-stability', '核心稳态', 'defense', 18, [['coreRadiusMult', 'multiply', 0.92, '自身核心半径']], ['生存']),
+  buildCard('fortress', '重装壁垒', 'defense', 24,
+    [['armor', 'add', 25, '护甲'], ['speed', 'multiply', 0.94, '移速']], ['护盾', '重装']),
+  buildCard('glass-cannon', '玻璃星核', 'gun', 28,
+    [['damage', 'multiply', 1.45, '伤害'], ['maxHp', 'multiply', 0.85, '生命上限']], ['重炮', '高风险']),
+  buildCard('greed', '危险共鸣', 'special', 26,
+    [['shardGain', 'multiply', 1.3, '收益'], ['maxHp', 'multiply', 0.9, '生命上限']], ['经济', '高风险']),
+  buildCard('blood', '血色回路', 'recovery', 24,
+    [['lifesteal', 'add', 0.05, '吸血比例'], ['armor', 'add', -8, '护甲']], ['汲取']),
+  buildCard('field-power', '引力织网', 'skill', 24,
+    [['deflectFieldRadius', 'add', 35, '力场半径'], ['deflectFieldStrength', 'add', 240, '力场强度']], ['反射'], false, [{ card: 'deflect', level: 1 }]),
+  buildCard('skill-cycle', '回响回路', 'skill', 26,
+    [['deflectCooldownSeconds', 'multiply', 0.88, '技能冷却'], ['deflectWindowSeconds', 'add', 0.04, '主动窗口']], ['反射'], false, [{ card: 'deflect', level: 1 }]),
+]
+
+export const ALL_CARDS: readonly Card[] = [...BUILD_CARDS.slice(0, 2), ...CARDS, ...BUILD_CARDS.slice(2)]
+export const CARD_REGISTRY = createCardRegistry(ALL_CARDS)
