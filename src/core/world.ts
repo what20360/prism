@@ -91,6 +91,8 @@ export interface RoomState {
   kind: RoomKind
   readonly bounds: Rect
   walls: readonly Rect[]
+  /** Where the player appeared; used to delay spawning until they step in. */
+  entry: Vec2
   /** Opens once the room is cleared; null while fighting. */
   exit: Rect | null
 }
@@ -114,6 +116,8 @@ export interface World {
   readonly registry: CardRegistry
   readonly basePlayerAttrs: AttrSet
   readonly actors: Map<EntityId, Actor>
+  /** Enemies queued on room transition, spawned once the player steps in. */
+  pendingSpawns: EnemySpawnSpec[]
   projectiles: Projectile[]
   mines: Mine[]
   effects: Effect[]
@@ -164,16 +168,18 @@ export function createWorld(options: CreateWorldOptions): World {
     seed: options.seed,
     rng: createRng(options.seed),
     room: {
-      phase: 'entered',
+      phase: 'combat',
       kind: options.room.kind,
       bounds: options.room.bounds,
       walls: options.room.walls,
+      entry: options.room.entry,
       exit: null,
     },
     economy: options.economy,
     registry: options.registry,
     basePlayerAttrs: options.playerAttrs,
     actors: new Map(),
+    pendingSpawns: [],
     projectiles: [],
     mines: [],
     effects: [],

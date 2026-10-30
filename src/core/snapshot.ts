@@ -69,6 +69,8 @@ export interface Snapshot {
   readonly score: number
   readonly roomPhase: RoomPhase
   readonly roomKind: RoomKind
+  /** True while enemies are queued and the player still stands in the entry area. */
+  readonly awaitsEntry: boolean
   readonly exit: Rect | null
   readonly roomCleared: boolean
   readonly gameOver: boolean
@@ -139,6 +141,7 @@ export function toSnapshot(world: World): Snapshot {
     score: world.score,
     roomPhase: world.room.phase,
     roomKind: world.room.kind,
+    awaitsEntry: world.room.phase === 'entered' && world.pendingSpawns.length > 0,
     exit: world.room.exit,
     roomCleared: world.roomCleared,
     gameOver: world.gameOver,

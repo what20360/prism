@@ -96,9 +96,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
 
   const drawRoom = (bounds: Rect, walls: readonly Rect[]): void => {
-    ctx.lineWidth = 4
-    ctx.strokeStyle = COLORS.roomBorder
-    ctx.strokeRect(bounds.x + 2, bounds.y + 2, bounds.width - 4, bounds.height - 4)
+    // Boundary band: a thick outer stroke plus a thin inner one so the room
+    // edge reads as a wall instead of a hairline.
+    ctx.strokeStyle = 'rgba(120, 170, 255, 0.9)'
+    ctx.lineWidth = 16
+    ctx.strokeRect(bounds.x + 8, bounds.y + 8, bounds.width - 16, bounds.height - 16)
+    ctx.strokeStyle = 'rgba(90, 220, 255, 0.45)'
+    ctx.lineWidth = 3
+    ctx.strokeRect(bounds.x + 22, bounds.y + 22, bounds.width - 44, bounds.height - 44)
 
     for (const wall of walls) {
       ctx.fillStyle = COLORS.wallFill
@@ -106,6 +111,21 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillRect(wall.x, wall.y, wall.width, wall.height)
       ctx.strokeRect(wall.x + 1, wall.y + 1, wall.width - 2, wall.height - 2)
     }
+  }
+
+  /** Dashed guide from the player to the exit so the way forward is obvious. */
+  const drawGuide = (player: ActorView, exit: Rect): void => {
+    const targetX = exit.x + exit.width / 2
+    const targetY = exit.y + exit.height / 2
+
+    ctx.beginPath()
+    ctx.setLineDash([40, 26])
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.45)'
+    ctx.lineWidth = 6
+    ctx.moveTo(player.x, player.y)
+    ctx.lineTo(targetX, targetY)
+    ctx.stroke()
+    ctx.setLineDash([])
   }
 
   const drawExit = (exit: Rect): void => {
@@ -250,7 +270,55 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.globalAlpha = 1
   }
 
-  const drawHud = (snapshot: Snapshot, debug: RenderDebug): void => {
+  const MINIMAP_WIDTH = 220
+
+  /** Screen-space overview: room, walls, exit, enemies, player and the camera window. */
+  const drawMinimap = (snapshot: Snapshot, camera: Camera): void => {
+    const { bounds } = snapshot
+    const width = MINIMAP_WIDTH
+    const height = (width * bounds.height) / bounds.width
+    const x = viewportWidth - width - 24
+    const y = 52
+    const sx = width / bounds.width
+    const sy = height / bounds.height
+
+    ctx.fillStyle = 'rgba(4, 6, 12, 0.75)'
+    ctx.fillRect(x, y, width, height)
+    ctx.strokeStyle = 'rgba(120, 170, 255, 0.5)'
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(x, y, width, height)
+
+    ctx.strokeStyle = 'rgba(120, 170, 255, 0.22)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(x + camera.x * sx, y + camera.y * sy, camera.width * sx, camera.height * sy)
+
+    ctx.fillStyle = 'rgba(120, 170, 255, 0.4)'
+    for (const wall of snapshot.walls) {
+      ctx.fillRect(x + wall.x * sx, y + wall.y * sy, wall.width * sx, wall.height * sy)
+    }
+
+    if (snapshot.exit) {
+      ctx.fillStyle = COLORS.mineArmed
+      ctx.fillRect(x + snapshot.exit.x * sx, y + snapshot.exit.y * sy, snapshot.exit.width * sx, snapshot.exit.height * sy)
+    }
+
+    ctx.fillStyle = COLORS.enemyStroke
+    for (const actor of snapshot.actors) {
+      if (!actor.alive || actor.team !== 'enemy') continue
+      const r = Math.max(2, actor.radius * sx)
+      ctx.fillRect(x + actor.x * sx - r, y + actor.y * sy - r, r * 2, r * 2)
+    }
+
+    const player = snapshot.actors.find((actor) => actor.team === 'player')
+    if (player) {
+      ctx.beginPath()
+      ctx.arc(x + player.x * sx, y + player.y * sy, 3.5, 0, Math.PI * 2)
+      ctx.fillStyle = COLORS.playerStroke
+      ctx.fill()
+    }
+  }
+
+  const drawHud = (snapshot: Snapshot, debug: RenderDebug, camera: Camera): void => {
     const player = snapshot.actors.find((actor) => actor.team === 'player')
 
     ctx.font = '18px ui-monospace, SFMono-Regular, Menlo, monospace'
@@ -260,6 +328,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (debug.label) {
       ctx.fillStyle = COLORS.hudAccent
       ctx.fillText(`${debug.label}  ${snapshot.roomKind.toUpperCase()}`, viewportWidth - 260, 20)
+    }
+
+    drawMinimap(snapshot, camera)
+
+    if (snapshot.awaitsEntry && !snapshot.gameOver) {
+      ctx.textAlign = 'center'
+      ctx.fillStyle = COLORS.hudWarn
+      ctx.fillText('走进房间开始战斗 · STEP IN TO ENGAGE', viewportWidth / 2, viewportHeight - 100)
+      ctx.textAlign = 'left'
     }
 
     if (!player) return
@@ -333,7 +410,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     drawGrid(camera)
     drawRoom(snapshot.bounds, snapshot.walls)
-    if (snapshot.exit) drawExit(snapshot.exit)
+    if (snapshot.exit) {
+      drawExit(snapshot.exit)
+      const player = snapshot.actors.find((actor) => actor.team === 'player')
+      if (player) drawGuide(player, snapshot.exit)
+    }
     for (const mine of snapshot.mines) drawMine(mine)
     for (const projectile of snapshot.projectiles) drawProjectile(projectile)
     for (const actor of snapshot.actors) {
@@ -343,7 +424,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     ctx.restore()
 
-    drawHud(snapshot, debug)
+    drawHud(snapshot, debug, camera)
     if (snapshot.gameOver || snapshot.victory) drawEndScreen(snapshot.victory)
   }
 

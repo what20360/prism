@@ -11,6 +11,8 @@ import { createWorld, getPlayer, type World } from '../core/world'
 import type { IntentSource } from '../input/keyboard'
 import type { Renderer } from '../render/canvas2d/renderer'
 
+export type UiMode = 'play' | 'upgrade' | 'help'
+
 export interface PanelState {
   readonly shards: number
   readonly cards: readonly CardState[]
@@ -37,7 +39,7 @@ export interface GameOptions {
   readonly playerAttrs: AttrSet
   readonly input: IntentSource
   readonly renderer: Renderer
-  readonly onPauseChange?: (paused: boolean) => void
+  readonly onUiModeChange?: (mode: UiMode) => void
   readonly onRunEnd?: (summary: RunSummary) => void
 }
 
@@ -46,7 +48,7 @@ export interface Game {
   stop(): void
   dispose(): void
   restart(): void
-  setPaused(value: boolean): void
+  setUiMode(mode: UiMode): void
   buyCard(cardId: string): void
   panelState(): PanelState
   /** Dev-only inspection hook used by browser verification. */
@@ -57,6 +59,7 @@ export interface Game {
     paused: boolean
     roomIndex: number
     roomKind: string
+    uiMode: UiMode
     shards: number
     kills: number
     playerX: number
@@ -96,6 +99,7 @@ export function createGame(options: GameOptions): Game {
 
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
+  let uiMode: UiMode = 'play'
   let running = false
   let frameHandle = 0
   let lastTime = 0
@@ -122,20 +126,26 @@ export function createGame(options: GameOptions): Game {
     playerId = getPlayer(world).id
     intents.clear()
     accumulator = 0
-    options.onPauseChange?.(false)
+    uiMode = 'play'
+    options.onUiModeChange?.('play')
   }
 
-  const setPaused = (value: boolean): void => {
-    if (world.paused === value) return
-    world.paused = value
-    options.onPauseChange?.(value)
+  const setUiMode = (mode: UiMode): void => {
+    if (uiMode === mode && world.paused === (mode !== 'play')) return
+    uiMode = mode
+    world.paused = mode !== 'play'
+    options.onUiModeChange?.(mode)
   }
 
   const frame = (now: number): void => {
     if (!running) return
 
-    if (options.input.consumePanelToggle() && !world.gameOver && !world.victory) {
-      setPaused(!world.paused)
+    const canToggle = !world.gameOver && !world.victory
+    if (options.input.consumePanelToggle() && canToggle) {
+      setUiMode(uiMode === 'upgrade' ? 'play' : 'upgrade')
+    }
+    if (options.input.consumeHelpToggle() && canToggle) {
+      setUiMode(uiMode === 'help' ? 'play' : 'help')
     }
     if (options.input.consumeRestart() && (world.gameOver || world.victory)) restart()
 
@@ -161,6 +171,7 @@ export function createGame(options: GameOptions): Game {
 
     if (!runEnded && (world.gameOver || world.victory)) {
       runEnded = true
+      world.paused = true
       options.onRunEnd?.(summary())
     }
 
@@ -209,6 +220,9 @@ export function createGame(options: GameOptions): Game {
       paused: world.paused,
       roomIndex,
       roomKind: world.room.kind,
+      roomPhase: world.room.phase,
+      awaitsEntry: world.room.phase === 'entered' && world.pendingSpawns.length > 0,
+      uiMode,
       shards: world.shards,
       kills: world.stats.kills,
       playerX: Math.round(player.pos.x),
@@ -223,5 +237,5 @@ export function createGame(options: GameOptions): Game {
     }
   }
 
-  return { start, stop, dispose, restart, setPaused, buyCard, panelState, debug }
+  return { start, stop, dispose, restart, setUiMode, buyCard, panelState, debug }
 }

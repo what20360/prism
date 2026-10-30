@@ -4,9 +4,13 @@ import { createActor, getPlayer } from './world'
 
 export type RoomSpec = RoomTemplate
 
+/** Player must move this far from the entry before the room starts spawning. */
+export const ROOM_ACTIVATION_RADIUS = 140
+
 /**
  * Switches the world to another room: clears transient entities, repositions the
- * player (keeping all progression) and spawns the new enemy set.
+ * player (keeping all progression) and queues the enemy set. Enemies are spawned
+ * by `updateRoomEntry` once the player actually steps into the room.
  */
 export function applyRoom(world: World, room: RoomSpec): void {
   for (const [id, actor] of world.actors) {
@@ -19,19 +23,24 @@ export function applyRoom(world: World, room: RoomSpec): void {
 
   world.room.kind = room.kind
   world.room.walls = room.walls
-  world.room.phase = 'combat'
+  world.room.entry = room.entry
+  world.room.phase = 'entered'
   world.room.exit = null
   world.roomCleared = false
   world.playerTookHit = false
   world.exitReached = false
+  world.pendingSpawns = [...room.spawns]
 
   const player = getPlayer(world)
   player.pos = room.entry
   player.iframesTicks = 0
   player.deflectWindowTicks = 0
   player.shield = Math.min(player.shield, shieldCap(player.attrs))
+}
 
-  for (const spawn of room.spawns) {
+export function spawnPendingEnemies(world: World): void {
+  for (const spawn of world.pendingSpawns) {
     createActor(world, { team: 'enemy', ...spawn })
   }
+  world.pendingSpawns = []
 }

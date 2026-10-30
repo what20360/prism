@@ -7,6 +7,8 @@ export interface IntentSource {
   consumeRestart(): boolean
   /** True once per press of the upgrade panel key. */
   consumePanelToggle(): boolean
+  /** True once per press of the help key. */
+  consumeHelpToggle(): boolean
   dispose(): void
 }
 
@@ -27,10 +29,15 @@ export function createKeyboardInput(target: Window): IntentSource {
   const pressed = new Set<string>()
   let restartRequested = false
   let panelToggleRequested = false
+  let helpToggleRequested = false
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.code === 'KeyR') {
       restartRequested = true
+      return
+    }
+    if (event.code === 'KeyH') {
+      helpToggleRequested = true
       return
     }
     if (event.code === 'Tab') {
@@ -83,11 +90,17 @@ export function createKeyboardInput(target: Window): IntentSource {
     return requested
   }
 
+  const consumeHelpToggle = (): boolean => {
+    const requested = helpToggleRequested
+    helpToggleRequested = false
+    return requested
+  }
+
   const dispose = (): void => {
     target.removeEventListener('keydown', onKeyDown)
     target.removeEventListener('keyup', onKeyUp)
     target.removeEventListener('blur', onBlur)
   }
 
-  return { read, consumeRestart, consumePanelToggle, dispose }
+  return { read, consumeRestart, consumePanelToggle, consumeHelpToggle, dispose }
 }

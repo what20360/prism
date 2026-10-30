@@ -237,6 +237,7 @@ interface Controller { next(world: World, self: EntityId): Intent }
 | 1 | 采集意图 | 所有 actor 的 controller 产出 Intent |
 | 2 | 应用意图 | 移动向量、切枪、放雷、技能、面板开关 |
 | 3 | 计时器 | 冷却、无敌帧、连杀超时、地雷倒计时递减 |
+| 3.5 | 房间入场 | 玩家离开入口 `ROOM_ACTIVATION_RADIUS` 后生成 `pendingSpawns` 并进入 `combat` |
 | 4 | 移动 | 位置积分 + 墙体/边界碰撞 |
 | 5 | 开火 | 射速计时到点则生成子弹（瞄准策略在此调用） |
 | 5.5 | 偏转力场 | 场内敌方子弹按 `(1-d/R)²` 获得背离推力（主动窗口 ×5） |
@@ -390,7 +391,7 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 | 5.7.2 护甲 | `systems/damage.ts` 第 2 步 |
 | 5.7.4 偏转/反射 | `systems/damage.ts` 第 1 步（改归属与方向） |
 | 5.8 双层判定 | `systems/projectiles.ts` 命中判定 + `core/actor.ts` 判定层数据 |
-| 6.5 房间流程 | `systems/room.ts` + `app/modes/dungeon.ts` |
+| 6.5 房间流程 | `systems/room.ts` + `systems/entry.ts` + `core/dungeon.ts` + `app/modes/dungeon.ts` |
 | 9.5 统一 Actor | `core/actor.ts` + `core/controller.ts` |
 
 ---

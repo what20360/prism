@@ -3,6 +3,7 @@ import { updateAi } from './systems/ai'
 import { updateBoss } from './systems/boss'
 import { resolveContactDamage } from './systems/damage'
 import { updateDeflectFields } from './systems/deflectField'
+import { updateRoomEntry } from './systems/entry'
 import { updateExit } from './systems/exit'
 import { resolveHits } from './systems/hits'
 import { tryPlaceMine, updateMines } from './systems/mines'
@@ -34,6 +35,9 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
 
   // 3. timers
   updateTimers(world)
+
+  // 3.5 rooms only start spawning once the player steps in
+  updateRoomEntry(world)
 
   // 4. movement (AI authors intents for its own actors)
   updateAi(world)

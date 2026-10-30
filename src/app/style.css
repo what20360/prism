@@ -155,3 +155,43 @@ body {
 .result__restart {
   margin-top: 8px;
 }
+/* Help panel */
+.panel--help {
+  gap: 20px;
+}
+
+.help__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.help__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help__row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.help__row kbd {
+  justify-self: start;
+  padding: 3px 10px;
+  border: 1px solid rgba(90, 220, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(90, 220, 255, 0.08);
+  color: #dce8ff;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.help__row span {
+  color: rgba(159, 179, 209, 0.9);
+}

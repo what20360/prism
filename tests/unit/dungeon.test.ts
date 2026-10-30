@@ -6,6 +6,7 @@ import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { applyRoom } from '../../src/core/dungeon'
 import { step } from '../../src/core/simulation'
+import { toSnapshot } from '../../src/core/snapshot'
 import { applyDamage } from '../../src/core/systems/damage'
 import { EXIT_RECT } from '../../src/core/systems/room'
 import type { EnemySpawnSpec, RoomKind, RoomTemplate } from '../../src/core/world'
@@ -55,6 +56,14 @@ function killEnemies(world: World): void {
   }
 }
 
+function countEnemies(world: World): number {
+  let count = 0
+  for (const actor of world.actors.values()) {
+    if (actor.team === 'enemy') count += 1
+  }
+  return count
+}
+
 describe('dungeon layout', () => {
   it('builds 5 floors of 5 rooms plus a boss room', () => {
     const rooms = buildDungeon()
@@ -78,7 +87,7 @@ describe('dungeon layout', () => {
 })
 
 describe('room transitions', () => {
-  it('opening a room replaces enemies and resets the exit', () => {
+  it('opening a room queues enemies and resets the exit', () => {
     const world = makeWorld(roomWith('combat', [spawnOf('drifter', 1200, 900)]))
     world.room.exit = EXIT_RECT
 
@@ -87,12 +96,27 @@ describe('room transitions', () => {
     expect(world.room.kind).toBe('guard')
     expect(world.room.exit).toBeNull()
     expect(world.roomCleared).toBe(false)
+    expect(countEnemies(world)).toBe(0)
+    expect(world.pendingSpawns).toHaveLength(1)
+  })
 
-    let enemies = 0
-    for (const actor of world.actors.values()) {
-      if (actor.team === 'enemy') enemies += 1
-    }
-    expect(enemies).toBe(1)
+  it('only spawns enemies after the player steps into the room', () => {
+    const world = makeWorld(roomWith('safe', []))
+    applyRoom(world, roomWith('combat', [spawnOf('drifter', 1200, 900)]))
+
+    step(world, new Map())
+    expect(world.room.phase).toBe('entered')
+    expect(toSnapshot(world).awaitsEntry).toBe(true)
+    expect(countEnemies(world)).toBe(0)
+
+    const player = getPlayer(world)
+    player.pos = { x: 1600, y: 1300 }
+    step(world, new Map())
+
+    expect(world.room.phase).toBe('combat')
+    expect(toSnapshot(world).awaitsEntry).toBe(false)
+    expect(countEnemies(world)).toBe(1)
+    expect(world.pendingSpawns).toHaveLength(0)
   })
 
   it('clearing a combat room opens the exit, and entering it flags the transition', () => {
