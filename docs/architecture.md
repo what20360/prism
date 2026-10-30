@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | v0.1 |
-| 状态 | 设计定稿，待 M1 落地验证 |
+| 版本 | v1.10 |
+| 状态 | M1–M4 已实现，主菜单与测试场已接入 |
 | 依赖 | 玩法与规则见 [requirements.md](./requirements.md)，数值见 [balance.md](./balance.md) |
 | 技术选型依据 | [adr/0001-tech-stack.md](./adr/0001-tech-stack.md) |
 
@@ -138,6 +138,7 @@ src/
     sections/           菜单分页：help / keys / cards / attrs
     cardInfo.ts         属性与前置的中文文案格式化
     resultPanel.ts      结算面板
+    homeMenu.ts         主菜单与继续本局入口
   net/
     transport.ts        接口定义（首发空实现）
   storage/
@@ -147,6 +148,7 @@ src/
     game.ts             场景与模式装配
     modes/
       dungeon.ts        普通模式
+      practice.ts       测试场配置、重置与伤害统计
 tests/
   unit/                 规则单测
   replay/               确定性回放回归
@@ -439,3 +441,10 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 
 - 桌面 primary pointer 只更新瞄准/射击，secondary pointer 只提交锁定坐标；触屏轻点只提交锁定，开火由触控摇杆处理。右键空白由应用层目标命中测试转换为空锁定，不改动左键按住状态。
 - `scripts/build-offline.mjs` 从相同 `app/main.ts` 入口创建 production IIFE，将 CSS 与脚本嵌入单个 HTML。构建拒绝残留 imports/动态 imports/外部资产，并验证脚本可作为普通 script 解析。输出目录被忽略，不进入 Sites 静态输出或源码提交；源修订仅写入不可见元数据。
+
+## v1.10 主菜单、测试场与导航边界
+
+- `app/main.ts` 持有一个当前会话，共享渲染器、输入、音频和设置；切换模式销毁旧游戏循环并创建新世界。`Game` 的 `home / menu / play` 状态统一清空输入和帧计时，主菜单冻结世界，继续不补算暂停时间。结束后仍可回主菜单，只有未结束且已开始的局显示继续入口。
+- `app/modes/practice.ts` 在 `step` 前后装配测试能力，核心没有测试模式分支。前置步骤补充自由购卡额度与可选无敌帧，后置步骤累计有效伤害、维护 180 tick 窗口并恢复静态靶机。场景重置复用 `applyRoom`，保留购买与技能槽并清理临时实体；完整重开创建新世界清空构筑。普通闯关拒绝测试命令。
+- 等级编辑只在暂停的测试场接收，校验卡片存在、整数范围及自身等级上限后，通过同一属性解析与技能协调管线生效；正常购买仍校验价格和前置。测试统计不写入核心快照，由应用层提供给 HUD 与测试控制页。
+- 寻路用线段到矩形的实际最短距离检查圆形单位通路，允许合法的圆角和贴墙切线；航点仅在下一段可通行时跳过。意外重叠的敌人先用已有确定性碰撞恢复函数移出墙体再重新规划。子弹墙体命中继续使用原有扫掠判定。

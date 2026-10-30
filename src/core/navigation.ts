@@ -1,3 +1,4 @@
+import { circleIntersectsRect, distanceToSegment } from './collision'
 import type { Rect, Vec2 } from './types'
 import type { RoomState } from './world'
 export interface WallHit { t: number; nx: number; ny: number }
@@ -29,7 +30,17 @@ export function firstWallHit(room: Pick<RoomState, 'bounds' | 'walls'>, from: Ve
   return best
 }
 export function hasLineOfSight(from: Vec2, to: Vec2, walls: readonly Rect[], radius = 0): boolean {
-  return !walls.some((wall) => segmentRect(from, to, wall, radius))
+  return !walls.some((wall) => {
+    if (segmentRect(from, to, wall)) return true
+    if (radius <= 0) return false
+    // A circle can safely occupy the rounded corner outside an expanded AABB.
+    const pointDistance = (p: Vec2) => Math.hypot(Math.max(wall.x - p.x, 0, p.x - wall.x - wall.width), Math.max(wall.y - p.y, 0, p.y - wall.y - wall.height))
+    let clearance = Math.min(pointDistance(from), pointDistance(to))
+    for (const x of [wall.x, wall.x + wall.width]) for (const y of [wall.y, wall.y + wall.height]) {
+      clearance = Math.min(clearance, distanceToSegment(x, y, from.x, from.y, to.x, to.y))
+    }
+    return clearance < radius - 1e-7
+  })
 }
 /** Deterministic visibility graph around inflated wall corners. */
 export function findPath(room: Pick<RoomState, 'walls' | 'bounds'>, from: Vec2, goal: Vec2, radius: number): Vec2[] {
@@ -37,7 +48,7 @@ export function findPath(room: Pick<RoomState, 'walls' | 'bounds'>, from: Vec2, 
   const margin = radius + 6, b = room.bounds, nodes: Vec2[] = [from, goal]
   for (const wall of room.walls) for (const x of [wall.x - margin, wall.x + wall.width + margin]) for (const y of [wall.y - margin, wall.y + wall.height + margin]) {
     if (x < b.x + radius || x > b.x + b.width - radius || y < b.y + radius || y > b.y + b.height - radius) continue
-    if (room.walls.some((w) => x > w.x - radius && x < w.x + w.width + radius && y > w.y - radius && y < w.y + w.height + radius)) continue
+    if (room.walls.some((w) => circleIntersectsRect(x, y, radius + 1, w))) continue
     nodes.push({ x, y })
   }
   const costs = nodes.map(() => Infinity), previous = nodes.map(() => -1), closed = new Set<number>()

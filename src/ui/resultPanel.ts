@@ -2,6 +2,7 @@ import type { RunSummary } from '../app/game'
 
 export interface ResultPanelHandlers {
   readonly onRestart: () => void
+  readonly onHome: () => void
 }
 
 export interface ResultPanel {
@@ -27,7 +28,8 @@ export function createResultPanel(root: HTMLElement, handlers: ResultPanelHandle
   restart.textContent = '再开一局 (R)'
   restart.addEventListener('click', () => handlers.onRestart())
 
-  overlay.append(title, subtitle, grid, restart)
+  const home = document.createElement('button'); home.className = 'panel__close result__home'; home.textContent = '返回主菜单'; home.onclick = handlers.onHome
+  overlay.append(title, subtitle, grid, restart, home)
   root.append(overlay)
 
   const row = (label: string, value: string): void => {
@@ -39,9 +41,9 @@ export function createResultPanel(root: HTMLElement, handlers: ResultPanelHandle
   }
 
   const show = (summary: RunSummary): void => {
-    title.textContent = summary.victory ? '通关' : '失败'
+    title.textContent = summary.practice ? '测试结束' : summary.victory ? '通关' : '失败'
     title.className = summary.victory ? 'result__title result__title--win' : 'result__title'
-    subtitle.textContent = `到达 F${summary.floor}-${summary.room}`
+    subtitle.textContent = summary.practice ? '重新测试或返回主菜单' : `到达 F${summary.floor}-${summary.room}`
 
     grid.replaceChildren()
     row('用时', `${Math.floor(summary.seconds / 60)}:${String(summary.seconds % 60).padStart(2, '0')}`)

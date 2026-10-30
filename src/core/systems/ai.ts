@@ -1,3 +1,4 @@
+import { circleIntersectsRect, resolveSpawnPosition } from '../collision'
 import { normalize } from '../math'
 import { findPath, hasLineOfSight } from '../navigation'
 import type { World } from '../world'
@@ -7,6 +8,9 @@ export function updateAi(world: World): void {
   for (const actor of world.actors.values()) {
     if (!actor.alive || actor.team !== 'enemy') continue
     if (!player) { actor.intent = { move: { x: 0, y: 0 }, fire: false }; continue }
+    if (world.room.walls.some((wall) => circleIntersectsRect(actor.pos.x, actor.pos.y, actor.radius, wall))) {
+      actor.pos = resolveSpawnPosition(actor.pos, actor.radius, world.room.walls, world.room.bounds); actor.navTimer = 0
+    }
     const visible = hasLineOfSight(actor.pos, player.pos, world.room.walls)
     let move = { x: 0, y: 0 }
     if (actor.behavior !== 'turret' && actor.attrs.speed > 0) {
@@ -17,7 +21,6 @@ export function updateAi(world: World): void {
       }
       actor.navTimer -= 1
       while (actor.navPath.length > 1 && hasLineOfSight(actor.pos, actor.navPath[1]!, world.room.walls, actor.radius)) actor.navPath.shift()
-      while (actor.navPath.length > 1 && Math.hypot(actor.navPath[0]!.x - actor.pos.x, actor.navPath[0]!.y - actor.pos.y) < 16) actor.navPath.shift()
       const goal = actor.navPath[0]
       if (goal) move = normalize({ x: goal.x - actor.pos.x, y: goal.y - actor.pos.y })
     }

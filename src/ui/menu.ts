@@ -1,3 +1,5 @@
+import { renderPracticeSection } from './sections/practice'
+import type { PracticeState, PracticeAction } from '../app/modes/practice'
 import { renderSkillsSection, type SkillsState } from './sections/skills'
 import type { SkillId } from '../core/world'
 import { renderAttrsSection, type PlayerView } from './sections/attrs'
@@ -7,16 +9,19 @@ import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
 import type { ControlSettings, SettingKey } from '../storage/config'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice'
 
 export interface MenuState extends CardsSectionState, SkillsState {
   readonly player: PlayerView
   readonly settings: ControlSettings
+  readonly practice?: PracticeState
 }
 
 export interface MenuHandlers {
   readonly onClose: () => void
   readonly onRestart: () => void
+  readonly onHome: () => void
+  readonly onPractice: (action: PracticeAction) => void
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
   readonly onEquip: (slot: number, id: SkillId | null) => void
@@ -25,7 +30,7 @@ export interface MenuHandlers {
 }
 
 export interface Menu {
-  open(): void
+  open(section?: MenuSection): void
   close(): void
   refresh(): void
   readonly visible: boolean
@@ -39,6 +44,7 @@ const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'attrs', label: '角色属性' },
   { id: 'skills', label: '主动技能' },
   { id: 'settings', label: '设置' },
+  { id: 'practice', label: '测试控制' },
 ]
 
 /**
@@ -86,7 +92,8 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
   restart.textContent = '重新开始'
   restart.title = '结束当前局并重新开始'
   restart.addEventListener('click', () => handlers.onRestart())
-  actions.append(resume, restart)
+  const home = document.createElement('button'); home.className = 'menu__resume'; home.textContent = '返回主菜单'; home.onclick = handlers.onHome
+  actions.append(resume, restart, home)
   nav.append(actions)
 
   const content = document.createElement('div')
@@ -101,17 +108,20 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
 
   const render = (): void => {
     const state = handlers.getState()
+    if (active === 'practice' && !state.practice) active = 'upgrade'
     content.replaceChildren()
 
-    if (active === 'help') content.append(renderHelpSection())
+    if (active === 'practice' && state.practice) content.append(renderPracticeSection(state.practice, handlers.onPractice, handlers.onRestart))
+    else if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
     else if (active === 'skills') content.append(renderSkillsSection(state, handlers.onEquip))
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
     else if (active === 'settings') {
       content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.player.attrs))
-    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, collapsed }))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, collapsed, onPractice: handlers.onPractice }))
 
     for (const [id, button] of buttons) {
+      button.hidden = id === 'practice' && !state.practice
       button.classList.toggle('menu__tab--active', id === active)
       button.setAttribute('aria-current', id === active ? 'page' : 'false')
     }
@@ -123,7 +133,8 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     content.scrollTop = 0
   }
 
-  const open = (): void => {
+  const open = (section?: MenuSection): void => {
+    if (section) active = section
     overlay.hidden = false
     render()
   }

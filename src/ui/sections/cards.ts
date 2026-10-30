@@ -1,15 +1,19 @@
+import { CARD_REGISTRY } from '../../content/cards'
+import { TEST_MAX_LEVEL, type PracticeState, type PracticeAction } from '../../app/modes/practice'
 import type { CardState } from '../../core/progress'
 import { formatRequirements } from '../cardInfo'
 
 export interface CardsSectionState {
   readonly shards: number
   readonly cards: readonly CardState[]
+  readonly practice?: PracticeState
 }
 
 export interface CardsSectionHandlers {
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
   readonly collapsed?: Set<string>
+  readonly onPractice?: (action: PracticeAction) => void
 }
 
 const CATEGORY_ORDER: readonly string[] = [
@@ -99,6 +103,13 @@ function cardButton(
     sell.addEventListener('click', () => handlers.onSell(card.id))
     article.append(sell)
   }
+  if (state.practice && handlers.onPractice) {
+    const edit = element('div', 'card__test-controls')
+    const level = document.createElement('input'); level.type = 'number'; level.min = '0'; level.max = String(Math.min(TEST_MAX_LEVEL, CARD_REGISTRY.get(card.id)?.maxLevel ?? TEST_MAX_LEVEL)); level.step = '1'; level.value = String(card.level); level.required = true; level.setAttribute('aria-label', `${card.name}等级`)
+    const apply = document.createElement('button'); apply.type = 'button'; apply.textContent = '设定等级'; apply.setAttribute('aria-label', `设定${card.name}等级`)
+    apply.onclick = () => { if (level.reportValidity()) handlers.onPractice?.({ type: 'card-level', id: card.id, level: level.valueAsNumber }) }
+    edit.append(level, apply); article.append(edit)
+  }
   return article
 }
 
@@ -108,7 +119,7 @@ export function renderCardsSection(
   handlers: CardsSectionHandlers,
 ): HTMLElement {
   const wrapper = element('div', 'cards')
-  wrapper.append(element('p', 'menu__hint', `可用棱晶 ${Math.floor(state.shards)}`))
+  wrapper.append(element('p', 'menu__hint', state.practice?.config.freeCards ? '测试场 · 自由购卡' : `可用棱晶 ${Math.floor(state.shards)}`))
   wrapper.append(element('p', 'cards__intro', '选择自己的战斗方式。操控卡与姿态卡可回收实付价格的 60%；普通成长卡永久生效至本局结束。优先级数值越小越先生效，同值按固定顺序处理。'))
 
   const grouped = new Map<string, CardState[]>()

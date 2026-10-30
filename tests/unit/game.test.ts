@@ -4,6 +4,7 @@ import { createGame, type GameOptions } from '../../src/app/game'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { createPracticeMode, DEFAULT_PRACTICE } from '../../src/app/modes/practice'
 import type { RoomSpec } from '../../src/core/dungeon'
 
 describe('game lifecycle', () => {
@@ -63,6 +64,51 @@ describe('game lifecycle', () => {
     })
     return { game, input, pointer }
   }
+
+  it('opens on the home screen without advancing or accepting an Escape resume', () => {
+    const read = vi.fn(() => ({ move: { x: 1, y: 0 } }))
+    const { game } = idleGame({ initialUiMode: 'home', input: {
+      read, consumeRestart: () => false, consumeMenuToggle: () => true, reset: () => {}, dispose: () => {},
+    } })
+    game.start(); advance(1000); advance(4000)
+    expect(game.debug()).toMatchObject({ tick: 0, uiMode: 'home', paused: true })
+    expect(game.session().canResume).toBe(false); expect(read).not.toHaveBeenCalled()
+    game.setUiMode('play'); expect(game.session().canResume).toBe(true)
+    game.dispose()
+  })
+
+  it('freezes and resumes the same run from home without losing purchases or catching up', () => {
+    const { game } = idleGame(); game.start(); advance(1000); advance(1200)
+    expect(game.buyCard('gun-damage')).toBe(true)
+    game.setUiMode('home'); const tick = game.debug().tick
+    advance(10000); expect(game.debug().tick).toBe(tick); expect(game.session().canResume).toBe(true)
+    game.setUiMode('play'); advance(11000)
+    expect(game.debug().tick).toBe(tick); expect(game.debug().purchases).toBe(1)
+    game.dispose()
+  })
+
+  it('rejects test controls in normal dungeon sessions', () => {
+    const { game } = idleGame(); game.setUiMode('menu')
+    expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 10 })).toBe(false)
+    expect(game.panelState().practice).toBeUndefined(); expect(game.panelState().player.attrs.damage).toBe(10)
+    game.dispose()
+  })
+
+  it('restarts a practice session with its configuration and clears the build', () => {
+    const mode = createPracticeMode()
+    const { game } = idleGame({ practice: mode })
+    game.setUiMode('menu')
+    expect(game.practiceAction({ type: 'configure', config: { ...DEFAULT_PRACTICE, scenario: 'combat', count: 5, invincible: false, freeCards: false } })).toBe(true)
+    expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 10 })).toBe(true)
+    expect(game.panelState().player.attrs.damage).toBe(30)
+    game.restart()
+    expect(game.session().practice).toBe(true)
+    expect(game.panelState().practice?.config).toMatchObject({ scenario: 'combat', count: 5, invincible: false, freeCards: false })
+    expect(game.debug()).toMatchObject({ tick: 0, purchases: 0, enemies: 5, shards: 1000, uiMode: 'play', paused: false })
+    expect(game.panelState().player.attrs.damage).toBe(10)
+    expect(game.practiceAction({ type: 'meters-reset' })).toBe(false)
+    game.dispose()
+  })
 
   it('does not grant automatic fire through saved preferences without a card', () => {
     const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' } })
@@ -213,6 +259,7 @@ describe('game lifecycle', () => {
     advance(1000)
     advance(1200)
     game.setUiMode('menu')
+    input.reset.mockClear(); pointer.reset.mockClear()
     game.restart()
     expect(input.reset).toHaveBeenCalledOnce()
     expect(pointer.reset).toHaveBeenCalledOnce()

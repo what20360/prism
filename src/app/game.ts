@@ -1,3 +1,4 @@
+import type { PracticeMode, PracticeAction, PracticeState } from './modes/practice'
 import { combatAttrs } from '../core/combat'
 import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
 import { toSkillView, type SkillView } from '../core/snapshot'
@@ -30,7 +31,7 @@ import {
 export { DEFAULT_SETTINGS } from '../storage/config'
 export type { AimMode, FireMode, ControlSettings, SettingKey } from '../storage/config'
 
-export type UiMode = 'play' | 'menu'
+export type UiMode = 'play' | 'menu' | 'home'
 
 export interface PanelState {
   readonly shards: number
@@ -39,10 +40,12 @@ export interface PanelState {
   readonly settings: ControlSettings
   readonly skillSlots: readonly (SkillId | null)[]
   readonly knownSkills: readonly SkillView[]
+  readonly practice?: PracticeState
 }
 
 export interface RunSummary {
   readonly victory: boolean
+  readonly practice?: boolean
   readonly seconds: number
   readonly kills: number
   readonly coreHits: number
@@ -69,6 +72,8 @@ export interface GameOptions {
   readonly onSettingsChange?: (settings: ControlSettings) => void
   readonly onUiModeChange?: (mode: UiMode) => void
   readonly onRunEnd?: (summary: RunSummary) => void
+  readonly initialUiMode?: UiMode
+  readonly practice?: PracticeMode
 }
 
 export interface Game {
@@ -82,6 +87,8 @@ export interface Game {
   equipSkill(slot: number, id: SkillId | null): boolean
   setSetting<K extends SettingKey>(key: K, value: ControlSettings[K]): void
   panelState(): PanelState
+  session(): { canResume: boolean; practice: boolean }
+  practiceAction(action: PracticeAction): boolean
   /** Dev-only inspection hook used by browser verification. */
   debug(): {
     tick: number
@@ -115,15 +122,17 @@ export function createGame(options: GameOptions): Game {
   let runEnded = false
 
   const spawnWorld = (seed: number): World => {
-    const firstRoom = options.rooms[0]
+    const firstRoom = options.practice?.room() ?? options.rooms[0]
     if (!firstRoom) throw new Error('dungeon has no rooms')
-    return createWorld({
+    const created = createWorld({
       seed,
       room: firstRoom,
       economy: options.economy,
       registry: options.registry,
       playerAttrs: options.playerAttrs,
     })
+    options.practice?.initialize(created)
+    return created
   }
 
   let world = spawnWorld(options.seed)
@@ -132,7 +141,9 @@ export function createGame(options: GameOptions): Game {
 
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
-  let uiMode: UiMode = 'play'
+  let uiMode: UiMode = options.initialUiMode ?? 'play'
+  let hasStarted = uiMode !== 'home'
+  world.paused = uiMode !== 'play'
   let settings: ControlSettings = { ...DEFAULT_SETTINGS, ...options.initialSettings }
   let running = false
   let frameHandle = 0
@@ -142,6 +153,7 @@ export function createGame(options: GameOptions): Game {
 
   const summary = (): RunSummary => ({
     victory: world.victory,
+    practice: Boolean(options.practice),
     seconds: Math.round(world.tick / 60),
     kills: world.stats.kills,
     coreHits: world.stats.coreHits,
@@ -153,6 +165,7 @@ export function createGame(options: GameOptions): Game {
   })
 
   const restart = (): void => {
+    hasStarted = true
     restarts += 1
     roomIndex = 0
     runEnded = false
@@ -170,7 +183,10 @@ export function createGame(options: GameOptions): Game {
   }
 
   const setUiMode = (mode: UiMode): void => {
+    if (mode === 'play' && (world.gameOver || world.victory)) return
     if (uiMode === mode && world.paused === (mode !== 'play')) return
+    options.input.reset(); options.pointer?.reset(); options.touch?.reset()
+    if (mode === 'play') hasStarted = true
     uiMode = mode
     world.paused = mode !== 'play'
     options.touch?.setPaused(mode !== 'play')
@@ -226,10 +242,10 @@ export function createGame(options: GameOptions): Game {
     if (!running) return
 
     const canToggle = !world.gameOver && !world.victory
-    if (options.input.consumeMenuToggle() && canToggle) {
+    if (options.input.consumeMenuToggle() && canToggle && uiMode !== 'home') {
       setUiMode(uiMode === 'menu' ? 'play' : 'menu')
     }
-    if (options.input.consumeRestart() && (world.gameOver || world.victory)) restart()
+    if (options.input.consumeRestart() && uiMode !== 'home' && (world.gameOver || world.victory)) restart()
 
     const elapsed = lastTime === 0 ? 0 : Math.min((now - lastTime) / 1000, MAX_FRAME_SECONDS)
     lastTime = now
@@ -243,7 +259,9 @@ export function createGame(options: GameOptions): Game {
 
       while (accumulator >= TICK_DT && !world.paused && !world.gameOver && !world.victory) {
         intents.set(playerId, playerIntent())
+        options.practice?.beforeStep(world)
         step(world, intents)
+        options.practice?.afterStep(world)
         accumulator -= TICK_DT
       }
     }
@@ -251,7 +269,7 @@ export function createGame(options: GameOptions): Game {
     // A frozen world must not collect input or build a catch-up backlog.
     if (world.paused || world.gameOver || world.victory) accumulator = 0
 
-    if (world.exitReached && roomIndex + 1 < options.rooms.length) {
+    if (!options.practice && world.exitReached && roomIndex + 1 < options.rooms.length) {
       roomIndex += 1
       const next = options.rooms[roomIndex]
       if (next) applyRoom(world, next)
@@ -263,9 +281,9 @@ export function createGame(options: GameOptions): Game {
       options.onRunEnd?.(summary())
     }
 
-    const label = `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
+    const label = options.practice ? '测试场' : `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
     const snapshot = toSnapshot(world)
-    options.renderer.draw(snapshot, { fps, label })
+    options.renderer.draw(snapshot, { fps, label, practice: options.practice?.state(world) })
     options.onSnapshot?.(snapshot, world.paused)
     frameHandle = requestAnimationFrame(frame)
   }
@@ -273,6 +291,8 @@ export function createGame(options: GameOptions): Game {
   const start = (): void => {
     if (running) return
     running = true
+    options.touch?.setPaused(uiMode !== 'play')
+    options.onUiModeChange?.(uiMode)
     lastTime = 0
     accumulator = 0
     frameHandle = requestAnimationFrame(frame)
@@ -289,8 +309,10 @@ export function createGame(options: GameOptions): Game {
   }
 
   const buyCard = (cardId: string): boolean => {
+    options.practice?.credit(world)
     const result = buyCardInWorld(world, cardId)
     if (!result.ok) return false
+    options.practice?.credit(world)
     if (cardId === 'auto-aim') setSetting('aimMode', 'auto')
     if (cardId === 'auto-fire') setSetting('fireMode', 'auto')
     return true
@@ -308,6 +330,7 @@ export function createGame(options: GameOptions): Game {
     return {
       shards: Math.floor(world.shards),
       cards: listCardStates(world),
+      practice: options.practice?.state(world),
       skillSlots: [...player.skillSlots],
       knownSkills: SKILL_IDS.filter((id) => unlocked(player.attrs, id)).map((id) => toSkillView(player, id)),
       settings: { ...settings,
@@ -356,5 +379,14 @@ export function createGame(options: GameOptions): Game {
     }
   }
 
-  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
+  const practiceAction = (action: PracticeAction): boolean => {
+    if (!options.practice || uiMode !== 'menu' || world.gameOver || world.victory) return false
+    if (!options.practice.action(world, action)) return false
+    if (action.type === 'card-level' && (action.id === 'auto-aim' || action.id === 'auto-fire')) setSetting(action.id === 'auto-aim' ? 'aimMode' : 'fireMode', action.level > 0 ? 'auto' : 'manual')
+    options.input.reset(); options.pointer?.reset(); options.touch?.reset(); options.touch?.setPaused(true)
+    lastTime = 0; accumulator = 0
+    return true
+  }
+  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard,
+    session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
 }

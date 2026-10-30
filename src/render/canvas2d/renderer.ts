@@ -1,6 +1,7 @@
+import type { PracticeState } from '../../app/modes/practice'
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
 
-export interface RenderDebug { readonly fps: number; readonly label?: string }
+export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState }
 export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
@@ -193,14 +194,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
     text('P R I S M', 20, 29, 15, CYAN)
-    text(`${debug.label ?? ''}  /  ${s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
+    text(`${debug.label ?? ''}  /  ${debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
       ctx.fillStyle = '#192538'; ctx.fillRect(20, 65, barWidth, 5)
       ctx.fillStyle = p.hp < p.maxHp * 0.3 ? RED : CYAN; ctx.fillRect(20, 65, barWidth * clamp(p.hp / p.maxHp, 0, 1), 5)
       text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
-      text(`◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
-      if (s.stats.chain > 1) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
+      text(debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
+      if (s.stats.chain > 1 && !debug.practice) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
       if (!phone) {
         text(p.autoFire ? '扳机模组已装备' : '按住左键射击 · 右键目标锁定 · 右键空白取消', 20, height - 25, 12, '#7591a9')
         for (const [i, skill] of p.skills.entries()) if (skill.id) {
@@ -224,6 +225,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (s.awaitsEntry) text('向前移动，进入战斗区域', width / 2, phone ? height * 0.42 : height - 58, phone ? 12 : 14, '#afc6d9')
     else if (s.roomCleared) text('区域已净空 · 前往传送门', width / 2, phone ? height * 0.43 : height - 58, phone ? 12 : 14, '#8ad9bb')
     ctx.textAlign = 'left'
+  }
+  const drawPractice = (debug: RenderDebug) => {
+    const state = debug.practice
+    if (!state) return
+    if (width < 700) { text(`伤害 ${Number(state.damage.toFixed(1))} · DPS ${state.recentDps.toFixed(1)}`, 20, 133, 11, CYAN); return }
+    ctx.fillStyle = 'rgba(5,14,25,0.88)'; ctx.fillRect(18, 150, 205, 100)
+    ctx.strokeStyle = '#294f60'; ctx.lineWidth = 1; ctx.strokeRect(18, 150, 205, 100)
+    text(`总伤害  ${state.damage.toFixed(1)}`, 30, 174, 12, CYAN)
+    text(`近3秒DPS  ${state.recentDps.toFixed(1)}`, 30, 201, 12, '#cadbe6')
+    text(`平均DPS  ${state.averageDps.toFixed(1)}`, 30, 228, 12, '#90a9bb')
   }
   const drawTarget = (s: Snapshot) => {
     const target = s.actors.find((a) => a.locked && a.alive)
@@ -293,6 +304,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     vignette.addColorStop(0, 'rgba(2,5,12,0)'); vignette.addColorStop(1, 'rgba(2,5,12,0.52)')
     ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height)
     drawHud(s, debug)
+    drawPractice(debug)
     drawTarget(s)
   }
   return { draw, viewToWorld: (x, y, focus) => {

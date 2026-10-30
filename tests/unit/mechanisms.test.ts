@@ -5,6 +5,7 @@ import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import type { AttrSet } from '../../src/core/attrs'
 import { resolveAttrs } from '../../src/core/cards'
 import { combatAttrs } from '../../src/core/combat'
+import { hasLineOfSight } from '../../src/core/navigation'
 import { hashWorld } from '../../src/core/hash'
 import { circleIntersectsRect } from '../../src/core/collision'
 import { applyRoom } from '../../src/core/dungeon'
@@ -224,6 +225,24 @@ describe('navigation and simulation coverage', () => {
     w.room.walls = [{ x: 450, y: 200, width: 100, height: 400 }]
     for (let i = 0; i < 600; i++) { updateAi(w); updateMovement(w); separateActors(w); expect(circleIntersectsRect(chaser.pos.x, chaser.pos.y, chaser.radius, w.room.walls[0]!)).toBe(false) }
     expect(Math.hypot(chaser.pos.x - p.pos.x, chaser.pos.y - p.pos.y)).toBeLessThan(100)
+  })
+  it.each([[424.5, 174.5, 900], [424.5, 625.5, 900], [575.5, 174.5, 100], [575.5, 625.5, 100]])('escapes a legal rounded corner at (%s,%s) instead of treating it as trapped', (x, y, goalX) => {
+    const w = world(), p = getPlayer(w), chaser = enemy(w, x!, y!, { radius: 34 })
+    w.room.walls = [{ x: 450, y: 200, width: 100, height: 400 }]; p.pos = { x: goalX!, y: 400 }
+    expect(circleIntersectsRect(chaser.pos.x, chaser.pos.y, chaser.radius, w.room.walls[0]!)).toBe(false)
+    const away = { x: x! + (x! < 450 ? -40 : 40), y: y! }
+    expect(hasLineOfSight(chaser.pos, away, w.room.walls, chaser.radius)).toBe(true)
+    for (let i = 0; i < 900; i++) { updateAi(w); updateMovement(w); separateActors(w) }
+    expect(Math.hypot(chaser.pos.x - p.pos.x, chaser.pos.y - p.pos.y)).toBeLessThan(90)
+  })
+  it.each([[416, 400, 900, 400], [584, 400, 100, 400], [500, 166, 500, 750], [500, 634, 500, 60], [440, 400, 900, 400]])('recovers from wall contact at (%s,%s) and continues pursuit', (x, y, goalX, goalY) => {
+    const w = world(), p = getPlayer(w), chaser = enemy(w, x!, y!, { radius: 34 })
+    w.room.walls = [{ x: 450, y: 200, width: 100, height: 400 }]; p.pos = { x: goalX!, y: goalY! }
+    for (let i = 0; i < 900; i++) {
+      updateAi(w); updateMovement(w); separateActors(w)
+      expect(circleIntersectsRect(chaser.pos.x, chaser.pos.y, chaser.radius, w.room.walls[0]!)).toBe(false)
+    }
+    expect(Math.hypot(chaser.pos.x - p.pos.x, chaser.pos.y - p.pos.y)).toBeLessThan(90)
   })
   it('preserves analog movement and resolves coincident enemies deterministically', () => {
     const w = world(), p = getPlayer(w); p.intent = { ...p.intent, move: { x: 0.2, y: 0 } }; updateMovement(w)
