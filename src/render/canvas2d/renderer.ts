@@ -202,7 +202,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       text(`◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
       if (s.stats.chain > 1) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
       if (!phone) {
-        text(p.autoFire ? '扳机模组已装备' : '按住鼠标左键射击 · 点击目标锁定 · 右键取消', 20, height - 25, 12, '#7591a9')
+        text(p.autoFire ? '扳机模组已装备' : '按住左键射击 · 右键目标锁定 · 右键空白取消', 20, height - 25, 12, '#7591a9')
         for (const [i, skill] of p.skills.entries()) if (skill.id) {
           const name = skill.id === 'deflect' ? '偏转' : skill.id === 'rage' ? '狂暴' : '冲刺'
           text(`${i === 0 ? 'J' : 'K'}  ${name}  ${skill.active ? '生效中' : skill.cooldown > 0 ? skill.cooldown.toFixed(1) + 's' : '就绪'}`, width / 2 - 115 + i * 170, height - 25, 12, PURPLE)

@@ -1,3 +1,4 @@
+import { createPointerInput } from '../../src/input/pointer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGame, type GameOptions } from '../../src/app/game'
 import { CARD_REGISTRY } from '../../src/content/cards'
@@ -80,6 +81,27 @@ describe('game lifecycle', () => {
     expect(game.debug().projectiles).toBeGreaterThan(0)
     expect(game.debug().mines).toBe(1)
     game.dispose()
+  })
+
+  it('right-click selects or clears a manual target while left shooting preserves the selection', () => {
+    const surface = new EventTarget(), windowEvents = new EventTarget()
+    vi.stubGlobal('window', windowEvents)
+    const pointer = createPointerInput(surface as HTMLElement)
+    let manual = false
+    const { game } = idleGame({ pointer,
+      rooms: [{ id: 'lock-test', kind: 'combat', bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], entry: { x: 500, y: 500 },
+        spawns: [{ name: 'Target', pos: { x: 800, y: 500 }, attrs: { ...PLAYER_BASE_ATTRS, maxHp: 10000, speed: 0, fireRate: 0 }, tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: false }] }],
+      onSnapshot: (snapshot) => { manual = snapshot.actors.some((actor) => actor.team === 'enemy' && actor.manualLocked) },
+    })
+    const click = (button: number, x: number, y: number) => surface.dispatchEvent(Object.assign(new Event('pointerdown', { cancelable: true }), { button, pointerType: 'mouse', clientX: x, clientY: y }))
+    game.start(); advance(1000)
+    click(2, 800, 500); advance(1100)
+    expect(manual).toBe(true); expect(game.debug().projectiles).toBe(0)
+    click(0, 600, 600); advance(1200)
+    expect(manual).toBe(true); expect(game.debug().projectiles).toBeGreaterThan(0)
+    click(2, 600, 600); advance(1300)
+    expect(manual).toBe(false); expect(pointer.firing()).toBe(true)
+    game.dispose(); pointer.dispose()
   })
 
   it('keeps manual aim stable with a stationary pointer across variable-frame catch-up ticks', () => {

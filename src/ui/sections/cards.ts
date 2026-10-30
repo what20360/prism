@@ -55,8 +55,10 @@ function cardButton(
   button.setAttribute('aria-disabled', String(card.availability !== 'ok'))
 
   const head = element('span', 'card__head')
-  head.append(element('span', 'card__name', card.name))
-  if (card.level > 0) head.append(element('span', 'card__level', `Lv${card.level}`))
+  const title = element('span', 'card__title')
+  title.append(element('span', 'card__name', card.name))
+  if (card.level > 0) title.append(element('span', 'card__level', `Lv${card.level}`))
+  head.append(title)
 
   const meta = element('span', 'card__meta')
   const price = element('span', 'card__price')
@@ -68,12 +70,14 @@ function cardButton(
     if (card.availability === 'not-enough-shards') price.classList.add('card__price--short')
     else if (card.availability === 'locked') price.classList.add('card__price--muted')
   }
-  meta.append(price)
+  head.append(price)
   if (card.availability === 'locked') {
     meta.append(element('span', 'card__status', '前置未满足'))
   }
 
-  button.append(head, meta, element('span', 'card__priority', `优先级 ${card.priority}`))
+  button.append(head)
+  if (meta.childElementCount) button.append(meta)
+  button.append(element('span', 'card__priority', `优先级 ${card.priority}`))
   if (card.summary) button.append(element('span', 'card__effect', card.summary))
   if (requirements) button.append(element('span', 'card__req', `前置：${requirements}`))
   if (card.tags.length) button.append(element('span', 'card__tags', card.tags.join(' / ')))

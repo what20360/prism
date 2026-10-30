@@ -19,7 +19,7 @@ export const KEY_BINDINGS: readonly KeyGroup[] = [
       { keys: 'W A S D / 方向键', action: '移动' },
       { keys: '鼠标 / 左键', action: '瞄准 / 按住射击；自动操作需购买卡片' },
       { keys: 'E', action: '放置地雷（达到当前数量上限时替换最早的一颗）' },
-      { keys: '左键点击敌人 / 右键', action: '固定目标 / 取消手动锁定；点击空白也可取消' },
+      { keys: '右键点击敌人 / 右键空白', action: '固定目标 / 取消手动锁定；左键只负责射击' },
       { keys: 'J / K', action: '使用主动技能槽 1 / 2；在菜单“主动技能”页换装' },
       { keys: '手机双摇杆 + 动作按钮', action: '左侧移动，右侧按住射击并瞄准；独立地雷与两个技能按钮' },
     ],

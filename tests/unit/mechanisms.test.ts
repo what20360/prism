@@ -63,6 +63,12 @@ describe('shared target locks', () => {
     expect(w.projectiles[0]!.vel.y).toBeLessThan(0)
     expect(toSnapshot(w).actors.find((a) => a.id === target.id)).toMatchObject({ locked: true, manualLocked: true, armor: 35, damage: 8, hp: 100 })
   })
+  it('homing upgrades shorten both the resolved range and newly emitted projectile travel', () => {
+    const w = world(), p = getPlayer(w)
+    buyCard(w, 'homing'); expect(p.attrs.range).toBeCloseTo(560 / 1.2)
+    emitProjectile(w, p, 0); expect(w.projectiles[0]!.travelLeft).toBeCloseTo(560 / 1.2)
+    buyCard(w, 'homing'); expect(p.attrs.range).toBeCloseTo(560 / 1.4)
+  })
   it('homing launches slowly, turns toward the lock and accelerates', () => {
     const w = world({ homing: 1 }), p = getPlayer(w), target = enemy(w, 500, 650)
     p.lockTargetId = target.id; emitProjectile(w, p, 0)

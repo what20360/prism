@@ -494,3 +494,9 @@ body { background: #050a13; color: #c2d3e3; }
 @media (max-width: 720px) { .help__chapter { padding: 0 14px 4px; } .help__chapter .help__row { grid-template-columns: 1fr; font-size: 13px; } }
 
 .card__sell:disabled { cursor: not-allowed; color: #829d99; background: #15231f; }
+
+.card-shell .card__head { width: 100%; align-items: flex-start; gap: 12px; }
+.card__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; min-width: 0; }
+.card-shell .card__price { margin-left: auto; flex-shrink: 0; padding: 4px 7px; border: 1px solid #3e5866; border-radius: 6px; color: #f5d28e; background: #14232e; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card-shell .card__price--short { color: #ff8f98; border-color: #7a414e; background: #2b1b28; }
+.card-shell .card__price--muted { color: #89a0b2; border-color: #2a4254; background: #101d2b; }

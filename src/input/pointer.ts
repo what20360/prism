@@ -29,9 +29,17 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   }
 
   const onDown = (event: PointerEvent): void => {
-    if (event.button === 2) { pendingLock = null; return }
+    if (event.button === 2 && event.pointerType !== 'touch') {
+      pendingLock = { x: event.clientX, y: event.clientY }
+      onMove(event)
+      event.preventDefault()
+      return
+    }
     if (event.button !== 0) return
-    pendingLock = { x: event.clientX, y: event.clientY }
+    if (event.pointerType === 'touch') {
+      pendingLock = { x: event.clientX, y: event.clientY }
+      return
+    }
     down = true
     onMove(event)
   }
