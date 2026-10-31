@@ -13,7 +13,7 @@ export function hashWorld(world: World): string {
     for (const key of Object.keys(object).sort()) { if (object[key] === undefined || ['trail', 'damageFlashTicks', 'segments'].includes(key)) continue; mix(key + ':'); visit(object[key]) }
     mix('}')
   }
-  visit({ tick: world.tick, seed: world.seed, rng: world.rng.state, shards: world.shards, score: world.score,
+  visit({ coop: world.coop, tick: world.tick, seed: world.seed, rng: world.rng.state, shards: world.shards, score: world.score,
     nextId: world.nextEntityId, room: world.room, spawns: world.pendingSpawns, purchases: world.purchases, waves: world.waves,
     participants: world.participants, resourceDrops: world.resourceDrops, monsterShardDrop: world.monsterShardDrop,
     cardRestrictions: world.cardRestrictions,

@@ -9,7 +9,7 @@ export function exitForRoom(world: World, skip = false): Rect { return (skip ? w
 
 /** Step 11: room clear opens the exit; resources only spawn on room entry. */
 export function updateRoom(world: World): void {
-  if (world.participants) return
+  if (world.participants && !world.coop) return
   if (world.roomCleared) return
   if (world.room.phase === 'entered') return
 

@@ -1,4 +1,4 @@
-export const MAX_WIRE_MESSAGE = 512 * 1024
+export const MAX_WIRE_MESSAGE = 2 * 1024 * 1024
 const CHUNK_SIZE = 12000
 export function frameMessage(text: string, id: number): string[] {
   if (text.length > MAX_WIRE_MESSAGE) return []

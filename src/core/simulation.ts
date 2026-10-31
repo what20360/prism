@@ -1,3 +1,4 @@
+import { updateCoopRevives } from './coop'
 import { updateTargetLocks } from './systems/targeting'
 import { updatePickups } from './systems/pickups'
 import type { Intent } from './controller'
@@ -26,6 +27,8 @@ import type { World } from './world'
 export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void {
   if (world.gameOver || world.paused) return
 
+  updateCoopRevives(world)
+  if (world.gameOver || world.paused) return
   // 1-2. collect and apply intents
   for (const [id, intent] of intents) {
     const actor = world.actors.get(id)
@@ -72,5 +75,8 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   updateExit(world)
   world.effects = world.effects.slice(-512); world.floaters = world.floaters.slice(-1024)
 
+  updateCoopRevivesAfterDamage(world)
   world.tick += 1
 }
+
+function updateCoopRevivesAfterDamage(world: World): void { if(world.coop && world.coop.members.some(m=>m.connected) && !world.coop.members.some(m=>m.connected&&world.actors.get(m.id)?.alive)) world.gameOver=true }

@@ -88,7 +88,7 @@ export function createEndlessMode(): EndlessMode {
   }
   const enter = (world: World) => {
     rng = createRng((seed ^ Math.imul(floor, 0x9e3779b1)) >>> 0)
-    population = endlessCount(floor); respawned = 0; queue = []
+    population = Math.ceil(endlessCount(floor) * (world.coop ? 1+0.7*(Math.max(1,world.coop.members.filter(m=>m.connected).length)-1) : 1)); if(world.coop)world.coop.roomPartySize=Math.max(1,world.coop.members.filter(m=>m.connected).length); respawned = 0; queue = []
     const selected = pickLevelSet(rng, 'endless', floor < 5 ? 'combat' : undefined)
     currentEntry = selected.entry; currentPatrol = selected.design?.patrol ?? []
     const geometry = { ...selected, kind: 'combat' as const, id: `endless-${floor}` }, walls = geometry.walls
@@ -111,7 +111,7 @@ export function createEndlessMode(): EndlessMode {
   const advance = (world: World) => { floor += 1; enter(world) }
   return { room, initialize: (world) => { seed = world.seed; floor = 1; enter(world) }, advance,
     checkpoint: () => ({ floor, rngState: rng.state, respawned, spawnQueue: [...queue] }),
-    restore: (world, saved) => { seed = world.seed; currentEntry = world.room.entry; currentPatrol = world.room.design?.patrol ?? []; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = endlessCount(floor) },
+    restore: (world, saved) => { seed = world.seed; currentEntry = world.room.entry; currentPatrol = world.room.design?.patrol ?? []; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = Math.ceil(endlessCount(floor)*(world.coop ? 1+0.7*(world.coop.roomPartySize-1):1)) },
     afterStep: (world) => {
       if (world.gameOver) return
       if (world.exitReached) { advance(world); return }

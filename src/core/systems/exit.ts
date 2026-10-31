@@ -6,7 +6,7 @@ export function updateExit(world: World): void {
   const exit = world.room.exit
   if (!exit || world.exitReached) return
 
-  const player = tryGetPlayer(world)
+  const player = world.coop ? [...world.actors.values()].find((a)=>a.alive&&a.team==='player'&&a.pos.x>=exit.x&&a.pos.x<=exit.x+exit.width&&a.pos.y>=exit.y&&a.pos.y<=exit.y+exit.height) : tryGetPlayer(world)
   if (!player) return
 
   const { x, y } = player.pos

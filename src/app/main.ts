@@ -17,6 +17,7 @@ import { createEndlessMode } from './modes/endless'
 import { createGame, type Game, type UiMode } from './game'
 import type { RunCheckpoint } from './checkpoints'
 import { createSaveManager } from './saveManager'
+import { createCoopSession } from './coopSession'
 import { createDuelSession } from './duelSession'
 import { createPlanManager } from './planManager'
 import { createQuickBuy } from '../ui/quickBuy'
@@ -29,7 +30,8 @@ const settingsStore = createSettingsStore(), audio = createAudioEngine()
 let preferences = settingsStore.load(), game: Game | undefined, sessionCounter = 0
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 let duel: ReturnType<typeof createDuelSession> | undefined
-const touch = createTouchControls(document.body, () => duel ? duel.toggleMenu() : game?.setUiMode('menu'))
+let coop: ReturnType<typeof createCoopSession> | undefined
+const touch = createTouchControls(document.body, () => coop ? coop.toggleMenu() : duel ? duel.toggleMenu() : game?.setUiMode('menu'))
 const testButton = document.createElement('button'); testButton.className = 'practice-shortcut'; testButton.textContent = '测试控制'; testButton.hidden = true
 const openTest = () => { if (game?.session().practice) { game.setUiMode('menu'); ui.menu?.open('practice') } }
 testButton.onclick = openTest; document.body.append(testButton)
@@ -65,11 +67,11 @@ const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode 
   saves.autoSave()
 }
 const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, setCurrentName: (name) => game?.setSaveName(name), load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
-const plans = createPlanManager({ game: () => duel ? duel.build() : game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); duel?.refresh(); quickBuy?.refresh() }, saved: () => { if (!duel) saves.autoSave() } })
+const plans = createPlanManager({ game: () => coop ? coop.build() : duel ? duel.build() : game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); duel?.refresh(); coop?.refresh(); quickBuy?.refresh() }, saved: () => { if (!duel && !coop) saves.autoSave() } })
 const quickBuy = createQuickBuy(document.body, {
-  active: () => duel ? duel.active() : Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', mode: plans.quickMode, favorites: plans.favorites,
-  notice: () => duel ? duel.notice() : game?.purchaseNotice() ?? null,
-  cards: () => duel ? duel.cards() : game?.panelState().cards ?? [], buy: (id) => { if (duel ? duel.buy(id) : game?.buyCard(id)) { audio.notify('buy'); if (!duel) saves.autoSave() } },
+  active: () => coop ? coop.active() : duel ? duel.active() : Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', mode: plans.quickMode, favorites: plans.favorites,
+  notice: () => coop ? coop.notice() : duel ? duel.notice() : game?.purchaseNotice() ?? null,
+  cards: () => coop ? coop.cards() : duel ? duel.cards() : game?.panelState().cards ?? [], buy: (id) => { if (coop ? coop.buy(id) : duel ? duel.buy(id) : game?.buyCard(id)) { audio.notify('buy'); if (!duel && !coop) saves.autoSave() } },
 })
 const openDuel = () => {
   saves.autoSave(); game?.setUiMode('home'); game?.stop(); home.hide(); ui.menu?.close(); ui.result?.hide(); testButton.hidden = true
@@ -78,8 +80,13 @@ const openDuel = () => {
     duel?.dispose(); duel = undefined; document.body.classList.remove('is-duel'); game?.setUiMode('home'); game?.start()
   } })
 }
+const openCoop = () => {
+  saves.autoSave(); game?.setUiMode('home'); game?.stop(); home.hide(); ui.menu?.close(); ui.result?.hide(); testButton.hidden=true
+  document.body.classList.remove('is-home')
+  coop=createCoopSession({root:document.body,input,pointer,touch,renderer,settings:()=>preferences,onSetting,plans,onSnapshot:(snapshot,paused)=>audio.update(snapshot,paused),leave:()=>{coop?.dispose();coop=undefined;game?.setUiMode('home');document.body.classList.add('is-home');home.show();game?.start()}})
+}
 const home = createHomeMenu(document.body, {
-  saves: saves.handlers, getSaves: saves.state, onDuel: openDuel,
+  saves: saves.handlers, getSaves: saves.state, onDuel: openDuel, onCoop: openCoop,
   plans: plans.actions, getPlans: plans.state,
   getState: () => {
     const session = game?.session(), attrs = session?.canResume ? game!.panelState().player.attrs : PLAYER_BASE_ATTRS
@@ -109,7 +116,7 @@ if (import.meta.env.DEV) {
   Object.defineProperty(hooks, '__prism', { get: () => game, configurable: true })
 }
 if (import.meta.hot) import.meta.hot.dispose(() => {
-  duel?.dispose()
+  duel?.dispose(); coop?.dispose()
   quickBuy.dispose()
   clearInterval(saveTimer); window.removeEventListener('pagehide', saves.autoSave); document.removeEventListener('visibilitychange', saveOnHide)
   game?.dispose(); input.dispose(); pointer.dispose(); renderer.dispose(); touch.dispose(); audio.dispose(); home.dispose(); testButton.remove()

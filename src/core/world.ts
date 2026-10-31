@@ -25,6 +25,7 @@ export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
 export type SkillId = 'deflect' | 'rage' | 'dash'
 
 export interface Actor extends EnemyMechanics {
+  contributions?: Record<number, number>
   weaver?: WeaverState
   spider?: SpiderState
   shockTicks?: number
@@ -150,6 +151,8 @@ export interface Mine {
 }
 
 export interface Pickup {
+  ownerId?: number
+  contributions?: Record<number, number>
   gainApplied?: boolean
   readonly id: EntityId
   readonly kind: 'blood' | 'shard'
@@ -214,6 +217,7 @@ export interface PlayerProgress { shards: number; purchases: Purchase[]; revives
 export interface WaveState { index: number; total: number; remaining: EnemySpawnSpec[][]; countdown: number; delayTicks: number }
 
 export interface World {
+  coop?: CoopState
   traces?: EnergyTrace[]
   tick: number
   readonly seed: number
@@ -249,6 +253,9 @@ export interface World {
   waves?: WaveState
   cardRestrictions?: Record<string, string>
 }
+export type CoopResourceMode = 'equal' | 'killer' | 'free' | 'damage'
+export interface CoopMember { id: number; name: string; connected: boolean; ready: boolean; reviveTicks: number; offlineHp: number; offlineAlive: boolean }
+export interface CoopState { members: CoopMember[]; resourceMode: CoopResourceMode; baseShare: number; maxPlayers: number; roomPartySize: number; pauseOnDisconnect: boolean }
 
 export function progressOf(world: World, actorId?: number): PlayerProgress {
   return actorId === undefined || !world.participants ? world : world.participants[actorId]!

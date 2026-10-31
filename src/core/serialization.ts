@@ -91,6 +91,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
+    if(a.contributions!==undefined)for(const [id,v] of Object.entries(record(a.contributions))){integer(Number(id),1);finite(v,0)}
     if (a.weaver !== undefined) {
       const s = record(a.weaver)
       integer(s.mineStock, 0, 3); integer(s.spiderStock, 0, 6); integer(s.volley, 0, 3); bool(s.phaseBurst); vector(s.goal)
@@ -114,7 +115,8 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (slots[0] && slots[0] === slots[1]) throw new Error('技能槽重复')
     for (const point of array(a.navPath, 500)) vector(point)
   }
-  if (playerCount !== 1) throw new Error('玩家数量无效')
+  if (d.coop !== undefined) { const c=record(d.coop);oneOf(c.resourceMode,['equal','killer','free','damage']);finite(c.baseShare,0,1);integer(c.maxPlayers,1,5);integer(c.roomPartySize,1,5);bool(c.pauseOnDisconnect);const members=array(c.members,5);if(!members.length)throw new Error('合作队伍为空');const seen=new Set<number>();for(const value of members){const m=record(value),id=integer(m.id,1);if(seen.has(id)||!actors.some(a=>record(a).id===id&&record(a).team==='player'))throw new Error('合作席位无效');seen.add(id);text(m.name,24);bool(m.connected);bool(m.ready);integer(m.reviveTicks,0,300);finite(m.offlineHp,0);bool(m.offlineAlive)}if(playerCount!==members.length)throw new Error('合作玩家数量错误') }
+  if (d.coop === undefined && playerCount !== 1) throw new Error('玩家数量无效')
   for (const s of array(d.pendingSpawns, 2000)) spawn(s)
   if (d.waves !== undefined) {
     const waves = record(d.waves), remaining = array(waves.remaining, 24)
@@ -145,7 +147,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (m.ignoreBullets !== undefined) bool(m.ignoreBullets)
     if (m.velocity !== undefined) vector(m.velocity)
   }
-  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied); if (p.quantity !== undefined) integer(p.quantity, 1, Number.MAX_SAFE_INTEGER) }
+  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied); if (p.quantity !== undefined) integer(p.quantity, 1, Number.MAX_SAFE_INTEGER);if(p.ownerId!==undefined)integer(p.ownerId,1);if(p.contributions!==undefined)for(const [id,v]of Object.entries(record(p.contributions))){integer(Number(id),1);finite(v,0)} }
   for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup', 'block']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
   if (d.traces !== undefined) for (const value of array(d.traces, 256)) {
     const t = record(value); if (t.damageType !== undefined) oneOf(t.damageType, ['physical', 'electric', 'heat']); integer(t.ownerId, 1); oneOf(t.team, ['player', 'enemy', 'neutral']); oneOf(t.kind, ['electric', 'laser']); vector(t.from); vector(t.to); finite(t.rangeRatio, 0, 1); finite(t.power, 0); finite(t.width, 0); integer(t.ttl, 0, 10)
@@ -164,7 +166,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   purchases(d.purchases)
   if (d.participants !== undefined) {
     const participants = record(d.participants), keys = Object.keys(participants)
-    if (keys.length < 2 || keys.length > 8) throw new Error('参战玩家数量无效')
+    if (keys.length < (d.coop ? 1 : 2) || keys.length > (d.coop ? 5 : 8)) throw new Error('参战玩家数量无效')
     for (const id of keys) {
       if (!/^[1-9][0-9]*$/.test(id) || !actors.some((a) => record(a).id === Number(id))) throw new Error('参战玩家无效')
       const p = record(participants[id]); finite(p.shards, 0); integer(p.revivesUsed); purchases(p.purchases)

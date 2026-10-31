@@ -1,3 +1,4 @@
+import { grantCoopShards, COOP_REVIVE_TICKS } from '../coop'
 import { combatAttrs } from '../combat'
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
@@ -37,7 +38,7 @@ export interface DamageEvent {
  */
 export function applyDamage(world: World, event: DamageEvent): void {
   const target = world.actors.get(event.targetId)
-  if (!target || !target.alive) return
+  if (!target || !target.alive || world.coop && target.team === event.sourceTeam) return
 
   // Invulnerability nullifies the hit entirely: no damage, no rewards.
   if (target.iframesTicks > 0) return
@@ -61,7 +62,16 @@ export function applyDamage(world: World, event: DamageEvent): void {
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
 
-  if (world.participants) {
+  if (world.coop) {
+    const source = world.actors.get(event.sourceId)
+    if (source && world.participants?.[source.id] && target.team !== source.team) {
+      target.contributions ??= {}; target.contributions[source.id] = (target.contributions[source.id] ?? 0) + effectiveDamage
+      world.stats.damageDealt += effectiveDamage
+      grantCoopShards(world, offenseShards(world,target.tier,effectiveDamage,overkill,source)*(target.rewardMultiplier??1),source.id,{[source.id]:effectiveDamage})
+      if(source.alive) applyLifesteal(source,effectiveDamage)
+    } else if (world.participants?.[target.id]) { world.stats.damageTaken += effectiveDamage; grantCoopShards(world,takenShards(world,event.raw),target.id,{[target.id]:1}) }
+    pushFloater(world,'damage',effectiveDamage,target.pos.x,target.pos.y)
+  } else if (world.participants) {
     const source = world.actors.get(event.sourceId)
     if (source?.alive && world.participants[source.id] && source.team !== target.team) {
       applyLifesteal(source, effectiveDamage)
@@ -127,6 +137,7 @@ function applyLifesteal(player: Actor, damage: number): void {
 }
 
 function killActor(world: World, target: Actor, player: Actor | undefined): void {
+  if (world.coop && world.participants?.[target.id]) { target.alive=false;target.shield=0;target.burn=undefined;world.coop.members.find((m)=>m.id===target.id)!.reviveTicks=COOP_REVIVE_TICKS;pushEffect(world,'death',target.pos.x,target.pos.y,target.radius*2);return }
   if (world.participants?.[target.id] || (!world.participants && target.team === 'player')) {
     const progress = progressOf(world, world.participants ? target.id : undefined)
     const revivesLeft = Math.max(0, Math.floor(target.attrs.revives) - progress.revivesUsed)
@@ -155,7 +166,7 @@ function killActor(world: World, target: Actor, player: Actor | undefined): void
   }
   releaseDeathBurst(world, target)
   pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
-  if (!world.participants && player) registerKill(world, player)
+  if (world.coop && player || !world.participants && player) registerKill(world, player)
 }
 
 /** Roll only on a true kill; overkill is post-block/armor/resistance/shield. */
@@ -169,7 +180,9 @@ function dropKillLoot(world: World, target: Actor, killer: Actor, overkill: numb
     const probability = killDropProbability(drop.level, overkill, target.attrs.maxHp) * drop.multiplier
     const base = drop.kind === 'shard' && world.participants ? world.monsterShardDrop ?? 0 : 0
     const amount = Math.min(KILL_LOOT_RULES.limit, base + rollLootAmount(world.rng, probability))
+    const firstId = world.nextEntityId
     if (amount > 0) spawnLoot(world, drop.kind, { x: target.pos.x, y: target.pos.y + (drop.kind === 'shard' ? -20 : 20) }, amount, 30 * TICK_RATE)
+    if (world.coop) for (const p of world.pickups) if (p.id >= firstId) { p.ownerId=killer.id;p.contributions={...target.contributions} }
   }
 }
 /** Self destruction is not a player kill and cannot pay kill-card rewards. */

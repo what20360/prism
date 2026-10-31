@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.21',date:'2026-10-31',title:'合作闯关与无尽',items:[
+    '增加1–5人合作房间：选择闯关或无尽、世界种子、难度、人数、掉线暂停和四种资源规则。普通怪与波次数量按房间在线人数增加，Boss增加护卫。',
+    '队友不互伤，各自购买、出售、换装、预设和预购。非团灭时倒地5秒后半血无盾复活；全队倒下则失败。任意存活队员可激活房间并带领全队切房。',
+    '支持准备、房主暂停、保留席位的全队重开、移除队员和重新邀请离线成员。显示队伍生命、倒地读秒、玩家名称及掉落归属。',
+    '合作进度独立自动保存，支持命名、JSON导入导出与恢复房间。载入者成为房主，其他成员按离线处理，构筑、钱包、复活读秒和无尽随机状态保留。',
+    '沿用逐人交换代码的浏览器直连；无匹配或TURN中继，部分网络无法连接，房主离开后需从合作存档重新建房。',
+  ]},
   {version:'1.20',date:'2026-10-31',title:'盘丝洞与武器调校',items:[
     '设计关卡集接入种子闯关与无尽，盘丝洞成为最终Boss；新增巢母、布雷工蛛、爆裂幼蛛、缓存与扇形预警，测试场可直接演练。',
     '电弧改为0.8倍射程的无环分叉树，各树独立穿透，按传递深度衰减。卡片价格成长降至1.5，旧实付退款保留。',

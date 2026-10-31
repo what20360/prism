@@ -27,6 +27,7 @@ export interface MenuState extends CardsSectionState, SkillsState {
 }
 
 export interface MenuHandlers {
+  readonly homeLabel?: string
   readonly favorites?: () => readonly string[]
   readonly onFavorite?: (id: string) => void
   readonly saves?: SavesHandlers
@@ -46,6 +47,7 @@ export interface MenuHandlers {
 }
 
 export interface Menu {
+  dispose(): void
   open(section?: MenuSection): void
   close(): void
   refresh(): void
@@ -113,7 +115,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
   restart.textContent = '重新开始'
   restart.title = '结束当前局并重新开始'
   restart.addEventListener('click', () => handlers.onRestart())
-  const home = document.createElement('button'); home.className = 'menu__resume'; home.textContent = '返回主菜单'; home.onclick = handlers.onHome
+  const home = document.createElement('button'); home.className = 'menu__resume'; home.textContent = handlers.homeLabel ?? '返回主菜单'; home.onclick = handlers.onHome
   actions.append(resume, restart, home)
   nav.append(actions)
 
@@ -170,10 +172,11 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
   }
 
   return {
+    dispose: () => overlay.remove(),
     open,
     close,
     refresh: () => {
-      if (!overlay.hidden) render()
+      if (!overlay.hidden) { const scroll=content.scrollTop;render();content.scrollTop=scroll }
     },
     get visible() {
       return !overlay.hidden

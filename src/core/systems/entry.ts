@@ -11,8 +11,8 @@ import { tryGetPlayer } from '../world'
 export function updateRoomEntry(world: World): void {
   if (world.room.phase !== 'entered') return
 
-  const player = tryGetPlayer(world)
-  const steppedIn = !player || distance(player.pos, world.room.entry) > ROOM_ACTIVATION_RADIUS
+  const player = world.coop ? [...world.actors.values()].find((a)=>a.alive&&a.team==='player'&&world.coop!.members.some((m)=>m.id===a.id&&m.connected)&&distance(a.pos,world.room.entry)>ROOM_ACTIVATION_RADIUS) : tryGetPlayer(world)
+  const steppedIn = world.coop ? Boolean(player) : !player || distance(player.pos, world.room.entry) > ROOM_ACTIVATION_RADIUS
 
   if (!steppedIn) return
 

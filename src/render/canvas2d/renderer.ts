@@ -42,7 +42,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const cameraFor = (s: Snapshot, focus?: CameraFocus): Camera => {
     const aspect = width / height
-    const player = focus ?? s.actors.find((a) => a.team === 'player')
+    const player = focus ?? s.actors.find((a) => a.team === 'player' && a.alive) ?? s.actors.find((a) => a.team === 'player')
     const viewWidth = Math.max(1080 * aspect, 1050) * (player?.vision ?? 1)
     const viewHeight = viewWidth / aspect
     const b = s.bounds
@@ -134,7 +134,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawActor = (a: ActorView, tick: number) => {
     const player = a.team === 'player', r = a.radius
     const silk = a.behavior === 'weaver' || Boolean(a.spider), worker = a.spider?.role === 'worker'
-    if (player) drawAim(a)
+    if (player && a.local !== false) drawAim(a)
     if (a.deflectFieldRadius > 0) {
       const glow = ctx.createRadialGradient(a.x, a.y, r, a.x, a.y, a.deflectFieldRadius)
       glow.addColorStop(0, a.deflectActive ? 'rgba(174,146,255,0.16)' : 'rgba(115,203,245,0.035)'); glow.addColorStop(1, 'rgba(100,190,255,0)')
@@ -225,6 +225,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.stroke()
     }
+    if (player && a.name) { ctx.textAlign='center';text(a.local===false?a.name:a.name+'（你）',a.x,a.y-r-30,14,a.local===false?'#a2edbc':CYAN);ctx.textAlign='left' }
     if (a.weaver) text(`雷 ${a.weaver.mineStock}/3 · 蛛 ${a.weaver.spiderStock}/6`, a.x - r, a.y + r + 55, 12, '#e4c3ed')
     if (!player && (a.weaver || a.hp < a.maxHp || a.damageFlashTicks > 0)) {
       const ratio = clamp(a.hp / a.maxHp, 0, 1)
@@ -284,6 +285,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         }
       }
     }
+    if(s.coop) { const rows=s.coop.members; for(const [index,m] of rows.entries()){const a=s.actors.find(a=>a.id===m.id);text(`${m.name} · ${!m.connected?'离线':!a?.alive?'复活 '+(m.reviveTicks/60).toFixed(1)+'s':Math.ceil(a.hp)+' HP'}`,20,190+index*20,12,m.connected?'#a5e9d1':'#7f8a99')} }
     const mw = phone ? 100 : 180, mh = mw * s.bounds.height / s.bounds.width, mx = width - mw - 18, my = 66
     ctx.fillStyle = 'rgba(3,8,17,0.8)'; ctx.fillRect(mx, my, mw, mh)
     ctx.strokeStyle = '#29425d'; ctx.lineWidth = 1; ctx.strokeRect(mx, my, mw, mh)
@@ -399,6 +401,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       else { ctx.moveTo(x, y - size - 3); ctx.lineTo(x + size * 0.75, y); ctx.lineTo(x, y + size + 3); ctx.lineTo(x - size * 0.75, y); ctx.closePath() }
       ctx.fill(); ctx.shadowBlur = 0
       if (pickup.kind === 'blood') { ctx.fillStyle = '#fff0f4'; ctx.fillRect(x - 6, y - 2, 12, 4); ctx.fillRect(x - 2, y - 6, 4, 12) }
+      if (s.coop?.resourceMode==='killer' && pickup.ownerId!==undefined) { const owner=s.coop.members.find(m=>m.id===pickup.ownerId&&m.connected);if(owner)text(owner.name,x-16,y-size-9,10,'#cdb8ef') }
       text(`${pickup.value}${(pickup.quantity ?? 1) > 1 ? '×' + pickup.quantity : ''}`, x - 10, y + size + 18, 12, pickup.kind === 'blood' ? '#ffd8e4' : '#bcfff0')
     }
     for (const a of s.actors) if (a.alive) drawActor(a, s.tick)

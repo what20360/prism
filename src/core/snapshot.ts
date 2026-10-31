@@ -28,6 +28,7 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly local?: boolean
   readonly weaver?: { readonly mineStock: number; readonly spiderStock: number; readonly volley: number; readonly windup: number; readonly shotTicks: number }
   readonly spider?: { readonly role: 'worker' | 'bomber'; readonly dashUsed: boolean; readonly pursuing: boolean }
   readonly block: number
@@ -147,6 +148,7 @@ export interface HudStats {
 
 /** Read-only view handed to render/ and ui/. Never mutated by consumers. */
 export interface Snapshot {
+  readonly coop?: World['coop']
   readonly design?: RoomDesign
   readonly traces?: readonly EnergyTrace[]
   readonly wave?: { readonly index: number; readonly total: number; readonly countdown: number; readonly spawns: readonly { x: number; y: number; radius: number }[] }
@@ -176,7 +178,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   const actors: ActorView[] = []
   const player = viewerId === undefined ? [...world.actors.values()].find((a) => a.team === 'player' && a.alive) : world.actors.get(viewerId)
   const viewTeam = (team: Team): Team => player?.team === 'enemy' && team !== 'neutral' ? team === 'player' ? 'enemy' : 'player' : team
-  for (const actor of world.actors.values()) {
+  for (const actor of [...world.actors.values()].sort((a,b)=>Number(b.id===viewerId)-Number(a.id===viewerId))) {
     const attrs = combatAttrs(actor)
     actors.push({
       block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
@@ -184,12 +186,13 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.windupTicks ?? null, windupAngle: actor.windupAngle ?? actor.aimAngle,
       shocked: (actor.shockTicks ?? 0) > 0, burning: actor.burn !== undefined,
       id: actor.id,
+      local: viewerId === undefined ? actor.team === 'player' : actor.id === viewerId,
       team: viewTeam(actor.team),
       tier: actor.tier,
       weaver: actor.weaver ? { mineStock: actor.weaver.mineStock, spiderStock: actor.weaver.spiderStock, volley: actor.weaver.volley, windup: actor.weaver.volleyTimer, shotTicks: actor.weaver.shotTicks } : undefined,
       spider: actor.spider ? { role: actor.spider.role, dashUsed: actor.spider.dashUsed, pursuing: actor.spider.pursuing } : undefined,
       behavior: actor.behavior,
-      name: actor.name ?? null,
+      name: actor.name ?? world.coop?.members.find(m=>m.id===actor.id)?.name ?? null,
       x: actor.pos.x,
       y: actor.pos.y,
       radius: actor.radius,
@@ -280,6 +283,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
     traces: world.traces?.map((t) => ({ ...t, from: { ...t.from }, to: { ...t.to }, team: viewTeam(t.team) })) ?? [],
     wave: world.waves ? { index: world.waves.index, total: world.waves.total, countdown: world.waves.countdown,
       spawns: world.waves.countdown ? (world.waves.remaining[0] ?? []).map((s) => ({ ...s.pos, radius: s.attrs.radius })) : [] } : undefined,
+    coop: world.coop ? structuredClone(world.coop) : undefined,
     tick: world.tick,
     bounds: world.room.bounds,
     design: world.room.design,
