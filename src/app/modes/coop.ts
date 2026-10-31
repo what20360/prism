@@ -10,6 +10,7 @@ import { nextFloat } from '../../core/rng'
 import { step } from '../../core/simulation'
 import type { Intent } from '../../core/controller'
 import { buyCard, sellCard } from '../../core/progress'
+import { shieldCap } from '../../core/attrs'
 import { resolveAttrs } from '../../core/cards'
 import { equipSkill } from '../../core/systems/skills'
 import { serializeWorld, restoreWorld, record, integer, finite, array, type WorldData } from '../../core/serialization'
@@ -58,7 +59,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
  world.paused=true
  const plan=(id:number)=>plans[id]??(plans[id]={targets:[],enabled:false,quickMode:'planned'})
  const teamPosition=(id:number)=>resolveSpawnPosition({x:world.room.entry.x+Math.cos(id*2.4)*70,y:world.room.entry.y+Math.sin(id*2.4)*70},world.actors.get(id)!.radius,world.room.walls,world.room.bounds)
- const rally=()=>{for(const m of world.coop!.members){const a=world.actors.get(m.id)!;a.pos=teamPosition(m.id);a.lockTargetId=null;a.manualLockId=null;a.burstRemaining=0;a.laserTicks=0;a.burn=undefined;a.rageTicks=0;a.dashTicks=0;a.shockTicks=0;a.deflectWindowTicks=0;a.intent={move:{x:0,y:0},fire:false};if(a.alive){a.iframesTicks=120;a.shield=Math.min(a.shield,a.attrs.shield)} }}
+ const rally=()=>{for(const m of world.coop!.members){const a=world.actors.get(m.id)!;a.pos=teamPosition(m.id);a.lockTargetId=null;a.manualLockId=null;a.burstRemaining=0;a.laserTicks=0;a.burn=undefined;a.rageTicks=0;a.dashTicks=0;a.shockTicks=0;a.deflectWindowTicks=0;a.intent={move:{x:0,y:0},fire:false};if(a.alive){a.iframesTicks=120;a.shield=Math.min(a.shield,shieldCap(a.attrs))} }}
  const scaleRoom=(index:number)=>{const room=rooms[index]!,count=Math.max(1,world.coop!.members.filter(m=>m.connected).length);world.coop!.roomPartySize=count
   const wave=(source:readonly EnemySpawnSpec[])=>{const result=[...source];const normal=source.filter(s=>s.tier!=='boss');const extra=normal.length?Math.ceil(normal.length*coopPopulation(count))-normal.length:(count-1)*2;for(let i=0;i<extra&&result.length<200;i++){const base=normal[i%normal.length]??source[0];if(!base)break;const anchor=room.design?.patrol[(i+2)%room.design.patrol.length]??base.pos;const attrs=base.tier==='boss'?{...base.attrs,maxHp:Math.max(20,base.attrs.maxHp*0.025),radius:30,armor:base.attrs.armor*0.2,block:0,speed:180,fireRate:0}:base.attrs;const pos=resolveSpawnPosition({x:anchor.x+(nextFloat(world.rng)-0.5)*130,y:anchor.y+(nextFloat(world.rng)-0.5)*130},attrs.radius,room.walls,room.bounds);result.push({...base,attrs,pos,...(base.tier==='boss'?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'巢室护卫',contactDamage:attrs.damage*0.5}:{})})}return result}
   return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave)} }
@@ -73,7 +74,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
    const a=createActor(world,{team:'player',tier:'normal',behavior:'turret',contactDamage:0,hasCore:true,pos:world.room.entry,attrs:{...PLAYER_BASE_ATTRS}});a.pos=teamPosition(a.id);a.iframesTicks=120
    world.participants![a.id]={shards:DUNGEON_START_SHARDS,purchases:[],revivesUsed:0};world.coop!.members.push({id:a.id,name:memberName.trim().slice(0,24)||'队员',connected:true,ready:false,reviveTicks:0,offlineHp:a.hp,offlineAlive:true});return a.id
   },
-  disconnect:(id:number)=>{const m=world.coop!.members.find(m=>m.id===id);if(!m?.connected)return;const a=world.actors.get(id)!;m.offlineHp=a.hp;m.offlineAlive=a.alive;m.connected=false;m.ready=false;a.alive=false;a.hp=0;a.shield=0;a.intent={move:{x:0,y:0},fire:false};if(config.pauseOnDisconnect)world.paused=true},
+  disconnect:(id:number)=>{const m=world.coop!.members.find(m=>m.id===id);if(!m?.connected)return;const a=world.actors.get(id)!;m.offlineHp=a.hp;m.offlineAlive=a.alive;m.connected=false;m.ready=false;a.alive=false;a.hp=0;a.shield=0;a.intent={move:{x:0,y:0},fire:false};if(config.pauseOnDisconnect)world.paused=true;const online=world.coop!.members.filter(m=>m.connected);if(started&&online.length&&online.every(m=>!world.actors.get(m.id)?.alive))world.gameOver=true},
   remove:(id:number)=>{if(id===hostId)return false;world.coop!.members=world.coop!.members.filter(m=>m.id!==id);world.actors.delete(id);delete world.participants![id];delete plans[id];return true},
   ready:(id:number,ready=true)=>{const m=world.coop!.members.find(m=>m.id===id&&m.connected);if(m)m.ready=ready},
   start:()=>{const online=world.coop!.members.filter(m=>m.connected);if(world.gameOver||world.victory||!online.length||!online.some(m=>world.actors.get(m.id)?.alive)||!started&&online.some(m=>!m.ready))return false;if(!started){if(endless)endless.initialize(world);else applyRoom(world,scaleRoom(roomIndex));rally()}started=true;world.paused=false;return true},

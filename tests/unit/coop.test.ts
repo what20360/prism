@@ -28,10 +28,18 @@ describe('cooperative campaign and endless authority',()=>{
   const {m,w,ids}=party();const a=w.actors.get(ids[1]!)!;a.attrs={...a.attrs,shield:40};a.shield=40;kill(w,a.id);expect(a.alive).toBe(false);expect(w.gameOver).toBe(false)
   for(let i=0;i<299;i++)m.tick(new Map(ids.map(id=>[id,idle])));expect(a.alive).toBe(false);m.tick(new Map(ids.map(id=>[id,idle])));expect(a.alive).toBe(true);expect(a.hp).toBe(25);expect(a.shield).toBe(0);expect(a.iframesTicks).toBeGreaterThan(0)
  })
+ it('preserves earned shields between rooms and revives fractional-health builds at exactly half',()=>{
+  const {m,w,ids}=party();m.action(ids[1]!,{kind:'buy',id:'shield'});const b=w.actors.get(ids[1]!)!;b.shield=45;w.exitReached=true;m.tick(new Map());expect(b.shield).toBe(45)
+  b.attrs={...b.attrs,maxHp:1.5};b.hp=1.5;kill(w,b.id);for(let i=0;i<300;i++)m.tick(new Map());expect(b.hp).toBe(0.75);expect(b.shield).toBe(0)
+ })
  it('declares a wipe immediately without waiting for the revive countdown',()=>{const {m,w,ids}=party();ids.forEach(id=>kill(w,id));m.tick(new Map());expect(w.gameOver).toBe(true);expect(ids.every(id=>!w.actors.get(id)!.alive)).toBe(true)})
  it('offline players cannot keep the team alive or supply input and reconnect retains their build',()=>{
   const {m,w,ids}=party();m.action(ids[1]!,{kind:'buy',id:'gun-damage'});m.disconnect(ids[1]!);expect(w.coop!.members[1]!.connected).toBe(false)
   m.join('',ids[1]);expect(w.actors.get(ids[1]!)!.attrs.damage).toBe(12);m.disconnect(ids[1]!);kill(w,ids[0]!);m.tick(new Map());expect(w.gameOver).toBe(true)
+ })
+ it('cannot rescue an active wipe by pausing on the last living teammate disconnect',()=>{
+  const m=createCoopMatch(DEFAULT_COOP),id=m.join('队员');m.ready(id);m.start();kill(m.world(),1);m.disconnect(id)
+  expect(m.world().paused).toBe(true);expect(m.world().gameOver).toBe(true);m.join('新人');expect(m.start()).toBe(false)
  })
  it('scales the next room population once and transitions the complete party',()=>{
   const {m,w,ids}=party(5);w.exitReached=true;m.tick(new Map(ids.map(id=>[id,idle])));expect(m.roomIndex()).toBe(1);expect(w.pendingSpawns.length).toBeGreaterThan(10)

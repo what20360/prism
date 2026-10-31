@@ -54,7 +54,7 @@ export function updateCoopRevives(world: World): void {
       const safe = ![...world.actors.values()].some((a)=>a.alive&&a.team!=='player'&&distance(a.pos,point)<a.radius+actor.radius+100) && !world.mines.some((m)=>m.team!=='player'&&distance(m.pos,point)<m.blastRadius) && !world.projectiles.some((p)=>p.team!=='player'&&distance(p.pos,point)<100)
       if (safe && hasLineOfSight(candidate,point,world.room.walls)) { pos=point;break }
     }
-    actor.pos={...pos};actor.alive=true;actor.hp=Math.max(1,actor.attrs.maxHp*0.5);actor.shield=0;actor.iframesTicks=120;actor.outOfCombatTicks=0;actor.burn=undefined;actor.shockTicks=0
+    actor.pos={...pos};actor.alive=true;actor.hp=actor.attrs.maxHp*0.5;actor.shield=0;actor.iframesTicks=120;actor.outOfCombatTicks=0;actor.burn=undefined;actor.shockTicks=0
     actor.laserTicks=0;actor.burstRemaining=0;actor.intent={move:{x:0,y:0},fire:false};world.effects.push({kind:'revive',x:pos.x,y:pos.y,radius:80,ttl:30})
   }
 }

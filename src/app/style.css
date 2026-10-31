@@ -681,3 +681,5 @@ body { background: #050a13; color: #c2d3e3; }
 .coop-lobby .practice__field { margin-bottom:12px; }
 .coop-lobby p { line-height:1.7; color:#a7c4d6; }
 @media(max-width:600px) { .coop-lobby .home__content { padding:20px 16px; } .coop-room-button { right:100px;top:10px;padding:8px;font-size:11px; } }
+
+.coop-lobby [hidden] { display:none !important; }

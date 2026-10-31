@@ -285,7 +285,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         }
       }
     }
-    if(s.coop) { const rows=s.coop.members; for(const [index,m] of rows.entries()){const a=s.actors.find(a=>a.id===m.id);text(`${m.name} · ${!m.connected?'离线':!a?.alive?'复活 '+(m.reviveTicks/60).toFixed(1)+'s':Math.ceil(a.hp)+' HP'}`,20,190+index*20,12,m.connected?'#a5e9d1':'#7f8a99')} }
+    if(s.coop) { const rows=s.coop.members; for(const [index,m] of rows.entries()){const a=s.actors.find(a=>a.id===m.id);text(`${m.name} · ${!m.connected?'离线':!a?.alive?s.gameOver?'倒地':'复活 '+(m.reviveTicks/60).toFixed(1)+'s':Math.ceil(a.hp)+' HP'}`,20,190+index*20,12,m.connected?'#a5e9d1':'#7f8a99')} }
     const mw = phone ? 100 : 180, mh = mw * s.bounds.height / s.bounds.width, mx = width - mw - 18, my = 66
     ctx.fillStyle = 'rgba(3,8,17,0.8)'; ctx.fillRect(mx, my, mw, mh)
     ctx.strokeStyle = '#29425d'; ctx.lineWidth = 1; ctx.strokeRect(mx, my, mw, mh)
