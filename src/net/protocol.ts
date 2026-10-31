@@ -4,7 +4,7 @@ import { CARD_REGISTRY } from '../content/cards'
 import { resolveAttrs } from '../core/cards'
 import { DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, DUEL_MODES, DUEL_RULES, type DuelState, type DuelAction } from '../content/duel'
 import { validateQuickMode, validateTargets } from '../app/upgradePlans'
-export const DUEL_PROTOCOL = 2
+export const DUEL_PROTOCOL = 3
 export const MAX_PACKET_BYTES = 512 * 1024
 export const IDLE_INPUT: Intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: false, placeMine: false, skills: [], autoAim: false }
 export function createRemoteInput() {

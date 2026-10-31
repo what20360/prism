@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { createCardRegistry, resolveAttrs } from '../../src/core/cards'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { buildDungeon } from '../../src/content/dungeon'
@@ -57,6 +58,27 @@ describe('complete run saves', () => {
     const saved = readCheckpoint(JSON.stringify(data)), b = restoreWorld(saved.world, CARD_REGISTRY, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
     expect(saved.difficulty).toBe(7); expect(b.waves).toEqual(a.waves); expect(hashWorld(a)).toBe(hashWorld(b)); expect(b.waves!.countdown).toBe(47)
     b.waves!.countdown--; expect(hashWorld(a)).not.toBe(hashWorld(b))
+  })
+  it('migrates legacy suspension saves without rerolling the world, renaming or rewriting live bullets', () => {
+    const a = world(), player = getPlayer(a); a.shards = 10000
+    for (const id of ['gun-range', 'homing', 'suspension', 'burst', 'suspension']) buyCard(a, id)
+    const current = { ...player.attrs }, legacy = createCardRegistry(CARD_REGISTRY.all().map((card) => card.id === 'suspension' ? { ...card, effectFn: (level, attrs) => ({ ...attrs, bulletSpeed: attrs.bulletSpeed / (1 + 0.6 * level) }) } : card))
+    player.attrs = resolveAttrs(a.basePlayerAttrs, a.purchases, legacy); emitProjectile(a, player, 0)
+    const saved = { ...checkpoint(), name: '飞剑旧局', world: serializeWorld(a) }, before = JSON.stringify(saved), loaded = readCheckpoint(before)
+    expect(loaded.balanceVersion).toBe(2); expect(loaded.name).toBe(saved.name); expect(loaded.savedAt).toBe(saved.savedAt)
+    expect(loaded.world.actors[0]!.attrs).toEqual(current); expect(loaded.world.projectiles).toEqual(saved.world.projectiles)
+    expect(loaded.world.rng).toEqual(saved.world.rng); expect(loaded.world.pickups).toEqual(saved.world.pickups)
+    expect(loaded.world.purchases).toEqual(saved.world.purchases); expect(loaded.world.shards).toBe(saved.world.shards)
+    expect(readCheckpoint(JSON.stringify(loaded))).toEqual(loaded); expect(JSON.stringify(saved)).toBe(before)
+  })
+  it('rejects corrupt legacy attributes and refuses legacy formulas in current-version saves', () => {
+    const a = world(); a.shards = 100; buyCard(a, 'suspension')
+    const attrs = getPlayer(a).attrs; attrs.bulletSpeed = PLAYER_BASE_ATTRS.bulletSpeed / 1.6; attrs.range = PLAYER_BASE_ATTRS.range
+    const old = { ...checkpoint(), world: serializeWorld(a) }
+    expect(() => readCheckpoint(JSON.stringify(old))).not.toThrow()
+    expect(() => readCheckpoint(JSON.stringify({ ...old, balanceVersion: 2 }))).toThrow()
+    old.world.actors[0]!.attrs.damage++; expect(() => readCheckpoint(JSON.stringify(old))).toThrow()
+    expect(() => readCheckpoint(JSON.stringify({ ...checkpoint(), balanceVersion: 99 }))).toThrow()
   })
   it('keeps manual slots separate and preserves a saved slot if a later write fails', () => {
     const data = new Map<string, string>(); let fail = false

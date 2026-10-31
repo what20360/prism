@@ -47,13 +47,14 @@ describe('homing and flying-sword ballistics', () => {
     expect(sniper.player.attrs.maxProjectiles).toBe(1)
     expect(sniper.emit()).toBe(b); expect(sniper.world.projectiles).toHaveLength(1)
   })
-  it('lets suspension lower speed without lowering range and keep homing bullets alive longer', () => {
+  it('gives suspension a gentler speed reduction, more path range and longer homing flight', () => {
     const plain = setup([{ id: 'homing', level: 1 }])
     const sword = setup([{ id: 'homing', level: 1 }, { id: 'suspension', level: 3 }])
-    expect(sword.player.attrs.range).toBe(plain.player.attrs.range)
-    expect(sword.player.attrs.bulletSpeed).toBeCloseTo(250)
+    expect(sword.player.attrs.range).toBeCloseTo(plain.player.attrs.range * 1.45)
+    expect(sword.player.attrs.bulletSpeed).toBeCloseTo(700 / 1.9)
     const a = plain.emit(), b = sword.emit()
-    expect(b.homingTurn).toBe(a.homingTurn); expect(b.vel.x).toBeCloseTo(50)
+    expect(b.homingTurn).toBe(a.homingTurn); expect(b.vel.x).toBeCloseTo(140 / 1.9)
+    expect(b.travelLeft).toBeCloseTo(sword.player.attrs.range); expect(b.rangeBudget).toBe(b.travelLeft)
     const duration = (run: typeof plain) => {
       let ticks = 0
       while (run.world.projectiles.length && ticks < 2000) { updateProjectiles(run.world, 1 / 60); ticks++ }
@@ -61,6 +62,15 @@ describe('homing and flying-sword ballistics', () => {
     }
     expect(duration(sword)).toBeGreaterThan(duration(plain))
     expect(a.travelLeft).toBe(0); expect(b.travelLeft).toBe(0)
+  })
+  it('removes suspension speed and range modifiers together when sold', () => {
+    const { world, player } = setup(); world.shards = 1000
+    buyCard(world, 'homing'); const baseline = { ...player.attrs }
+    expect(buyCard(world, 'suspension').ok).toBe(true)
+    expect(player.attrs.bulletSpeed).toBeCloseTo(baseline.bulletSpeed / 1.3)
+    expect(player.attrs.range).toBeCloseTo(baseline.range * 1.15)
+    expect(listCardStates(world).find((c) => c.id === 'suspension')?.summary).toContain('射程 ×1.3')
+    expect(sellCard(world, 'suspension')).toBe(true); expect(player.attrs).toEqual(baseline)
   })
 })
 

@@ -101,8 +101,10 @@ export const BUILD_CARDS: readonly Card[] = [
       return `${text}；初速 ×${fmt(p.initialMultiplier)}，加速至 ×${fmt(p.cruiseMultiplier)}；转速 ${fmt(p.turnRate)} 弧度/秒`
     },
   }),
-  formulaCard('suspension', '悬浮弹芯', 'gun', 14, (level) => [['bulletSpeed', 'divide', 1 + 0.6 * level, '弹速']], {
-    priority: 100, resellable: true, tags: ['飞剑', '追踪', '可回收'], describe: (_level, _modifiers, text) => `${text}；保留射程，延长飞行时间；配合追踪形成飞剑`,
+  formulaCard('suspension', '悬浮弹芯', 'gun', 14, (level) => [
+    ['bulletSpeed', 'divide', 1 + 0.3 * level, '弹速'], ['range', 'multiply', 1 + 0.15 * level, '射程'],
+  ], {
+    priority: 100, resellable: true, tags: ['飞剑', '追踪', '可回收'], describe: (_level, _modifiers, text) => `${text}；延长飞行路径，配合追踪形成飞剑`,
   }),
   formulaCard('pierce-drive', '贯穿推进', 'gun', 24, (level) => [['pierceBoost', 'add', level, '贯穿推进等级']], {
     priority: 100, tags: ['穿透', '飞剑'], requires: [{ card: 'gun-pierce', level: 1 }], describe: (level) => {

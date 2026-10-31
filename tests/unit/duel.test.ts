@@ -6,7 +6,7 @@ import { updatePickups } from '../../src/core/systems/pickups'
 import { separateActors } from '../../src/core/systems/movement'
 import { describe, expect, it } from 'vitest'
 import { createDuelMatch, DUEL_RULES, DUEL_ATTRS } from '../../src/app/modes/duel'
-import { cleanIntent, createRemoteInput, decodePacket, encodePacket, IDLE_INPUT } from '../../src/net/protocol'
+import { cleanIntent, createRemoteInput, decodePacket, encodePacket, IDLE_INPUT, DUEL_PROTOCOL } from '../../src/net/protocol'
 import { serializeWorld } from '../../src/core/serialization'
 import { toSnapshot } from '../../src/core/snapshot'
 import { applyDamage } from '../../src/core/systems/damage'
@@ -157,7 +157,7 @@ describe('economic duel modes', () => {
     expect(() => decodePacket(encodePacket({ type: 'state', serial: 2, state: m.state(), world: serializeWorld(m.world()) }))).not.toThrow()
     m.world().actors.get(2)!.attrs.damage++
     expect(() => decodePacket(encodePacket({ type: 'state', serial: 3, state: m.state(), world: serializeWorld(m.world()) }))).toThrow()
-    const request = decodePacket(JSON.stringify({ protocol: 2, type: 'action', sequence: 1, round: 1, action: { kind: 'buy', id: 'gun-damage', shards: 999999, attrs: { damage: 999 } } }))
+    const request = decodePacket(JSON.stringify({ protocol: DUEL_PROTOCOL, type: 'action', sequence: 1, round: 1, action: { kind: 'buy', id: 'gun-damage', shards: 999999, attrs: { damage: 999 } } }))
     expect(request.type === 'action' && request.action).toEqual({ kind: 'buy', id: 'gun-damage', level: undefined })
   })
 })

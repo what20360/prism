@@ -1,6 +1,6 @@
 import type { PracticeMode, PracticeAction, PracticeState } from './modes/practice'
 import type { EndlessMode, EndlessState } from './modes/endless'
-import type { RunCheckpoint } from './checkpoints'
+import { CURRENT_BALANCE_VERSION, type RunCheckpoint } from './checkpoints'
 import { restoreWorld, serializeWorld } from '../core/serialization'
 import { validateTargets, moveTarget, removeTarget, type PurchasePlan, type UpgradeTarget, type QuickMode } from './upgradePlans'
 import { createPurchaseQueue, type PurchaseNotice } from './purchaseQueue'
@@ -435,6 +435,7 @@ export function createGame(options: GameOptions): Game {
   }
   const checkpoint = (): RunCheckpoint | null => options.practice || !hasStarted || world.gameOver || world.victory ? null : ({
     format: 'prism-save', version: 1, savedAt: new Date().toISOString(), mode: options.endless ? 'endless' : 'dungeon',
+    balanceVersion: CURRENT_BALANCE_VERSION,
     initialSeed: options.seed, restarts, roomIndex, world: serializeWorld(world), endless: options.endless?.checkpoint(),
     difficulty: options.difficulty,
     name: saveName,
