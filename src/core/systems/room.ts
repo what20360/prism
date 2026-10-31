@@ -8,6 +8,7 @@ export const EXIT_RECT: Rect = { x: 1480, y: 60, width: 240, height: 140 }
 
 /** Step 11: room clear opens the exit; resources only spawn on room entry. */
 export function updateRoom(world: World): void {
+  if (world.participants) return
   if (world.roomCleared) return
   if (world.room.phase === 'entered') return
 

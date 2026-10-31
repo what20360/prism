@@ -4,7 +4,7 @@ import type { BuyResult, Requirement } from './cards'
 import { isFiniteBuild, meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
 import { CARD_ECONOMY } from './rules'
 import type { Actor, World } from './world'
-import { getPlayer } from './world'
+import { getPlayer, progressOf } from './world'
 
 export type CardAvailability = 'ok' | 'locked' | 'max-level' | 'not-enough-shards'
 
@@ -26,19 +26,20 @@ export interface CardState {
 }
 
 /** Read-only view for the upgrade panel. */
-export function listCardStates(world: World): CardState[] {
-  const player = getPlayer(world)
+export function listCardStates(world: World, actorId?: number): CardState[] {
+  const player = actorId === undefined ? getPlayer(world) : world.actors.get(actorId)!
+  const progress = progressOf(world, actorId)
 
   return world.registry.all().map((card) => {
-    const level = purchaseLevel(world.purchases, card.id)
+    const level = purchaseLevel(progress.purchases, card.id)
     const price = card.priceFn(level + 1)
     const maxed = card.maxLevel !== undefined && level >= card.maxLevel
-    const unlocked = meetsRequirements(player.attrs, world.purchases, card.requires)
+    const unlocked = meetsRequirements(player.attrs, progress.purchases, card.requires)
 
     let availability: CardAvailability = 'ok'
     if (maxed) availability = 'max-level'
     else if (!unlocked) availability = 'locked'
-    else if (!Number.isFinite(price) || world.shards < price) availability = 'not-enough-shards'
+    else if (!Number.isFinite(price) || progress.shards < price) availability = 'not-enough-shards'
 
     return {
       id: card.id,
@@ -49,7 +50,7 @@ export function listCardStates(world: World): CardState[] {
       availability,
       summary: card.summary ? card.summary(maxed ? level : level + 1) : null,
       requires: card.requires ?? [],
-      refund: card.resellable && level > 0 ? saleValue(world, card.id) : null,
+      refund: card.resellable && level > 0 ? saleValue(world, card.id, actorId) : null,
       tags: card.tags ?? [],
       priority: card.priority,
       saleBlocked: null,
@@ -57,63 +58,65 @@ export function listCardStates(world: World): CardState[] {
   })
 }
 
-export function buyCard(world: World, cardId: string): BuyResult {
+export function buyCard(world: World, cardId: string, actorId?: number): BuyResult {
   const card = world.registry.get(cardId)
   if (!card) return { ok: false, reason: 'unknown-card' }
 
-  const player = getPlayer(world)
-  const level = purchaseLevel(world.purchases, cardId)
+  const player = actorId === undefined ? getPlayer(world) : world.actors.get(actorId)!
+  const progress = progressOf(world, actorId)
+  const level = purchaseLevel(progress.purchases, cardId)
 
   if (card.maxLevel !== undefined && level >= card.maxLevel) {
     return { ok: false, reason: 'max-level' }
   }
-  if (!meetsRequirements(player.attrs, world.purchases, card.requires)) {
+  if (!meetsRequirements(player.attrs, progress.purchases, card.requires)) {
     return { ok: false, reason: 'requirements' }
   }
 
   const price = card.priceFn(level + 1)
   if (!Number.isSafeInteger(level + 1) || !Number.isFinite(price) || price < 0) return { ok: false, reason: 'numeric-range' }
-  if (world.shards < price) return { ok: false, reason: 'not-enough-shards' }
-  const proposed = [...world.purchases.filter((purchase) => purchase.id !== cardId), { id: cardId, level: level + 1 }]
+  if (progress.shards < price) return { ok: false, reason: 'not-enough-shards' }
+  const proposed = [...progress.purchases.filter((purchase) => purchase.id !== cardId), { id: cardId, level: level + 1 }]
   if (!isFiniteBuild(resolveAttrs(world.basePlayerAttrs, proposed, world.registry))) return { ok: false, reason: 'numeric-range' }
 
-  world.shards -= price
+  progress.shards -= price
 
-  const existing = world.purchases.find((purchase) => purchase.id === cardId)
+  const existing = progress.purchases.find((purchase) => purchase.id === cardId)
   if (existing) {
     existing.paid ??= Array.from({ length: level }, (_, i) => card.priceFn(i + 1))
     existing.paid.push(price)
     existing.level += 1
-  } else world.purchases.push({ id: cardId, level: 1, paid: [price] })
+  } else progress.purchases.push({ id: cardId, level: 1, paid: [price] })
 
-  reapplyAttrs(world, player)
+  reapplyAttrs(world, player, actorId)
   return { ok: true }
 }
 
-export function saleValue(world: World, cardId: string): number {
-  const purchase = world.purchases.find((item) => item.id === cardId)
+export function saleValue(world: World, cardId: string, actorId?: number): number {
+  const purchase = progressOf(world, actorId).purchases.find((item) => item.id === cardId)
   const card = world.registry.get(cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return 0
   const paid = purchase.paid?.[purchase.level - 1] ?? card.priceFn(purchase.level)
   return Number.isFinite(paid) ? Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0
 }
 
-export function sellCard(world: World, cardId: string): boolean {
+export function sellCard(world: World, cardId: string, actorId?: number): boolean {
+  const progress = progressOf(world, actorId)
   const card = world.registry.get(cardId)
-  const purchase = world.purchases.find((item) => item.id === cardId)
+  const purchase = progress.purchases.find((item) => item.id === cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return false
   const nextLevel = purchase.level - 1
-  world.shards += saleValue(world, cardId)
+  progress.shards += saleValue(world, cardId, actorId)
   purchase.level = nextLevel
   purchase.paid?.pop()
-  if (nextLevel === 0) world.purchases = world.purchases.filter((item) => item !== purchase)
-  reapplyAttrs(world, getPlayer(world))
+  if (nextLevel === 0) progress.purchases = progress.purchases.filter((item) => item !== purchase)
+  reapplyAttrs(world, actorId === undefined ? getPlayer(world) : world.actors.get(actorId)!, actorId)
   return true
 }
 
 /** Re-runs the card pipeline and keeps derived actor values consistent. */
-export function reapplyAttrs(world: World, player: Actor): void {
-  const next = resolveAttrs(world.basePlayerAttrs, world.purchases, world.registry)
+export function reapplyAttrs(world: World, player: Actor, actorId?: number): void {
+  const next = resolveAttrs(world.basePlayerAttrs, progressOf(world, actorId).purchases, world.registry)
   const hpGain = next.maxHp - player.attrs.maxHp
   const shieldGain = next.shield - player.attrs.shield
 

@@ -1,7 +1,7 @@
 export const TICK_RATE = 60
 export const TICK_DT = 1 / TICK_RATE
 
-export type Team = 'player' | 'enemy'
+export type Team = 'player' | 'enemy' | 'neutral'
 
 export type EntityId = number
 

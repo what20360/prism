@@ -12,6 +12,8 @@ export interface CardsSectionState {
 }
 
 export interface CardsSectionHandlers {
+  readonly favorites?: readonly string[]
+  readonly onFavorite?: (cardId: string) => void
   readonly onQueue?: (cardId: string) => void
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
@@ -95,6 +97,12 @@ function cardButton(
   })
 
   article.append(button)
+  if (handlers.onFavorite) {
+    const favorite = document.createElement('button'); favorite.type = 'button'; favorite.className = 'card__favorite'
+    const saved = handlers.favorites?.includes(card.id) ?? false
+    favorite.textContent = saved ? '★ 已收藏' : '☆ 收藏'; favorite.setAttribute('aria-label', `${saved ? '取消收藏' : '收藏'}${card.name}`); favorite.setAttribute('aria-pressed', String(saved))
+    favorite.onclick = () => handlers.onFavorite?.(card.id); article.append(favorite)
+  }
   if (handlers.onQueue && card.availability !== 'max-level') {
     const queue = document.createElement('button'); queue.type = 'button'; queue.className = 'card__queue'; queue.textContent = `预购${card.name}`
     queue.onclick = () => handlers.onQueue?.(card.id); article.append(queue)
@@ -132,6 +140,7 @@ export function renderCardsSection(
   wrapper.append(element('p', 'cards__intro', `所有卡片都可逐级出售，返还实付价格的 ${fmt(CARD_ECONOMY.refundRatio * 100)}%；前置仅限制购买，出售不会连带撤销其他卡片。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
 
   const grouped = new Map<string, CardState[]>()
+  if (handlers.onFavorite) grouped.set('favorites', state.cards.filter((c) => handlers.favorites?.includes(c.id)))
   for (const card of state.cards) {
     const list = grouped.get(card.category)
     if (list) list.push(card)
@@ -139,8 +148,10 @@ export function renderCardsSection(
   }
 
   const categories = [...grouped.keys()].sort((a, b) => {
-    const indexA = CATEGORY_ORDER.indexOf(a)
-    const indexB = CATEGORY_ORDER.indexOf(b)
+    const indexA = a === 'favorites' ? -1 : CATEGORY_ORDER.indexOf(a)
+    const indexB = b === 'favorites' ? -1 : CATEGORY_ORDER.indexOf(b)
+    if (a === 'favorites') return -1
+    if (b === 'favorites') return 1
     return (indexA < 0 ? 99 : indexA) - (indexB < 0 ? 99 : indexB)
   })
 
@@ -148,11 +159,12 @@ export function renderCardsSection(
     const section = document.createElement('details')
     section.className = 'menu__section cards__category'
     section.open = !handlers.collapsed?.has(category)
-    const summary = element('summary', 'menu__heading', `${CATEGORY_LABELS[category] ?? category} · ${grouped.get(category)?.length ?? 0}`)
+    const summary = element('summary', 'menu__heading', `${category === 'favorites' ? '★ 收藏卡片' : CATEGORY_LABELS[category] ?? category} · ${grouped.get(category)?.length ?? 0}`)
     section.append(summary)
     section.addEventListener('toggle', () => { if (section.open) handlers.collapsed?.delete(category); else handlers.collapsed?.add(category) })
 
     const grid = element('div', 'cards__grid')
+    if (category === 'favorites' && !grouped.get(category)?.length) grid.append(element('p', 'settings__hint', '点击卡片旁的“☆ 收藏”，即可在此快速找到。'))
     for (const card of grouped.get(category) ?? []) {
       grid.append(cardButton(state, card, handlers))
     }

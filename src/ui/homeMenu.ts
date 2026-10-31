@@ -61,7 +61,7 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
     const seedLabel = document.createElement('label'); seedLabel.className = 'home__seed'; seedLabel.textContent = '无尽世界种子'
     const seed = document.createElement('input'); seed.type = 'text'; seed.value = seedText; seed.maxLength = 80; seed.setAttribute('aria-label', '无尽世界种子'); seed.oninput = () => { seedText = seed.value }; seedLabel.append(seed)
     actions.append(seedLabel, action('无尽模式', '种子生成 · 清场推进 · 每五层可跳过战斗', 'home__action--endless', () => handlers.onEndless(worldSeed(seed.value))))
-    if (handlers.onDuel) actions.append(action('联网 1v1', '邀请好友 · 标准装备 · 两胜制', 'home__action--duel', handlers.onDuel))
+    if (handlers.onDuel) actions.append(action('联网 1v1', '邀请好友 · 三种对战规则 · 两胜制', 'home__action--duel', handlers.onDuel))
     if (handlers.getSaves?.().slots.find((s) => s.id === 'auto')?.available) actions.append(action('载入自动存档', '恢复上次闯关或无尽进度', 'home__action--resume', () => handlers.saves?.onLoad('auto')))
     const note = document.createElement('p'); note.className = 'home__note'; note.textContent = 'WASD 移动 · 左键射击 · 右键锁定 · Esc 菜单\n手机使用双摇杆。单人进度自动保存，新局更新自动槽；手动存档独立保留。'
     actions.append(note); content.append(hero, actions)

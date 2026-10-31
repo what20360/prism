@@ -2,7 +2,8 @@ import type { PracticeMode, PracticeAction, PracticeState } from './modes/practi
 import type { EndlessMode, EndlessState } from './modes/endless'
 import type { RunCheckpoint } from './checkpoints'
 import { restoreWorld, serializeWorld } from '../core/serialization'
-import { validateTargets, type PurchasePlan, type UpgradeTarget } from './upgradePlans'
+import { validateTargets, moveTarget, removeTarget, type PurchasePlan, type UpgradeTarget, type QuickMode } from './upgradePlans'
+import { createPurchaseQueue, type PurchaseNotice } from './purchaseQueue'
 import { combatAttrs } from '../core/combat'
 import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
 import { toSkillView, type SkillView } from '../core/snapshot'
@@ -93,6 +94,8 @@ export interface Game {
   moveQueued(index: number, direction: -1 | 1): void
   removeQueued(index: number): void
   setAutoBuy(enabled: boolean): void
+  setQuickMode(mode: QuickMode): void
+  purchaseNotice(): PurchaseNotice | null
   checkpoint(): RunCheckpoint | null
   start(): void
   stop(): void
@@ -159,6 +162,8 @@ export function createGame(options: GameOptions): Game {
   let playerId = getPlayer(world).id
   let restarts = options.checkpoint?.restarts ?? 0
   let plan: PurchasePlan = options.checkpoint?.plan ? structuredClone(options.checkpoint.plan) : { enabled: true, targets: [] }
+  const purchaseQueue = createPurchaseQueue()
+  let purchaseNotice: PurchaseNotice | null = null
 
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
@@ -192,6 +197,7 @@ export function createGame(options: GameOptions): Game {
     roomIndex = 0
     runEnded = false
     plan = { enabled: true, targets: [] }
+    purchaseQueue.reset(); purchaseNotice = null
     world = spawnWorld(options.endless ? options.seed : options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
@@ -212,6 +218,7 @@ export function createGame(options: GameOptions): Game {
     if (mode === 'play') hasStarted = true
     uiMode = mode
     world.paused = mode !== 'play'
+    purchaseQueue.reset(); purchaseNotice = null
     options.touch?.setPaused(mode !== 'play')
     lastTime = 0
     accumulator = 0
@@ -286,6 +293,7 @@ export function createGame(options: GameOptions): Game {
         step(world, intents)
         options.practice?.afterStep(world)
         options.endless?.afterStep(world)
+        if (!world.gameOver && !world.victory) purchaseNotice = purchaseQueue.update(plan, listCardStates(world), 1, buyCard)
         accumulator -= TICK_DT
       }
     }
@@ -303,13 +311,6 @@ export function createGame(options: GameOptions): Game {
       runEnded = true
       world.paused = true
       options.onRunEnd?.(summary())
-    }
-    if (!world.paused && !world.gameOver && !world.victory && plan.enabled) {
-      for (let i = 0; i < 4 && plan.targets.length; i++) {
-        const target = plan.targets[0]!
-        if (purchaseLevel(world.purchases, target.id) >= target.level) { plan.targets.shift(); continue }
-        if (!buyCard(target.id)) break
-      }
     }
 
     const endless = options.endless?.state(world)
@@ -427,14 +428,15 @@ export function createGame(options: GameOptions): Game {
     initialSeed: options.seed, restarts, roomIndex, world: serializeWorld(world), endless: options.endless?.checkpoint(),
     plan: structuredClone(plan),
   })
-  const setPlan = (targets: readonly UpgradeTarget[]): boolean => { try { plan.targets = validateTargets(targets); return true } catch { return false } }
+  const setPlan = (targets: readonly UpgradeTarget[]): boolean => { try { plan.targets = validateTargets(targets); purchaseQueue.reset(); purchaseNotice = null; return true } catch { return false } }
   const queueUpgrade = (id: string, level?: number): boolean => {
-    const next = level ?? Math.max(purchaseLevel(world.purchases, id), plan.targets.find((t) => t.id === id)?.level ?? 0) + 1
-    return setPlan(plan.targets.some((t) => t.id === id) ? plan.targets.map((t) => t.id === id ? { id, level: next } : t) : [...plan.targets, { id, level: next }])
+    const next = level ?? Math.max(purchaseLevel(world.purchases, id), ...plan.targets.filter((t) => t.id === id).map((t) => t.level)) + 1
+    return setPlan([...plan.targets, { id, level: next }])
   }
   return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, checkpoint,
-    plan: () => structuredClone(plan), queueUpgrade, setPlan, setAutoBuy: (enabled) => { plan.enabled = enabled },
-    moveQueued: (index, direction) => { const other = index + direction; if (index < 0 || other < 0 || index >= plan.targets.length || other >= plan.targets.length) return; [plan.targets[index], plan.targets[other]] = [plan.targets[other]!, plan.targets[index]!] },
-    removeQueued: (index) => { if (index >= 0 && index < plan.targets.length) plan.targets.splice(index, 1) },
+    plan: () => structuredClone(plan), queueUpgrade, setPlan, setAutoBuy: (enabled) => { plan.enabled = enabled; purchaseQueue.reset() },
+    setQuickMode: (mode) => { plan.quickMode = mode; purchaseQueue.reset(); purchaseNotice = null }, purchaseNotice: () => purchaseNotice,
+    moveQueued: (index, direction) => { plan.targets = moveTarget(plan.targets, index, direction); purchaseQueue.reset() },
+    removeQueued: (index) => { plan.targets = removeTarget(plan.targets, index, (id) => purchaseLevel(world.purchases, id)); purchaseQueue.reset() },
     session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice), endless: Boolean(options.endless) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }
 }

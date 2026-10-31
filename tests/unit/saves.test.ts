@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { buildDungeon } from '../../src/content/dungeon'
-import { createWorld, getPlayer } from '../../src/core/world'
+import { createWorld, getPlayer, spawnEnemy } from '../../src/core/world'
 import { restoreWorld, serializeWorld } from '../../src/core/serialization'
 import { hashWorld } from '../../src/core/hash'
 import { emitProjectile } from '../../src/core/systems/weapons'
@@ -43,6 +44,11 @@ describe('complete run saves', () => {
     mutate((d) => { d.world.actors[0]!.attrs.damage++ })
     expect(() => readCheckpoint(JSON.stringify(checkpoint()).replace('"world":{', '"world":{"__proto__":{},'))).toThrow()
     expect(() => readCheckpoint(' '.repeat(MAX_SAVE_BYTES + 1))).toThrow()
+  })
+  it('restores combat rooms containing melee enemies with zero gun range and speed', () => {
+    const data = checkpoint(), a = world(); spawnEnemy(a, { ...ENEMIES.drifter!, pos: { x: 800, y: 600 } })
+    const saved = { ...data, world: serializeWorld(a) }
+    expect(() => readCheckpoint(JSON.stringify(saved))).not.toThrow()
   })
   it('keeps manual slots separate and preserves a saved slot if a later write fails', () => {
     const data = new Map<string, string>(); let fail = false

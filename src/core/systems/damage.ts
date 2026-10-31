@@ -6,7 +6,8 @@ import { distance } from '../collision'
 import { TICK_RATE } from '../types'
 import { DROP_RULES } from '../rules'
 import type { EffectKind, Actor, FloaterKind, World } from '../world'
-import { tryGetPlayer } from '../world'
+import { tryGetPlayer, progressOf } from '../world'
+import type { Team } from '../types'
 import { breakChain, offenseShards, registerKill, takenShards } from './rewards'
 
 const IFRAME_TICKS = Math.round(0.5 * TICK_RATE)
@@ -19,7 +20,7 @@ const FLOATER_TTL = 46
 export interface DamageEvent {
   readonly targetId: number
   readonly sourceId: number
-  readonly sourceTeam: 'player' | 'enemy'
+  readonly sourceTeam: Team
   readonly raw: number
   readonly penetration: number
   readonly isCore: boolean
@@ -55,7 +56,18 @@ export function applyDamage(world: World, event: DamageEvent): void {
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
 
-  if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
+  if (world.participants) {
+    const source = world.actors.get(event.sourceId)
+    if (source?.alive && world.participants[source.id] && source.team !== target.team) {
+      applyLifesteal(source, effectiveDamage)
+      const chance = event.kind === 'mine' ? source.attrs.mineShardChance : event.kind === 'bullet' ? source.attrs.bloodOrbChance : 0
+      if (world.resourceDrops && chance > 0 && world.pickups.length < 24 && nextFloat(world.rng) < chance) {
+        world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
+          value: event.kind === 'mine' ? DROP_RULES.shardValue * source.attrs.shardGain : Math.max(DROP_RULES.bloodMinimum, source.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
+      }
+    }
+    pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
+  } else if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
     world.stats.damageDealt += effectiveDamage
     const reward = target.rewardMultiplier ?? 1
     const gained = offenseShards(world, target.tier, effectiveDamage, overkill, player) * player.attrs.shardGain * reward
@@ -109,10 +121,11 @@ function applyLifesteal(player: Actor, damage: number): void {
 }
 
 function killActor(world: World, target: Actor, player: Actor | undefined): void {
-  if (target.team === 'player') {
-    const revivesLeft = Math.max(0, Math.floor(target.attrs.revives) - world.revivesUsed)
+  if (world.participants?.[target.id] || (!world.participants && target.team === 'player')) {
+    const progress = progressOf(world, world.participants ? target.id : undefined)
+    const revivesLeft = Math.max(0, Math.floor(target.attrs.revives) - progress.revivesUsed)
     if (revivesLeft > 0) {
-      world.revivesUsed += 1
+      progress.revivesUsed += 1
       target.hp = Math.max(1, Math.round(target.attrs.maxHp * 0.5))
       target.iframesTicks = REVIVE_IFRAME_TICKS
       target.shield = 0
@@ -123,14 +136,16 @@ function killActor(world: World, target: Actor, player: Actor | undefined): void
     }
 
     target.alive = false
-    world.gameOver = true
+    if (!world.participants) world.gameOver = true
     pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
     return
   }
 
   target.alive = false
   pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
-  if (player) registerKill(world, player)
+  if (world.participants) {
+    if (world.monsterShardDrop && world.pickups.length < 24) world.pickups.push({ id: allocateId(world), kind: 'shard', pos: { ...target.pos }, value: world.monsterShardDrop, ttl: 30 * TICK_RATE })
+  } else if (player) registerKill(world, player)
 }
 
 function clearNearbyProjectiles(world: World, x: number, y: number, radius: number): void {
@@ -168,6 +183,18 @@ function pushFloater(world: World, kind: FloaterKind, value: number, x: number, 
 
 /** Melee contact damage from chasing enemies, gated by the player's iframes. */
 export function resolveContactDamage(world: World): void {
+  if (world.participants) {
+    for (const id of Object.keys(world.participants)) {
+      const target = world.actors.get(Number(id))!
+      if (!target.alive || target.iframesTicks > 0) continue
+      for (const source of world.actors.values()) {
+        if (!source.alive || source.team === target.team || source.contactDamage <= 0 || distance(source.pos, target.pos) > source.radius + target.radius) continue
+        applyDamage(world, { targetId: target.id, sourceId: source.id, sourceTeam: source.team, raw: source.contactDamage, penetration: source.attrs.penetration, isCore: false })
+        break
+      }
+    }
+    return
+  }
   const player = tryGetPlayer(world)
   if (!player || player.iframesTicks > 0) return
 

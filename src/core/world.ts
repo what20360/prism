@@ -175,6 +175,9 @@ export interface RunStats {
   damageTaken: number
 }
 
+/** Optional independent progression for externally controlled combatants. */
+export interface PlayerProgress { shards: number; purchases: Purchase[]; revivesUsed: number }
+
 export interface World {
   tick: number
   readonly seed: number
@@ -204,6 +207,13 @@ export interface World {
   victory: boolean
   paused: boolean
   revivesUsed: number
+  participants?: Record<number, PlayerProgress>
+  resourceDrops?: boolean
+  monsterShardDrop?: number
+}
+
+export function progressOf(world: World, actorId?: number): PlayerProgress {
+  return actorId === undefined || !world.participants ? world : world.participants[actorId]!
 }
 
 export interface RoomTemplate {

@@ -4,8 +4,9 @@ import type { IntentSource } from '../input/keyboard'
 import type { PointerSource } from '../input/pointer'
 import type { TouchSource } from '../input/touch'
 import type { Renderer } from '../render/canvas2d/renderer'
+import { DEFAULT_SETTINGS, type ControlSettings } from '../storage/config'
 /** Authors input from the viewer's snapshot; remote clients never author positions. */
-export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer: PointerSource, touch: TouchSource, renderer: Renderer): Intent {
+export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer: PointerSource, touch: TouchSource, renderer: Renderer, settings: ControlSettings = DEFAULT_SETTINGS): Intent {
   const actor = snapshot.actors.find((a) => a.team === 'player')
   if (!actor?.alive) return { move: { x: 0, y: 0 }, fire: false }
   const keys = input.read(), fingers = touch.read(), mouse = pointer.position(), focus = { x: actor.x, y: actor.y, vision: actor.vision }
@@ -18,8 +19,8 @@ export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer:
   const selection = pointer.consumeLock?.()
   if (selection !== undefined) {
     const pos = selection ? renderer.viewToWorld(selection.x, selection.y, focus) : null
-    lockTarget = pos ? snapshot.actors.find((a) => a.team === 'enemy' && a.alive && Math.hypot(a.x - pos.x, a.y - pos.y) <= a.radius + 16)?.id ?? null : null
+    lockTarget = pos ? snapshot.actors.find((a) => a.team !== 'player' && a.alive && Math.hypot(a.x - pos.x, a.y - pos.y) <= a.radius + 16)?.id ?? null : null
   }
-  return { move, aim, fire: Boolean(pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
-    autoAim: false, autoPickup: false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
+  return { move, aim, fire: Boolean(actor.autoFire || pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
+    autoAim: actor.autoAim, autoPickup: settings.autoPickup !== false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
 }

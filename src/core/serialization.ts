@@ -1,4 +1,4 @@
-import { isFiniteBuild, type CardRegistry } from './cards'
+import { type CardRegistry } from './cards'
 import type { AttrSet } from './attrs'
 import type { EconomyRates } from './economy'
 import type { Actor, World } from './world'
@@ -39,7 +39,7 @@ export function validateAttrs(value: unknown, keys: readonly string[]): AttrSet 
   const attrs = record(value)
   if (Object.keys(attrs).length !== keys.length) throw new Error('属性版本不匹配')
   for (const key of keys) finite(attrs[key])
-  if (!isFiniteBuild(attrs as unknown as AttrSet) || finite(attrs.radius) <= 0 || finite(attrs.vision) <= 0) throw new Error('属性无效')
+  if (finite(attrs.maxHp) < 1 || finite(attrs.speed) < 0 || finite(attrs.bulletSpeed) < 0 || finite(attrs.range) < 0 || finite(attrs.radius) <= 0 || finite(attrs.vision) <= 0) throw new Error('属性无效')
   return attrs as unknown as AttrSet
 }
 function intent(value: unknown): void {
@@ -78,7 +78,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   if (!actors.length) throw new Error('没有玩家数据')
   let playerCount = 0
   for (const value of actors) {
-    const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy']); if (a.team === 'player') playerCount++
+    const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
     if (finite(a.hp) > finite(record(a.attrs).maxHp)) throw new Error('生命超过上限')
@@ -91,7 +91,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   if (playerCount !== 1) throw new Error('玩家数量无效')
   for (const s of array(d.pendingSpawns, 2000)) spawn(s)
   for (const value of array(d.projectiles, 4000)) {
-    const p = entity(value); oneOf(p.team, ['player', 'enemy']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
+    const p = entity(value); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
     numbers(p, 'radius damage penetration innerMult travelLeft'); integer(p.pierceLeft)
     for (const key of ['rewardMultiplier', 'rangeBudget', 'pierceSpeedMultiplier', 'pierceRangeGain', 'blastRadius', 'resolvedTick', 'homingTurn', 'cruiseSpeed']) if (p[key] !== undefined) finite(p[key], 0)
     if (p.targetId !== undefined && p.targetId !== null) integer(p.targetId, 1)
@@ -101,7 +101,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (p.segments !== undefined) for (const segment of array(p.segments, 64)) { const s = record(segment); vector(s.from); vector(s.to) }
   }
   for (const value of array(d.mines, 1000)) {
-    const m = entity(value); oneOf(m.team, ['player', 'enemy']); integer(m.ownerId, 1); vector(m.pos)
+    const m = entity(value); oneOf(m.team, ['player', 'enemy', 'neutral']); integer(m.ownerId, 1); vector(m.pos)
     numbers(m, 'bodyRadius triggerRadius blastRadius slowRadius slowMultiplier damage hp')
     if (m.fuseTicks !== null) integer(m.fuseTicks)
     for (const key of ['rewardMultiplier', 'fuseTotalTicks', 'travelLeft', 'fragments']) if (m[key] !== undefined) finite(m[key], 0)
@@ -111,13 +111,26 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1) }
   for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
   for (const value of array(d.floaters, 2000)) { const f = record(value); oneOf(f.kind, ['damage', 'overflow', 'taken', 'shard', 'heal']); numbers(f, 'value ttl'); finite(f.x); finite(f.y); finite(f.driftX) }
-  const purchased = new Set<string>()
-  for (const value of array(d.purchases, registry.all().length)) {
-    const p = record(value); text(p.id); const card = registry.get(p.id as string)
-    if (!card || purchased.has(card.id)) throw new Error('未知或重复的卡片')
-    purchased.add(card.id); const level = integer(p.level, 1, card.maxLevel)
-    if (p.paid !== undefined) for (const price of array(p.paid, Math.min(level, 10000))) finite(price, 0)
+  const purchases = (values: unknown) => {
+    const purchased = new Set<string>()
+    for (const value of array(values, registry.all().length)) {
+      const p = record(value); text(p.id); const card = registry.get(p.id as string)
+      if (!card || purchased.has(card.id)) throw new Error('未知或重复的卡片')
+      purchased.add(card.id); const level = integer(p.level, 1, card.maxLevel)
+      if (p.paid !== undefined) for (const price of array(p.paid, Math.min(level, 10000))) finite(price, 0)
+    }
   }
+  purchases(d.purchases)
+  if (d.participants !== undefined) {
+    const participants = record(d.participants), keys = Object.keys(participants)
+    if (keys.length < 2 || keys.length > 8) throw new Error('参战玩家数量无效')
+    for (const id of keys) {
+      if (!/^[1-9][0-9]*$/.test(id) || !actors.some((a) => record(a).id === Number(id))) throw new Error('参战玩家无效')
+      const p = record(participants[id]); finite(p.shards, 0); integer(p.revivesUsed); purchases(p.purchases)
+    }
+  }
+  if (d.resourceDrops !== undefined) bool(d.resourceDrops)
+  if (d.monsterShardDrop !== undefined) finite(d.monsterShardDrop, 0)
   integer(d.nextEntityId, Math.max(...ids) + 1); numbers(d, 'shards score revivesUsed')
   const stats = record(d.stats); numbers(stats, 'kills coreHits chain chainIdleTicks bestChain damageDealt damageTaken')
   for (const key of ['roomCleared', 'playerTookHit', 'exitReached', 'gameOver', 'victory', 'paused']) bool(d[key])

@@ -70,7 +70,7 @@ export function separateActors(world: World): void {
     if (overlap <= 0) continue
     if (length < 0.001) { const angle = (a.id * 13 + b.id * 7) * 0.7; dx = Math.cos(angle); dy = Math.sin(angle) }
     else { dx /= length; dy /= length }
-    const pushA = a.team !== 'player' && a.attrs.speed > 0, pushB = b.team !== 'player' && b.attrs.speed > 0
+    const pushA = (world.participants || a.team !== 'player') && a.attrs.speed > 0, pushB = (world.participants || b.team !== 'player') && b.attrs.speed > 0
     const count = Number(pushA) + Number(pushB)
     if (!count) continue
     const amount = Math.min(8, overlap * 0.4) / count

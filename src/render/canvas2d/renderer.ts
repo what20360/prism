@@ -135,7 +135,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.closePath()
     }
-    const color = player ? a.enraged ? GOLD : CYAN : a.behavior === 'boss' ? PURPLE : RED
+    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'boss' ? PURPLE : RED
     ctx.shadowColor = color; ctx.shadowBlur = player ? 16 : 9
     ctx.fillStyle = player ? '#18394b' : '#341c32'; ctx.fill()
     ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke(); ctx.shadowBlur = 0
@@ -195,13 +195,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
     text('P R I S M', 20, 29, 15, CYAN)
-    text(`${debug.label ?? ''}  /  ${debug.duel ? '标准对决' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
+    text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
       ctx.fillStyle = '#192538'; ctx.fillRect(20, 65, barWidth, 5)
       ctx.fillStyle = p.hp < p.maxHp * 0.3 ? RED : CYAN; ctx.fillRect(20, 65, barWidth * clamp(p.hp / p.maxHp, 0, 1), 5)
       text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
-      text(debug.duel ? '同等装备 · J 偏转 · K 冲刺' : debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
+      text(debug.duel ? `◆ ${Math.floor(s.shards)} · J / K 主动技能` : debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
       if (debug.endless) {
         text(`种子 ${debug.endless.seed} · 敌人 ${debug.endless.alive + debug.endless.pending}`, 20, 133, 11, PURPLE)
         if (!phone) text(debug.endless.open ? `传送门开放 · 下次补刷收益 ${Number((debug.endless.nextReward * 100).toFixed(1))}%` : '清空敌人，开启下一层', 20, 153, 11, '#8ad9bb')
@@ -222,7 +222,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const wall of s.walls) ctx.fillRect(mx + wall.x * sx, my + wall.y * sy, wall.width * sx, wall.height * sy)
     for (const a of s.actors) {
       if (!a.alive) continue
-      ctx.fillStyle = a.team === 'player' ? CYAN : RED; ctx.fillRect(mx + a.x * sx - 2, my + a.y * sy - 2, 4, 4)
+      ctx.fillStyle = a.team === 'player' ? CYAN : a.team === 'neutral' ? GOLD : RED; ctx.fillRect(mx + a.x * sx - 2, my + a.y * sy - 2, 4, 4)
     }
     if (s.exit) { ctx.fillStyle = '#97e5c2'; ctx.fillRect(mx + s.exit.x * sx, my + s.exit.y * sy, Math.max(4, s.exit.width * sx), Math.max(3, s.exit.height * sy)) }
     ctx.textAlign = 'center'
@@ -257,7 +257,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const drawBullet = (bullet: Snapshot['projectiles'][number]) => {
     const energy = bullet.rangeRatio
-    const hue = bullet.team === 'player' ? 245 - 55 * energy : (382 - 32 * energy) % 360
+    const hue = bullet.team === 'player' ? 245 - 55 * energy : bullet.team === 'neutral' ? 35 + 15 * energy : (382 - 32 * energy) % 360
     const color = `hsl(${hue}, 90%, ${38 + 42 * energy}%)`
     const halo = `hsla(${hue}, 95%, ${48 + 24 * energy}%, ${0.06 + 0.3 * energy})`
     ctx.save(); ctx.globalAlpha = 0.65 + 0.35 * energy

@@ -620,13 +620,38 @@ body { background: #050a13; color: #c2d3e3; }
 .preset-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px),1fr)); gap: 12px; }
 .preset-list .save-slot { margin: 0; }
 .preset-list h4 { margin: 0; color: #d0eaf5; }
-.quick-editor { display: flex; flex-wrap: wrap; gap: 0 18px; }
-.quick-editor .plan-field { flex-direction: column; align-items: start; }
-.card__queue { border: 1px solid #36566a; border-radius: 7px; padding: 6px 10px; background: #0c1e2b; color: #83b7c5; cursor: pointer; font-size: 11px; margin: 5px 0; }
-.quick-buy { position: fixed; bottom: 57px; left: 50%; transform: translateX(-50%); z-index: 18; max-width: 90vw; }
-.quick-buy[hidden] { display: none !important; }
-.quick-buy__tray { display: flex; gap: 6px; overflow-x: auto; padding: 5px; background: #081320db; border: 1px solid #284758; border-radius: 12px; }
-.quick-buy__card { white-space: nowrap; background: #132c3d; color: #a9e2ed; border: 1px solid #3a6577; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; }
-.quick-buy__card:disabled { opacity: .4; cursor: default; }
-.quick-buy__toggle { display: none; }
-@media (max-width: 700px) { .home__header { flex-wrap: wrap; } .home__nav { overflow-x: auto; max-width: 100%; } .quick-buy { top: 270px; bottom: auto; max-width: calc(100vw - 28px); } .quick-buy__toggle { display: block; margin: 0 auto 6px; background: #0d2030e8; color: #9bc9d8; border: 1px solid #35546a; border-radius: 9px; padding: 8px 14px; font-size: 11px; } .quick-buy__tray { display: none; } .quick-buy.is-open .quick-buy__tray { display: flex; } }
+ .favorite-editor { display: flex; flex-wrap: wrap; gap: 4px; max-height: 250px; overflow-y: auto; }
+.card__queue, .card__favorite { border: 1px solid #36566a; border-radius: 7px; padding: 6px 10px; background: #0c1e2b; color: #83b7c5; cursor: pointer; font-size: 11px; margin: 5px 5px 5px 0; }
+.card__favorite[aria-pressed=true] { color: #f4cc79; border-color: #8a713e; }
+.edge-buy { position: fixed; right: max(18px, env(safe-area-inset-right)); top: 45%; z-index: 38; width: min(240px, 45vw); pointer-events: auto; }
+.edge-buy [hidden], .edge-buy[hidden] { display: none !important; }
+.edge-buy__toggle { float: right; padding: 10px 14px; border-radius: 10px; background: #142c3eeb; color: #edce87; border: 1px solid #6f6543; cursor: pointer; }
+.edge-buy__favorites { clear: both; max-height: 45vh; overflow-y: auto; background: #0b1b2bed; border: 1px solid #39596c; border-radius: 12px; padding: 8px; }
+.edge-buy__favorites button { display: block; width: 100%; padding: 10px 8px; margin: 3px 0; border: 1px solid #34576b; border-radius: 8px; color: #bae7ee; background: #183447; cursor: pointer; }
+.edge-buy__favorites button:disabled { opacity: .45; cursor: default; }
+.edge-buy__favorites p { color: #acc6d7; font-size: 12px; }
+.edge-buy__offer { width: 100%; padding: 16px; text-align: left; border: 1px solid #6cbaa5; border-radius: 14px; background: linear-gradient(125deg, #173d43f5, #102334f5); color: #d2f6ef; box-shadow: 0 8px 32px #0008; cursor: pointer; }
+.edge-buy__offer span, .edge-buy__offer strong { display: block; line-height: 1.6; }
+.edge-buy__offer span { font-size: 11px; color: #93c5c1; }
+.edge-buy__offer strong { font-size: 17px; margin: 5px 0; }
+.edge-buy__offer .edge-buy__countdown { color: #f2d392; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.duel-modes { border: 0; padding: 0; margin: 25px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.duel-modes legend { margin-bottom: 12px; color: #8eb5c8; }
+.duel-modes label { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 8px; border: 1px solid #365367; border-radius: 12px; padding: 16px; background: #102536; cursor: pointer; }
+.duel-modes label:has(input:checked) { border-color: #79d8c9; background: #163c42; }
+.duel-modes strong { color: #d1eef5; font-size: 15px; }
+.duel-modes span { grid-column: 2; font-size: 11px; line-height: 1.7; color: #96b5c7; }
+.duel-shop-button { pointer-events: auto; padding: 6px 12px; font-size: 11px; margin: 0; }
+.duel-shop { position: absolute; inset: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)); z-index: 4; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; background: #091828f5; border: 1px solid #4a697e; border-radius: 18px; pointer-events: auto; overflow: hidden; }
+.duel-shop__header { padding: 14px 24px; border-bottom: 1px solid #284458; }
+.duel-shop__header h2 { margin: 0; color: #c1e8f2; font-size: 20px; }
+.duel-shop__header nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.duel-shop__content { overflow-y: auto; padding: 20px 24px; }
+@media (max-width: 700px) {
+ .home__header { flex-wrap: wrap; } .home__nav { overflow-x: auto; max-width: 100%; }
+ .duel-modes { grid-template-columns: 1fr; } .duel-modes label { padding: 12px; }
+ .duel-shop { inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); }
+ .duel-shop__header, .duel-shop__content { padding: 12px; }
+ .edge-buy { top: 43%; right: max(8px, env(safe-area-inset-right)); width: min(185px, 47vw); }
+ .edge-buy__offer { padding: 10px 12px; } .edge-buy__offer strong { font-size: 14px; }
+}

@@ -151,7 +151,7 @@ export interface Snapshot {
 export function toSnapshot(world: World, viewerId?: number): Snapshot {
   const actors: ActorView[] = []
   const player = viewerId === undefined ? [...world.actors.values()].find((a) => a.team === 'player' && a.alive) : world.actors.get(viewerId)
-  const viewTeam = (team: Team): Team => player?.team === 'enemy' ? team === 'player' ? 'enemy' : 'player' : team
+  const viewTeam = (team: Team): Team => player?.team === 'enemy' && team !== 'neutral' ? team === 'player' ? 'enemy' : 'player' : team
   for (const actor of world.actors.values()) {
     const attrs = combatAttrs(actor)
     actors.push({
@@ -253,7 +253,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
     pickups: world.pickups.map((p) => ({ ...p, pos: { ...p.pos } })),
     effects,
     floaters,
-    shards: world.shards,
+    shards: viewerId === undefined ? world.shards : world.participants?.[viewerId]?.shards ?? world.shards,
     score: world.score,
     roomPhase: world.room.phase,
     roomKind: world.room.kind,

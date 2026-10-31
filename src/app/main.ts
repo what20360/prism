@@ -57,19 +57,21 @@ const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode 
     onUiModeChange: showMode,
     onRunEnd: (summary) => { ui.menu?.close(); testButton.hidden = true; ui.result?.show(summary) },
   })
+  if (!checkpoint) game.setQuickMode(plans.quickMode())
   game.start()
   saves.autoSave()
 }
 const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
-const plans = createPlanManager({ game: () => !duel && game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); quickBuy?.refresh() }, saved: saves.autoSave })
+const plans = createPlanManager({ game: () => duel ? duel.build() : game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); duel?.refresh(); quickBuy?.refresh() }, saved: () => { if (!duel) saves.autoSave() } })
 const quickBuy = createQuickBuy(document.body, {
-  active: () => !duel && Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', slots: plans.quickSlots,
-  cards: () => game?.panelState().cards ?? [], buy: (id) => { if (game?.buyCard(id)) { audio.notify('buy'); saves.autoSave() } },
+  active: () => duel ? duel.active() : Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', mode: plans.quickMode, favorites: plans.favorites,
+  notice: () => duel ? duel.notice() : game?.purchaseNotice() ?? null,
+  cards: () => duel ? duel.cards() : game?.panelState().cards ?? [], buy: (id) => { if (duel ? duel.buy(id) : game?.buyCard(id)) { audio.notify('buy'); if (!duel) saves.autoSave() } },
 })
 const openDuel = () => {
   saves.autoSave(); game?.setUiMode('home'); game?.stop(); home.hide(); ui.menu?.close(); ui.result?.hide(); testButton.hidden = true
   document.body.classList.remove('is-home'); document.body.classList.add('is-duel')
-  duel = createDuelSession({ root: document.body, input, pointer, touch, renderer, leave: () => {
+  duel = createDuelSession({ root: document.body, input, pointer, touch, renderer, plans, settings: () => preferences, onSnapshot: (snapshot, paused) => audio.update(snapshot, paused), leave: () => {
     duel?.dispose(); duel = undefined; document.body.classList.remove('is-duel'); game?.setUiMode('home'); game?.start()
   } })
 }
@@ -84,6 +86,7 @@ home = createHomeMenu(document.body, {
   onDungeon: () => launch('dungeon'), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
 })
 ui.menu = createMenu(document.body, {
+  favorites: plans.favorites, onFavorite: plans.actions.favorite,
   saves: saves.handlers, getSaves: saves.state,
   plans: plans.actions, getPlans: plans.state, onQueue: (id) => { game?.queueUpgrade(id); saves.autoSave(); ui.menu?.open('plans') },
   onClose: () => game?.setUiMode('play'), onRestart: () => game?.restart(), onHome: returnHome,

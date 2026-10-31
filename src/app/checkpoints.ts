@@ -6,7 +6,7 @@ import { array, integer, record, restoreWorld, type WorldData } from '../core/se
 import { resolveAttrs } from '../core/cards'
 import { MAX_SAVE_BYTES } from '../storage/saveStore'
 import type { EndlessCheckpoint } from './modes/endless'
-import { validateTargets, type PurchasePlan } from './upgradePlans'
+import { validateTargets, validateQuickMode, type PurchasePlan } from './upgradePlans'
 export interface RunCheckpoint {
   readonly format: 'prism-save'; readonly version: 1; readonly savedAt: string
   readonly mode: 'dungeon' | 'endless'; readonly initialSeed: number; readonly restarts: number; readonly roomIndex: number
@@ -21,9 +21,10 @@ export function readCheckpoint(text: string): RunCheckpoint {
   if (d.format !== 'prism-save' || d.version !== 1) throw new Error('不支持的存档版本')
   if (d.mode !== 'dungeon' && d.mode !== 'endless') throw new Error('该模式不支持读档')
   if (typeof d.savedAt !== 'string' || d.savedAt.length > 40 || !Number.isFinite(Date.parse(d.savedAt))) throw new Error('存档时间无效')
-  if (d.plan !== undefined) { const plan = record(d.plan); if (typeof plan.enabled !== 'boolean') throw new Error('预购开关无效'); validateTargets(plan.targets) }
+  if (d.plan !== undefined) { const plan = record(d.plan); if (typeof plan.enabled !== 'boolean') throw new Error('预购开关无效'); validateTargets(plan.targets); if (plan.quickMode !== undefined) validateQuickMode(plan.quickMode) }
   integer(d.initialSeed); integer(d.restarts); integer(d.roomIndex, 0, buildDungeon().length - 1)
   const world = restoreWorld(d.world, CARD_REGISTRY, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
+  if (world.participants) throw new Error('联网对局不能作为单人存档导入')
   const player = [...world.actors.values()].find((a) => a.team === 'player')!
   if (!player.alive || world.gameOver || world.victory) throw new Error('此存档中的对局已经结束')
   const resolved = resolveAttrs(world.basePlayerAttrs, world.purchases, CARD_REGISTRY)

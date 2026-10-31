@@ -17,7 +17,7 @@ export function updateTargetLocks(world: World): void {
     const pinned = valid(actor.manualLockId)
     if (pinned) { actor.lockTargetId = pinned.id; continue }
     actor.manualLockId = null
-    if (actor.team === 'enemy') { actor.lockTargetId = nearestOpponent(world, actor, actor.attrs.range || Infinity)?.id ?? null; continue }
+    if (actor.team !== 'player' && !world.participants?.[actor.id]) { actor.lockTargetId = nearestOpponent(world, actor, actor.attrs.range || Infinity)?.id ?? null; continue }
     const aim = actor.intent.aim ?? { x: Math.cos(actor.aimAngle), y: Math.sin(actor.aimAngle) }, angle = Math.atan2(aim.y, aim.x)
     const candidates = opponentsOf(world, actor.team).map((target) => {
       const offset = Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x) - angle
