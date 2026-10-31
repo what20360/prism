@@ -50,6 +50,14 @@ describe('complete run saves', () => {
     const saved = { ...data, world: serializeWorld(a) }
     expect(() => readCheckpoint(JSON.stringify(saved))).not.toThrow()
   })
+  it('retains difficulty, seeded waves and an in-progress warning across a JSON checkpoint', () => {
+    const room = buildDungeon({ seed: 123, difficulty: 7 })[1]!, a = world();
+    a.waves = { index: 1, total: 1 + room.waves!.length, remaining: room.waves!.map((w) => [...w]), countdown: 47, delayTicks: 90 }
+    const data = { ...checkpoint(), difficulty: 7, roomIndex: 1, world: serializeWorld(a) }
+    const saved = readCheckpoint(JSON.stringify(data)), b = restoreWorld(saved.world, CARD_REGISTRY, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
+    expect(saved.difficulty).toBe(7); expect(b.waves).toEqual(a.waves); expect(hashWorld(a)).toBe(hashWorld(b)); expect(b.waves!.countdown).toBe(47)
+    b.waves!.countdown--; expect(hashWorld(a)).not.toBe(hashWorld(b))
+  })
   it('keeps manual slots separate and preserves a saved slot if a later write fails', () => {
     const data = new Map<string, string>(); let fail = false
     const store = createSaveStore({ getItem: (key) => data.get(key) ?? null, setItem: (key, value) => { if (fail) throw new Error('quota'); data.set(key, value) } })

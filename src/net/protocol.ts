@@ -73,7 +73,7 @@ export function decodePacket(text: string): DuelPacket {
   }
   const world = restoreWorld(d.world, CARD_REGISTRY, DUEL_ECONOMY, Object.keys(DUEL_ATTRS)), fixed = state.mode === 'fixed'
   if (!world.participants || Object.keys(world.participants).join(',') !== '1,2' || world.actors.get(1)?.team !== 'player' || world.actors.get(2)?.team !== 'enemy' ||
-    world.actors.size > 2 + DUEL_RULES.monsterLimit || world.projectiles.length > DUEL_RULES.projectileLimit || world.mines.length > DUEL_RULES.mineLimit || world.purchases.length || world.pendingSpawns.length || world.pickups.length > DUEL_RULES.pickupLimit) throw new Error('对战世界无效')
+    world.actors.size > 2 + DUEL_RULES.monsterLimit || world.projectiles.length > DUEL_RULES.projectileLimit || world.mines.length > DUEL_RULES.mineLimit || world.purchases.length || world.waves || world.pendingSpawns.length || world.pickups.length > DUEL_RULES.pickupLimit) throw new Error('对战世界无效')
   if (state.mode !== 'resource' && (world.actors.size !== 2 || world.pickups.length)) throw new Error('此模式不刷新资源')
   if ([...world.actors.values()].some((a) => a.id > 2 && a.team !== 'neutral')) throw new Error('怪物阵营无效')
   const base = fixed ? DUEL_ATTRS : DUEL_BUILD_ATTRS

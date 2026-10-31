@@ -1,7 +1,7 @@
 import { distance } from '../collision'
 import type { Rect } from '../types'
 import type { World } from '../world'
-import { tryGetPlayer } from '../world'
+import { tryGetPlayer, spawnEnemy } from '../world'
 
 /** Exit sits at the top-centre of every non-boss room. */
 export const EXIT_RECT: Rect = { x: 1480, y: 60, width: 240, height: 140 }
@@ -14,6 +14,15 @@ export function updateRoom(world: World): void {
 
   for (const actor of world.actors.values()) {
     if (actor.alive && actor.team === 'enemy') return
+  }
+
+  if (world.waves?.remaining.length) {
+    if (world.waves.countdown === 0) { world.waves.countdown = world.waves.delayTicks; return }
+    if (--world.waves.countdown > 0) return
+    for (const [id, actor] of world.actors) if (actor.team === 'enemy' && !actor.alive) world.actors.delete(id)
+    for (const spec of world.waves.remaining.shift()!) spawnEnemy(world, spec)
+    world.waves.index++
+    return
   }
 
   world.roomCleared = true

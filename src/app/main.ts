@@ -20,6 +20,7 @@ import { createSaveManager } from './saveManager'
 import { createDuelSession } from './duelSession'
 import { createPlanManager } from './planManager'
 import { createQuickBuy } from '../ui/quickBuy'
+import type { DungeonDifficulty } from '../content/difficulties'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) throw new Error('missing #game canvas')
@@ -46,22 +47,24 @@ const showMode = (mode: UiMode) => {
   else if (mode === 'menu') { home.hide(); ui.menu?.open() }
   else { home.hide(); ui.menu?.close() }
 }
-const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number, checkpoint?: RunCheckpoint) => {
+const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number, checkpoint?: RunCheckpoint, difficulty: DungeonDifficulty = 1) => {
   saves.autoSave()
   game?.dispose(); input.reset(); pointer.reset(); touch.reset(); ui.result?.hide(); ui.menu?.close(); home.hide()
   const mode = kind === 'practice' ? createPracticeMode() : undefined, endless = kind === 'endless' ? createEndlessMode() : undefined
-  game = createGame({ rooms: mode ? [mode.room()] : endless ? [endless.room()] : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: seed ?? 20261029 + ++sessionCounter * 997,
+  const worldSeed = seed ?? (kind === 'dungeon' ? crypto.getRandomValues(new Uint32Array(1))[0]! : 20261029 + ++sessionCounter * 997)
+  const selectedDifficulty = kind !== 'dungeon' ? undefined : checkpoint ? checkpoint.difficulty : difficulty
+  game = createGame({ rooms: mode ? [mode.room()] : endless ? [endless.room()] : selectedDifficulty ? buildDungeon({ seed: worldSeed, difficulty: selectedDifficulty }) : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: worldSeed, difficulty: selectedDifficulty,
     economy: DEFAULT_ECONOMY, registry: CARD_REGISTRY, playerAttrs: PLAYER_BASE_ATTRS, input, pointer, touch, renderer,
     initialSettings: preferences, initialUiMode, practice: mode, endless, checkpoint, onSettingsChange: saveSettings,
     onSnapshot: (snapshot, paused) => { touch.update(snapshot, paused); audio.update(snapshot, paused) },
     onUiModeChange: showMode,
     onRunEnd: (summary) => { ui.menu?.close(); testButton.hidden = true; ui.result?.show(summary) },
   })
-  if (!checkpoint) game.setQuickMode(plans.quickMode())
+  if (!checkpoint?.plan?.quickMode) game.setQuickMode(plans.quickMode())
   game.start()
   saves.autoSave()
 }
-const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
+const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, setCurrentName: (name) => game?.setSaveName(name), load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
 const plans = createPlanManager({ game: () => duel ? duel.build() : game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); duel?.refresh(); quickBuy?.refresh() }, saved: () => { if (!duel) saves.autoSave() } })
 const quickBuy = createQuickBuy(document.body, {
   active: () => duel ? duel.active() : Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', mode: plans.quickMode, favorites: plans.favorites,
@@ -83,7 +86,7 @@ home = createHomeMenu(document.body, {
     return { canResume: session?.canResume ?? false, practice: session?.practice ?? false, endless: session?.endless ?? false, attrs,
       settings: { ...preferences, aimMode: attrs.autoAim > 0 ? preferences.aimMode : 'manual', fireMode: attrs.autoFire > 0 ? preferences.fireMode : 'manual' } }
   },
-  onDungeon: () => launch('dungeon'), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
+  onDungeon: (seed, difficulty) => launch('dungeon', 'play', seed, undefined, difficulty), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
 })
 ui.menu = createMenu(document.body, {
   favorites: plans.favorites, onFavorite: plans.actions.favorite,

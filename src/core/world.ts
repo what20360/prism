@@ -177,6 +177,7 @@ export interface RunStats {
 
 /** Optional independent progression for externally controlled combatants. */
 export interface PlayerProgress { shards: number; purchases: Purchase[]; revivesUsed: number }
+export interface WaveState { index: number; total: number; remaining: EnemySpawnSpec[][]; countdown: number; delayTicks: number }
 
 export interface World {
   tick: number
@@ -210,6 +211,7 @@ export interface World {
   participants?: Record<number, PlayerProgress>
   resourceDrops?: boolean
   monsterShardDrop?: number
+  waves?: WaveState
 }
 
 export function progressOf(world: World, actorId?: number): PlayerProgress {
@@ -226,6 +228,8 @@ export interface RoomTemplate {
   readonly entry: Vec2
   /** Omit for seeded room resources; [] gives a clean testing scene. */
   readonly pickups?: readonly PickupSpawnSpec[]
+  /** Additional waves after spawns; omitted for legacy single-wave rooms. */
+  readonly waves?: readonly (readonly EnemySpawnSpec[])[]
 }
 
 export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number }
@@ -311,8 +315,13 @@ export function createWorld(options: CreateWorldOptions): World {
   for (const spawn of options.room.spawns) {
     spawnEnemy(world, spawn)
   }
+  configureRoomWaves(world, options.room)
 
   return world
+}
+
+export function configureRoomWaves(world: World, room: RoomTemplate): void {
+  world.waves = room.waves === undefined ? undefined : { index: 1, total: room.waves.length + 1, remaining: room.waves.map((wave) => [...wave]), countdown: 0, delayTicks: 90 }
 }
 
 interface CreateActorSpec {

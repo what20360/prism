@@ -1,6 +1,6 @@
 import { shieldCap } from './attrs'
 import type { RoomTemplate, World } from './world'
-import { getPlayer, spawnEnemy } from './world'
+import { getPlayer, spawnEnemy, configureRoomWaves } from './world'
 import { populateRoomPickups } from './roomResources'
 
 export type RoomSpec = RoomTemplate
@@ -32,6 +32,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
   world.playerTookHit = false
   world.exitReached = false
   world.pendingSpawns = [...room.spawns]
+  configureRoomWaves(world, room)
 
   const player = getPlayer(world)
   player.pos = room.entry

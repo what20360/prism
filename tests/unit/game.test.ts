@@ -115,6 +115,15 @@ describe('game lifecycle', () => {
     expect(game.setPlan([{ id: 'unknown', level: 1 }])).toBe(false); expect(game.queueUpgrade('ricochet', 2)).toBe(false)
     game.dispose()
   })
+  it('grants the dungeon starting budget once and retains difficulty and seed on restart', () => {
+    const { game } = idleGame({ difficulty: 7, seed: 8765 })
+    expect(game.debug().shards).toBe(200); game.buyCard('gun-damage'); expect(game.debug().shards).toBe(190)
+    const saved = readCheckpoint(JSON.stringify(game.checkpoint())); game.dispose()
+    const loaded = idleGame({ checkpoint: saved, difficulty: saved.difficulty, seed: saved.initialSeed }).game
+    expect(loaded.debug().shards).toBe(190); expect(loaded.panelState().dungeon?.difficulty).toBe(7)
+    loaded.restart(); expect(loaded.debug().shards).toBe(200)
+    expect(readCheckpoint(JSON.stringify(loaded.checkpoint())).world.seed).toBe(8765); loaded.dispose()
+  })
   it('restores a live run and its paused purchase plan without catching up or regenerating resources', () => {
     const { game } = idleGame(); game.start(); advance(1000); advance(1200); game.buyCard('gun-damage'); game.queueUpgrade('gun-range', 2); game.setAutoBuy(false)
     const checkpoint = readCheckpoint(JSON.stringify(game.checkpoint())), tick = game.debug().tick

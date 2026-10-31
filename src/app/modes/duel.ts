@@ -20,7 +20,7 @@ export interface DuelMatch {
 export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMatch {
   let round = 0, phase: DuelPhase = 'preparing', wins: [number, number] = [0, 0], ready: [boolean, boolean] = [false, false]
   let countdown = 0, remaining = DUEL_RULES.roundTicks as number, winner: DuelWinner = null
-  let plans: [PurchasePlan, PurchasePlan] = [{ enabled: true, targets: [] }, { enabled: true, targets: [] }]
+  const plans: [PurchasePlan, PurchasePlan] = [{ enabled: true, targets: [], quickMode: 'planned' }, { enabled: true, targets: [], quickMode: 'planned' }]
   const queues = [createPurchaseQueue(), createPurchaseQueue()] as const
   const offersVisible = [true, true]
   let notices: [PurchaseNotice | null, PurchaseNotice | null] = [null, null], resourceAt = 0, monsterAt = 0

@@ -126,6 +126,7 @@ export interface HudStats {
 
 /** Read-only view handed to render/ and ui/. Never mutated by consumers. */
 export interface Snapshot {
+  readonly wave?: { readonly index: number; readonly total: number; readonly countdown: number; readonly spawns: readonly { x: number; y: number; radius: number }[] }
   readonly tick: number
   readonly bounds: Rect
   readonly walls: readonly Rect[]
@@ -244,6 +245,8 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   }))
 
   return {
+    wave: world.waves ? { index: world.waves.index, total: world.waves.total, countdown: world.waves.countdown,
+      spawns: world.waves.countdown ? (world.waves.remaining[0] ?? []).map((s) => ({ ...s.pos, radius: s.attrs.radius })) : [] } : undefined,
     tick: world.tick,
     bounds: world.room.bounds,
     walls: world.room.walls,

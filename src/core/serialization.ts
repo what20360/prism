@@ -90,6 +90,12 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   }
   if (playerCount !== 1) throw new Error('玩家数量无效')
   for (const s of array(d.pendingSpawns, 2000)) spawn(s)
+  if (d.waves !== undefined) {
+    const waves = record(d.waves), remaining = array(waves.remaining, 24)
+    integer(waves.index, 1, 25); integer(waves.total, 1, 25); integer(waves.countdown, 0, 600); integer(waves.delayTicks, 1, 600)
+    if (Number(waves.index) + remaining.length !== waves.total) throw new Error('波次进度无效')
+    for (const wave of remaining) { const enemies = array(wave, 200); if (!enemies.length) throw new Error('敌人波次为空'); for (const spec of enemies) spawn(spec) }
+  }
   for (const value of array(d.projectiles, 4000)) {
     const p = entity(value); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
     numbers(p, 'radius damage penetration innerMult travelLeft'); integer(p.pierceLeft)

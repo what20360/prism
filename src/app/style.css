@@ -655,3 +655,10 @@ body { background: #050a13; color: #c2d3e3; }
  .edge-buy { top: 43%; right: max(8px, env(safe-area-inset-right)); width: min(185px, 47vw); }
  .edge-buy__offer { padding: 10px 12px; } .edge-buy__offer strong { font-size: 14px; }
 }
+.home__setup { padding: 12px 16px; border: 1px solid #29495f; background: #0b1c2dd9; border-radius: 12px; }
+.home__setup .home__seed { margin: 5px 0 12px; }
+.home__setup .home__seed select { min-width: 120px; padding: 9px 12px; background: #0a1827; border: 1px solid #39576d; color: #d4e9f5; border-radius: 8px; font: inherit; }
+.home__setup .settings__hint { margin: 10px 0 3px; }
+.save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid #223d50; padding-top: 12px; margin-top: 10px; }
+.save-rename label { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; font-size: 12px; color: #8bb0c4; }
+.save-rename input { width: min(240px, 60vw); color: #d4e9f5; background: #0a1827; border: 1px solid #39576d; border-radius: 8px; padding: 9px 12px; font: inherit; }

@@ -4,6 +4,7 @@ import type { RunCheckpoint } from './checkpoints'
 import { restoreWorld, serializeWorld } from '../core/serialization'
 import { validateTargets, moveTarget, removeTarget, type PurchasePlan, type UpgradeTarget, type QuickMode } from './upgradePlans'
 import { createPurchaseQueue, type PurchaseNotice } from './purchaseQueue'
+import { DUNGEON_START_SHARDS, difficultyName, type DungeonDifficulty } from '../content/difficulties'
 import { combatAttrs } from '../core/combat'
 import { equipSkill as equipSkillInWorld, SKILL_IDS, unlocked } from '../core/systems/skills'
 import { toSkillView, type SkillView } from '../core/snapshot'
@@ -40,6 +41,7 @@ export type { AimMode, FireMode, ControlSettings, SettingKey } from '../storage/
 export type UiMode = 'play' | 'menu' | 'home'
 
 export interface PanelState {
+  readonly dungeon?: { readonly difficulty: DungeonDifficulty; readonly seed: number; readonly wave: number; readonly waves: number }
   readonly shards: number
   readonly cards: readonly CardState[]
   readonly player: PlayerView
@@ -51,6 +53,7 @@ export interface PanelState {
 }
 
 export interface RunSummary {
+  readonly difficulty?: DungeonDifficulty
   readonly victory: boolean
   readonly practice?: boolean
   readonly endless?: boolean
@@ -66,6 +69,7 @@ export interface RunSummary {
 }
 
 export interface GameOptions {
+  readonly difficulty?: DungeonDifficulty
   readonly rooms: readonly RoomSpec[]
   readonly roomsPerFloor: number
   readonly seed: number
@@ -96,6 +100,7 @@ export interface Game {
   setAutoBuy(enabled: boolean): void
   setQuickMode(mode: QuickMode): void
   purchaseNotice(): PurchaseNotice | null
+  setSaveName(name: string | undefined): void
   checkpoint(): RunCheckpoint | null
   start(): void
   stop(): void
@@ -154,6 +159,7 @@ export function createGame(options: GameOptions): Game {
     })
     options.practice?.initialize(created)
     options.endless?.initialize(created)
+    if (options.difficulty !== undefined) created.shards = DUNGEON_START_SHARDS
     return created
   }
 
@@ -164,6 +170,7 @@ export function createGame(options: GameOptions): Game {
   let plan: PurchasePlan = options.checkpoint?.plan ? structuredClone(options.checkpoint.plan) : { enabled: true, targets: [] }
   const purchaseQueue = createPurchaseQueue()
   let purchaseNotice: PurchaseNotice | null = null
+  let saveName = options.checkpoint?.name
 
   const intents = new Map<EntityId, ReturnType<IntentSource['read']>>()
 
@@ -178,6 +185,7 @@ export function createGame(options: GameOptions): Game {
   let fps = 0
 
   const summary = (): RunSummary => ({
+    difficulty: options.difficulty,
     victory: world.victory,
     practice: Boolean(options.practice),
     endless: Boolean(options.endless), seed: world.seed,
@@ -196,9 +204,10 @@ export function createGame(options: GameOptions): Game {
     restarts += 1
     roomIndex = 0
     runEnded = false
-    plan = { enabled: true, targets: [] }
+    plan = { enabled: true, targets: [], quickMode: plan.quickMode }
+    saveName = undefined
     purchaseQueue.reset(); purchaseNotice = null
-    world = spawnWorld(options.endless ? options.seed : options.seed + restarts)
+    world = spawnWorld(options.endless || options.difficulty !== undefined ? options.seed : options.seed + restarts)
     playerId = getPlayer(world).id
     intents.clear()
     options.input.reset()
@@ -314,9 +323,9 @@ export function createGame(options: GameOptions): Game {
     }
 
     const endless = options.endless?.state(world)
-    const label = options.practice ? '测试场' : endless ? `无尽 · 第 ${endless.floor} 层` : `F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
+    const label = options.practice ? '测试场' : endless ? `无尽 · 第 ${endless.floor} 层` : `${options.difficulty ? `D${difficultyName(options.difficulty)} · ` : ''}F${Math.floor(roomIndex / options.roomsPerFloor) + 1}-${(roomIndex % options.roomsPerFloor) + 1}`
     const snapshot = toSnapshot(world)
-    options.renderer.draw(snapshot, { fps, label, practice: options.practice?.state(world), endless })
+    options.renderer.draw(snapshot, { fps, label, practice: options.practice?.state(world), endless, seed: options.difficulty ? options.seed : undefined })
     options.onSnapshot?.(snapshot, world.paused)
     frameHandle = requestAnimationFrame(frame)
   }
@@ -362,6 +371,7 @@ export function createGame(options: GameOptions): Game {
     const player = getPlayer(world)
     const practice = options.practice?.state(world)
     return {
+      dungeon: options.difficulty ? { difficulty: options.difficulty, seed: options.seed, wave: world.waves?.index ?? 1, waves: world.waves?.total ?? 1 } : undefined,
       shards: Math.floor(world.shards),
       cards: listCardStates(world).map((card) => practice?.config.freeCards && card.availability === 'not-enough-shards' && Number.isFinite(card.price)
         ? { ...card, availability: 'ok' as const } : card),
@@ -426,6 +436,8 @@ export function createGame(options: GameOptions): Game {
   const checkpoint = (): RunCheckpoint | null => options.practice || !hasStarted || world.gameOver || world.victory ? null : ({
     format: 'prism-save', version: 1, savedAt: new Date().toISOString(), mode: options.endless ? 'endless' : 'dungeon',
     initialSeed: options.seed, restarts, roomIndex, world: serializeWorld(world), endless: options.endless?.checkpoint(),
+    difficulty: options.difficulty,
+    name: saveName,
     plan: structuredClone(plan),
   })
   const setPlan = (targets: readonly UpgradeTarget[]): boolean => { try { plan.targets = validateTargets(targets); purchaseQueue.reset(); purchaseNotice = null; return true } catch { return false } }
@@ -436,6 +448,7 @@ export function createGame(options: GameOptions): Game {
   return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, checkpoint,
     plan: () => structuredClone(plan), queueUpgrade, setPlan, setAutoBuy: (enabled) => { plan.enabled = enabled; purchaseQueue.reset() },
     setQuickMode: (mode) => { plan.quickMode = mode; purchaseQueue.reset(); purchaseNotice = null }, purchaseNotice: () => purchaseNotice,
+    setSaveName: (name) => { saveName = name },
     moveQueued: (index, direction) => { plan.targets = moveTarget(plan.targets, index, direction); purchaseQueue.reset() },
     removeQueued: (index) => { plan.targets = removeTarget(plan.targets, index, (id) => purchaseLevel(world.purchases, id)); purchaseQueue.reset() },
     session: () => ({ canResume: hasStarted && !world.gameOver && !world.victory, practice: Boolean(options.practice), endless: Boolean(options.endless) }), practiceAction, equipSkill: (slot, id) => uiMode === 'menu' && equipSkillInWorld(getPlayer(world), slot, id), setSetting, panelState, debug }

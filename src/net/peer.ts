@@ -37,7 +37,7 @@ export function createDuelPeer(options: { status: (state: PeerStatus) => void; m
     const cancel = () => done()
     const timer = setTimeout(done, 8000); pending.add(cancel); pc.addEventListener('icegatheringstatechange', change)
   })
-  const localCode = async (type: Signal['type']) => { await gathered(); if (closed || !pc.localDescription?.sdp) throw new Error('未能生成连接代码'); report('waiting'); return encodeSignal({ format: 'prism-duel', version: 1, id: sessionId, type, sdp: pc.localDescription.sdp }) }
+  const localCode = async (type: Signal['type']) => { await gathered(); if (closed || !pc.localDescription?.sdp) throw new Error('未能生成连接代码'); if (!pc.localDescription.sdp.includes('a=candidate:')) throw new Error('未获得可直连的网络地址，请尝试允许 WebRTC 的浏览器或更换网络。'); report('waiting'); return encodeSignal({ format: 'prism-duel', version: 1, id: sessionId, type, sdp: pc.localDescription.sdp }) }
   return {
     offer: async () => { report('gathering'); sessionId = crypto.randomUUID(); attach(pc.createDataChannel('prism-1v1-v1', { ordered: true })); await pc.setLocalDescription(await pc.createOffer()); return localCode('offer') },
     answer: async (code) => { const invite = decodeSignal(code, 'offer'); sessionId = invite.id; report('gathering'); await pc.setRemoteDescription({ type: 'offer', sdp: invite.sdp }); await pc.setLocalDescription(await pc.createAnswer()); return localCode('answer') },

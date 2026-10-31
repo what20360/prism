@@ -2,6 +2,9 @@ import type { RoomSpec } from '../core/dungeon'
 import type { Rect } from '../core/types'
 import type { EnemySpawnSpec } from '../core/world'
 import type { Vec2 } from '../core/types'
+import { createRng, nextFloat, nextInt, type Rng } from '../core/rng'
+import { resolveSpawnPosition, circleIntersectsRect } from '../core/collision'
+import { dungeonProfile, dungeonDifficulty, type DungeonDifficulty } from './difficulties'
 import { ENEMIES } from './enemies'
 
 const ENTRY: Vec2 = { x: 1600, y: 1560 }
@@ -89,7 +92,7 @@ function guardSpawns(floor: number): EnemySpawnSpec[] {
  * Linear dungeon: 5 floors x 5 rooms (safe, 3 combat, guard) + one boss room.
  * Pure function of constants, so the layout is identical across runs.
  */
-export function buildDungeon(): RoomSpec[] {
+function legacyDungeon(): RoomSpec[] {
   const rooms: RoomSpec[] = []
 
   for (let floor = 0; floor < 5; floor += 1) {
@@ -120,3 +123,44 @@ export function buildDungeon(): RoomSpec[] {
 }
 
 export const ROOMS_PER_FLOOR = 5
+
+export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
+function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = []): EnemySpawnSpec[] {
+  const profile = dungeonProfile(difficulty, depth), placed: EnemySpawnSpec[] = []
+  for (let i = 0; i < count; i++) {
+    const source = original[i % original.length]!, factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
+    const attrs = { ...source.attrs, maxHp: source.attrs.maxHp * profile.hp * factor, damage: source.attrs.damage * profile.damage * factor,
+      armor: source.attrs.armor + profile.armor, speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,
+      fireRate: source.attrs.fireRate * profile.fireRate }
+    let pos = source.pos
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const candidate = resolveSpawnPosition({ x: nextInt(rng, 180, 3020), y: nextInt(rng, 180, 1340) }, attrs.radius + 4, walls, ARENA)
+      if (!walls.some((w) => circleIntersectsRect(candidate.x, candidate.y, attrs.radius + 4, w)) && Math.hypot(candidate.x - ENTRY.x, candidate.y - ENTRY.y) > 360 && [...reserved, ...placed].every((s) => Math.hypot(candidate.x - s.pos.x, candidate.y - s.pos.y) > s.attrs.radius + attrs.radius + 35)) { pos = candidate; break }
+    }
+    pos = resolveSpawnPosition(pos, attrs.radius + 4, walls, ARENA)
+    placed.push({ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor })
+  }
+  return placed
+}
+/** Same seed and difficulty produce identical complete room/wave specifications. */
+export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
+  if (!options) return legacyDungeon()
+  const difficulty = dungeonDifficulty(options.difficulty), rng = createRng(options.seed)
+  return legacyDungeon().map((room, index) => {
+    if (room.kind === 'safe') return room
+    const depth = index / ROOMS_PER_FLOOR, profile = dungeonProfile(difficulty, depth)
+    const walls = room.kind === 'boss' ? [] : WALL_SETS[nextInt(rng, 0, WALL_SETS.length)]!
+    const count = Math.ceil(room.spawns.length * profile.count), waves: EnemySpawnSpec[][] = []
+    for (let wave = 0; wave < profile.waves; wave++) {
+      if (room.kind === 'boss' && difficulty > 1) {
+        const final = wave === profile.waves - 1
+        if (final) {
+          const boss = populateWave(room.spawns, 1, depth, difficulty, walls, rng)
+          const adds = populateWave(combatSpawns(4, 3), Math.ceil((difficulty - 1) * 0.7), depth, difficulty, walls, rng, boss)
+          waves.push([...boss, ...adds])
+        } else waves.push(populateWave(guardSpawns(4), Math.ceil(3 * profile.count), depth, difficulty, walls, rng))
+      } else waves.push(populateWave(room.spawns, count, depth, difficulty, walls, rng))
+    }
+    return { ...room, walls, spawns: waves[0]!, waves: waves.slice(1) }
+  })
+}

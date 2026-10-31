@@ -5,6 +5,7 @@ import { renderSettingsSection } from './sections/settings'
 import { worldSeed } from '../app/modes/endless'
 import { renderSavesSection, type SavesHandlers, type SavesState } from './sections/saves'
 import { renderPlansSection, type PlansHandlers, type PlanView } from './sections/plans'
+import { DIFFICULTIES, DUNGEON_START_SHARDS, type DungeonDifficulty } from '../content/difficulties'
 export interface HomeState { readonly canResume: boolean; readonly practice: boolean; readonly endless?: boolean; readonly settings: ControlSettings; readonly attrs: AttrSet }
 export interface HomeHandlers {
   readonly saves?: SavesHandlers
@@ -13,7 +14,7 @@ export interface HomeHandlers {
   readonly plans?: PlansHandlers
   readonly getPlans?: () => PlanView
   readonly getState: () => HomeState
-  readonly onDungeon: () => void
+  readonly onDungeon: (seed: number, difficulty: DungeonDifficulty) => void
   readonly onPractice: () => void
   readonly onEndless: (seed: number) => void
   readonly onResume: () => void
@@ -28,6 +29,7 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
   const content = document.createElement('div'); content.className = 'home__content'; overlay.append(header, content); root.append(overlay)
   let page: 'hub' | 'help' | 'settings' | 'saves' | 'plans' = 'hub'
   let seedText = '20261030'
+  let dungeonSeedText = String(crypto.getRandomValues(new Uint32Array(1))[0]!), difficulty: DungeonDifficulty = 1
   const tabs = new Map<string, HTMLButtonElement>()
   const select = (next: typeof page) => { page = next; render(); content.scrollTop = 0 }
   for (const [id, label] of [['hub', '主页'], ['help', '帮助'], ['settings', '设置'], ['saves', '存档'], ['plans', '预设']] as const) {
@@ -57,7 +59,17 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
     hero.append(eyebrow, emblem, title, tagline, description)
     const actions = document.createElement('section'); actions.className = 'home__actions'; actions.setAttribute('aria-label', '游戏入口')
     if (state.canResume) actions.append(action('继续本局', state.practice ? '返回当前测试场，保留构筑与场景' : state.endless ? '继续当前种子的无尽探索' : '从暂停处继续闯关', 'home__action--resume', handlers.onResume))
-    actions.append(action('开始闯关', '从安全房出发，探索地牢与构筑', 'home__action--primary', handlers.onDungeon), action('测试模式', '自由构筑 · 靶机测试 · 敌人演练', 'home__action--practice', handlers.onPractice))
+    const setup = document.createElement('div'); setup.className = 'home__setup'
+    const difficultyLabel = document.createElement('label'); difficultyLabel.className = 'home__seed'; difficultyLabel.textContent = '闯关难度'
+    const level = document.createElement('select'); level.setAttribute('aria-label', '闯关难度')
+    for (const [index, name] of DIFFICULTIES.entries()) { const option = document.createElement('option'); option.value = String(index + 1); option.textContent = `${index + 1} · ${name}`; level.append(option) }
+    level.value = String(difficulty); level.onchange = () => { difficulty = Number(level.value) as DungeonDifficulty }; difficultyLabel.append(level)
+    const dungeonSeedLabel = document.createElement('label'); dungeonSeedLabel.className = 'home__seed'; dungeonSeedLabel.textContent = '闯关世界种子'
+    const dungeonSeed = document.createElement('input'); dungeonSeed.type = 'text'; dungeonSeed.value = dungeonSeedText; dungeonSeed.maxLength = 80; dungeonSeed.setAttribute('aria-label', '闯关世界种子'); dungeonSeed.oninput = () => { dungeonSeedText = dungeonSeed.value }; dungeonSeedLabel.append(dungeonSeed)
+    const random = document.createElement('button'); random.type = 'button'; random.className = 'settings__option'; random.textContent = '随机闯关种子'; random.onclick = () => { dungeonSeedText = String(crypto.getRandomValues(new Uint32Array(1))[0]!); dungeonSeed.value = dungeonSeedText }
+    const hint = document.createElement('p'); hint.className = 'settings__hint'; hint.textContent = `开局 ${DUNGEON_START_SHARDS} 棱晶 · 1档标准，7档绝境挑战；深入后怪物与波次继续增强。`
+    setup.append(difficultyLabel, dungeonSeedLabel, random, hint)
+    actions.append(setup, action('开始闯关', '种子地牢 · 七档难度 · 波次挑战', 'home__action--primary', () => { if (!dungeonSeedText.trim()) dungeonSeedText = String(crypto.getRandomValues(new Uint32Array(1))[0]!); handlers.onDungeon(worldSeed(dungeonSeedText), difficulty) }), action('测试模式', '自由构筑 · 靶机测试 · 敌人演练', 'home__action--practice', handlers.onPractice))
     const seedLabel = document.createElement('label'); seedLabel.className = 'home__seed'; seedLabel.textContent = '无尽世界种子'
     const seed = document.createElement('input'); seed.type = 'text'; seed.value = seedText; seed.maxLength = 80; seed.setAttribute('aria-label', '无尽世界种子'); seed.oninput = () => { seedText = seed.value }; seedLabel.append(seed)
     actions.append(seedLabel, action('无尽模式', '种子生成 · 清场推进 · 每五层可跳过战斗', 'home__action--endless', () => handlers.onEndless(worldSeed(seed.value))))

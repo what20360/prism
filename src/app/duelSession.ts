@@ -71,7 +71,7 @@ export function createDuelSession(options: { root: HTMLElement; input: IntentSou
       const output = await (kind === 'host' ? active.peer.offer() : active.peer.answer(code))
       if (disposed || token !== generation) return
       panel.showLobby(kind === 'host' ? '邀请已生成。请发送给朋友，并粘贴朋友返回的回应代码。' : '回应已生成。请发回房主，等待房主确认连接。', kind, false, output)
-    } catch (error) { if (!disposed && token === generation) panel.showLobby(error instanceof Error ? error.message : '连接失败，请重试', kind) }
+    } catch (error) { if (!disposed && token === generation) { peer?.close(); peer = undefined; role = null; panel.showLobby(error instanceof Error ? error.message : '连接失败，请重试', null) } }
   }
   const seat = () => role === 'host' ? 0 : 1
   const canBuild = () => Boolean(connected && world && state && state.mode !== 'fixed' && ['preparing', 'round-over', 'fighting'].includes(state.phase) && (state.phase === 'fighting' || !state.ready[seat()]))

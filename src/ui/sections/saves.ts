@@ -1,10 +1,11 @@
 export type SlotId = 'auto' | 'slot-1' | 'slot-2' | 'slot-3'
-export interface SlotView { readonly id: SlotId; readonly label: string; readonly detail: string; readonly savedAt?: string; readonly available: boolean }
+export interface SlotView { readonly id: SlotId; readonly label: string; readonly name?: string; readonly detail: string; readonly savedAt?: string; readonly available: boolean }
 export interface SavesState { readonly slots: readonly SlotView[]; readonly canSave: boolean; readonly message: string }
 export interface SavesHandlers {
   readonly onExportCurrent: () => void
   readonly onSave: (slot: SlotId) => void; readonly onLoad: (slot: SlotId) => void; readonly onExport: (slot: SlotId) => void
   readonly onImport: (slot: SlotId, file: File) => void
+  readonly onRename: (slot: SlotId, name: string) => void
 }
 export function renderSavesSection(state: SavesState, handlers: SavesHandlers): HTMLElement {
   const root = document.createElement('section'); root.className = 'saves-page'
@@ -15,7 +16,7 @@ export function renderSavesSection(state: SavesState, handlers: SavesHandlers): 
   const exportCurrent = document.createElement('button'); exportCurrent.type = 'button'; exportCurrent.className = 'settings__option'; exportCurrent.textContent = '导出当前进度'; exportCurrent.disabled = !state.canSave; exportCurrent.onclick = handlers.onExportCurrent; root.append(exportCurrent)
   for (const slot of state.slots) {
     const card = document.createElement('article'); card.className = 'save-slot'
-    const name = document.createElement('h3'); name.textContent = slot.label
+    const name = document.createElement('h3'); name.textContent = slot.name ? `${slot.label} · ${slot.name}` : slot.label
     const detail = document.createElement('p'); detail.textContent = slot.detail
     const date = document.createElement('p'); date.className = 'settings__hint'; date.textContent = slot.savedAt ? new Date(slot.savedAt).toLocaleString() : '尚未保存'
     const actions = document.createElement('div'); actions.className = 'save-slot__actions'
@@ -29,7 +30,14 @@ export function renderSavesSection(state: SavesState, handlers: SavesHandlers): 
       button(`导入到${slot.label}`, false, () => input.click()); actions.append(input)
     }
     card.append(name, detail, date, actions); root.append(card)
+    if (slot.available) {
+      const rename = document.createElement('form'); rename.className = 'save-rename'
+      const label = document.createElement('label'); label.textContent = '存档名'
+      const field = document.createElement('input'); field.type = 'text'; field.maxLength = 40; field.required = true; field.value = slot.name ?? slot.label; field.setAttribute('aria-label', `${slot.label}名称`); label.append(field)
+      const apply = document.createElement('button'); apply.type = 'submit'; apply.className = 'settings__option'; apply.textContent = `重命名${slot.label}`
+      rename.onsubmit = (event) => { event.preventDefault(); if (field.reportValidity()) handlers.onRename(slot.id, field.value) }; rename.append(label, apply); card.append(rename)
+    }
   }
-  const note = document.createElement('p'); note.className = 'settings__hint'; note.textContent = '存档保存在当前浏览器，清理网站数据会移除它们。导出 JSON 可备份或转移设备；导入仅替换所选槽位，读取后才会替换当前局。控制与声音设置继续使用本机偏好。'
+  const note = document.createElement('p'); note.className = 'settings__hint'; note.textContent = '可重命名已有存档，覆盖保存/导入保留所选槽位原名；导入空槽使用文件中的名称，导出文件包含存档名。存档保存在当前浏览器，清理网站数据会移除它们。导入读取后才替换当前局，控制与声音设置继续使用本机偏好。'
   root.append(note); return root
 }

@@ -231,3 +231,44 @@ describe('boss', () => {
     expect(playerBullets).toHaveLength(0)
   })
 })
+
+describe('seeded seven-level dungeon', () => {
+  const allSpawns = (room: RoomTemplate) => [room.spawns, ...(room.waves ?? [])].flat()
+  it('reproduces layouts, spawn positions, stats and waves from the same seed and difficulty', () => {
+    const a = buildDungeon({ seed: 765, difficulty: 5 })
+    expect(a).toEqual(buildDungeon({ seed: 765, difficulty: 5 })); expect(a).not.toEqual(buildDungeon({ seed: 766, difficulty: 5 }))
+  })
+  it('keeps the easiest enemy stats, count and single-wave rules at baseline', () => {
+    const baseline = buildDungeon(), easy = buildDungeon({ seed: 4123, difficulty: 1 })
+    for (let i = 0; i < easy.length; i++) {
+      expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length).toBe(baseline[i]!.spawns.length); expect(easy[i]!.waves ?? []).toHaveLength(0)
+      for (let j = 0; j < easy[i]!.spawns.length; j++) { expect(easy[i]!.spawns[j]!.attrs).toEqual(baseline[i]!.spawns[j]!.attrs); expect(easy[i]!.spawns[j]!.contactDamage).toBe(baseline[i]!.spawns[j]!.contactDamage) }
+    }
+  })
+  it('grows late-wave populations at higher difficulty and keeps a single final boss', () => {
+    const easy = buildDungeon({ seed: 1, difficulty: 1 }), hard = buildDungeon({ seed: 1, difficulty: 7 })
+    expect(allSpawns(hard[23]!).length).toBeGreaterThan(allSpawns(hard[1]!).length)
+    expect(allSpawns(hard[23]!).length).toBeGreaterThan(easy[23]!.spawns.length * 5)
+    const waves = [hard.at(-1)!.spawns, ...hard.at(-1)!.waves!]
+    expect(waves.length).toBeGreaterThan(4)
+    expect(waves.slice(0, -1).flat().some((s) => s.behavior === 'boss')).toBe(false)
+    expect(waves.at(-1)!.filter((s) => s.behavior === 'boss')).toHaveLength(1)
+    expect(waves.at(-1)!.find((s) => s.behavior === 'boss')!.attrs.maxHp).toBeGreaterThan(ENEMIES.boss!.attrs.maxHp * 30)
+  })
+  it('places every wave safely outside walls, bounds and the entry zone at every difficulty', () => {
+    for (const difficulty of [1, 2, 3, 4, 5, 6, 7] as const) for (const room of buildDungeon({ seed: 990, difficulty })) for (const spawn of allSpawns(room)) {
+      expect(Math.hypot(spawn.pos.x - room.entry.x, spawn.pos.y - room.entry.y)).toBeGreaterThan(350)
+      expect(spawn.pos.x).toBeGreaterThanOrEqual(spawn.attrs.radius); expect(spawn.pos.x).toBeLessThanOrEqual(3200 - spawn.attrs.radius)
+      for (const wall of room.walls) expect(circleIntersectsRect(spawn.pos.x, spawn.pos.y, spawn.attrs.radius, wall)).toBe(false)
+    }
+  })
+  it('keeps the exit shut through the warning and opens only after the final wave', () => {
+    const room = { ...roomWith('combat', [spawnOf('drifter', 400, 300)]), waves: [[spawnOf('drifter', 2800, 300)]] }, world = makeWorld(room)
+    killEnemies(world); step(world, new Map()); expect(world.waves?.countdown).toBe(90); expect(world.room.exit).toBeNull()
+    expect(toSnapshot(world).wave?.spawns).toHaveLength(1)
+    for (let i = 0; i < 89; i++) step(world, new Map())
+    expect(world.waves?.index).toBe(1); expect(world.roomCleared).toBe(false)
+    step(world, new Map()); expect(world.waves?.index).toBe(2); expect(world.waves?.remaining).toHaveLength(0)
+    expect(world.room.exit).toBeNull(); killEnemies(world); step(world, new Map()); expect(world.room.exit).toEqual(EXIT_RECT)
+  })
+})

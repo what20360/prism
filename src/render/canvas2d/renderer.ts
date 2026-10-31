@@ -2,7 +2,7 @@ import type { PracticeState } from '../../app/modes/practice'
 import type { EndlessState } from '../../app/modes/endless'
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
 
-export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState; readonly duel?: boolean }
+export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState; readonly duel?: boolean; readonly seed?: number }
 export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
   draw(snapshot: Snapshot, debug: RenderDebug): void
@@ -205,6 +205,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (debug.endless) {
         text(`种子 ${debug.endless.seed} · 敌人 ${debug.endless.alive + debug.endless.pending}`, 20, 133, 11, PURPLE)
         if (!phone) text(debug.endless.open ? `传送门开放 · 下次补刷收益 ${Number((debug.endless.nextReward * 100).toFixed(1))}%` : '清空敌人，开启下一层', 20, 153, 11, '#8ad9bb')
+      } else if (debug.seed !== undefined) {
+        text(`种子 ${debug.seed}${s.wave ? ` · 波次 ${s.wave.index}/${s.wave.total}` : ''}`, 20, 133, 11, PURPLE)
+        if (s.wave?.countdown) text(`下一波 ${(s.wave.countdown / 60).toFixed(1)} 秒`, 20, 153, 12, GOLD)
       } else if (s.stats.chain > 1 && !debug.practice) text(`连击 ×${s.stats.chain}`, 20, 133, 12, PURPLE)
       if (!phone) {
         text(p.autoFire ? '扳机模组已装备' : '按住左键射击 · 右键目标锁定 · 右键空白取消', 20, height - 25, 12, '#7591a9')
@@ -285,6 +288,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.fillStyle = '#050a13'; ctx.fillRect(0, 0, width, height)
     ctx.save(); const zoom = width / camera.width; ctx.scale(zoom, zoom); ctx.translate(-camera.x, -camera.y)
     drawArena(s)
+    for (const spawn of s.wave?.spawns ?? []) {
+      ctx.setLineDash([12, 10]); ring(spawn.x, spawn.y, spawn.radius + 24 + Math.sin(s.tick * 0.15) * 5, GOLD, 3); ctx.setLineDash([])
+      ctx.textAlign = 'center'; text(`${((s.wave?.countdown ?? 0) / 60).toFixed(1)}s`, spawn.x, spawn.y + 5, 21, GOLD); ctx.textAlign = 'left'
+    }
     for (const mine of s.mines) {
       ctx.fillStyle = 'rgba(255,207,135,0.035)'; ctx.beginPath(); ctx.arc(mine.x, mine.y, mine.slowRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([10, 16]); ring(mine.x, mine.y, mine.blastRadius, 'rgba(251,209,142,0.18)', 2); ctx.setLineDash([])
