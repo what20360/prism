@@ -94,6 +94,13 @@ describe('volatile enemies and seeded traits', () => {
     }
     expect(seen).toEqual(new Set(['bark', 'swift', 'bulwark', 'storm', 'cinder', 'volatile']))
   })
+  it('cannot turn a boss encounter into an automatic self-destruction clear', () => {
+    const rng = createRng(77)
+    for (let i = 0; i < 500; i++) expect(withMonsterTraits({ ...ENEMIES.boss!, pos: { x: 300, y: 500 } }, rng, 12).traits).not.toContain('volatile')
+    const w = arena(), boss = createActor(w, { ...ENEMIES.boss!, traits: ['volatile'], team: 'enemy', pos: { x: 300, y: 500 } })
+    for (let i = 0; i < 100; i++) updateAi(w)
+    expect(boss.alive).toBe(true); expect(boss.bombTicks).toBeUndefined()
+  })
 })
 describe('electric and laser weapon contracts', () => {
   it('spends pierce on targets and enhanced conduction, with leftover converted to damage', () => {

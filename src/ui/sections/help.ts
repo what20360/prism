@@ -60,7 +60,7 @@ const CHAPTERS: readonly { id: string; title: string; entries: readonly Entry[] 
     ...Object.values(ENEMIES).map((enemy) => ({ term: enemy.name, text: `生命 ${fmt(enemy.attrs.maxHp)} · 护甲 ${fmt(enemy.attrs.armor)} · 格挡 ${fmt(enemy.attrs.block)} · 伤害 ${fmt(enemy.attrs.damage)} · 移速 ${fmt(enemy.attrs.speed)} · 攻速 ${fmt(enemy.attrs.fireRate)}/秒。${enemy.behavior === 'bomber' ? `接近后预警 ${fmt(ARSENAL_RULES.bombFuse / 60)} 秒自爆，死亡释放环形弹幕。` : enemy.behavior === 'lancer' ? '预警蓄能后发射直线激光。' : enemy.behavior === 'skirmish' ? '保持距离、横向走位并射击。' : enemy.behavior === 'chase' ? '绕障追击并造成接触伤害。' : enemy.behavior === 'boss' ? '旋转弹幕，半血强化并周期清弹。' : '持续射击，以掩体阻挡弹道。'}` })),
     { term: '树皮 / 重甲', text: '树皮提高固定格挡和生命，降低移速且怕热；重甲提高护甲与物理抗性，降低移速。用重击突破格挡，按目标弱点切换武器。' },
     { term: '迅捷 / 元素', text: '迅捷提高移动与射击速度。雷涌具有电抗性、怕热，攻击附带电伤减速；炽热具有热抗性、怕电，攻击附带热伤燃烧。词条可以组合，实际抗性在锁定卡显示；雷涌和炽热并存时以热伤攻击，抗性继续叠加。' },
-    { term: '裂核', text: '接近玩家时停止移动并开始自爆倒计时，范围圈表示危险区；自爆和被击杀都会从自身释放环形弹幕。掩体可以挡住自爆直伤，弹幕仍需躲避。' },
+    { term: '裂核', text: '非Boss敌人可具有此条。接近玩家时停止移动并开始自爆倒计时，范围圈表示危险区；自爆和被击杀都会从自身释放环形弹幕。掩体可以挡住自爆直伤，弹幕仍需躲避。' },
   ] },
   { id: 'duel', title: '联网 1v1', entries: [
     { term: '三种规则', text: '固定装备：双方相同标准装备，不能买卡。限额构筑：每回合各 600 棱晶，没有额外经济。资源争夺：每回合各 600 棱晶，每 10 秒各加 15，随机刷新资源与攻击双方的怪物。每回合重置经济和构筑，保留各自预购列表。' },

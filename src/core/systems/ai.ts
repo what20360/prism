@@ -33,7 +33,7 @@ export function updateAi(world: World, controlled: ReadonlySet<number> = new Set
       if (separation < 440) move = { x: -toward.x, y: -toward.y }
       else if (separation < 680) move = { x: -toward.y * side, y: toward.x * side }
     }
-    if (actor.behavior === 'bomber' || actor.traits?.includes('volatile')) {
+    if (actor.behavior !== 'boss' && (actor.behavior === 'bomber' || actor.traits?.includes('volatile'))) {
       if (actor.bombTicks === undefined && visible && separation <= ARSENAL_RULES.bombTrigger) actor.bombTicks = ARSENAL_RULES.bombFuse
       if (actor.bombTicks !== undefined) {
         actor.intent = { move: { x: 0, y: 0 }, fire: false }
