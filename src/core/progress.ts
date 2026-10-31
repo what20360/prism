@@ -1,5 +1,6 @@
 import { reconcileSkills } from './systems/skills'
 import { shieldCap, type AttrSet } from './attrs'
+import { enforceMineLimits } from './mineLimits'
 import type { BuyResult, Requirement } from './cards'
 import { isFiniteBuild, meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
 import { CARD_ECONOMY } from './rules'
@@ -126,6 +127,9 @@ export function reapplyAttrs(world: World, player: Actor, actorId?: number): voi
 
   const previous = player.attrs
   player.attrs = next
+  enforceMineLimits(world, player)
+  if (previous.weapon !== next.weapon) { player.laserTicks = 0; player.laserTimer = 0; player.burstRemaining = 0; player.burstTimer = 0 }
+  if (previous.maxProjectiles !== 1 && next.maxProjectiles === 1) { player.laserTicks = 0; player.laserTimer = 0 }
   reconcileSkills(player, previous)
   if (next.maxProjectiles > 0) {
     if (next.maxProjectiles === 1) { player.burstRemaining = 0; player.burstTimer = 0 }

@@ -1,3 +1,7 @@
+import { weaponPalette } from './weaponPalette'
+import { TRAIT_NAMES } from '../../content/monsterTraits'
+import { ARSENAL_RULES } from '../../core/rules'
+import type { EnergyTrace } from '../../core/world'
 import type { PracticeState } from '../../app/modes/practice'
 import type { EndlessState } from '../../app/modes/endless'
 import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/snapshot'
@@ -84,13 +88,21 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const length = clamp(a.range * 1.35, 480, 1100)
     const x = a.x + dx * length, y = a.y + dy * length
     const gradient = ctx.createLinearGradient(a.x, a.y, x, y)
-    gradient.addColorStop(0, 'rgba(181,242,255,0.72)')
-    gradient.addColorStop(0.35, 'rgba(143,224,255,0.25)')
-    gradient.addColorStop(1, 'rgba(143,224,255,0)')
+    const hue = weaponPalette(a.team, a.damageType, 1, a.damage).hue
+    gradient.addColorStop(0, `hsla(${hue},95%,83%,0.72)`)
+    gradient.addColorStop(0.35, `hsla(${hue},95%,75%,0.25)`)
+    gradient.addColorStop(1, `hsla(${hue},95%,75%,0)`)
+
     ctx.strokeStyle = gradient; ctx.lineWidth = 2.5
     ctx.beginPath(); ctx.moveTo(a.x + dx * (a.radius + 16), a.y + dy * (a.radius + 16)); ctx.lineTo(x, y); ctx.stroke()
     ctx.fillStyle = gradient
     ctx.beginPath(); ctx.moveTo(a.x - dy * 8, a.y + dx * 8); ctx.lineTo(x, y); ctx.lineTo(a.x + dy * 8, a.y - dx * 8); ctx.fill()
+    if (a.weapon === 1) {
+      ctx.strokeStyle = `hsla(${hue},95%,80%,0.65)`; ctx.lineWidth = 2
+      for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(a.x + dx * 70 - dy * side * 18, a.y + dy * 70 + dx * side * 18); ctx.lineTo(a.x + dx * 90, a.y + dy * 90); ctx.lineTo(a.x + dx * 112 - dy * side * 10, a.y + dy * 112 + dx * side * 10); ctx.stroke() }
+    } else if (a.weapon === 2) {
+      ring(a.x + dx * 130, a.y + dy * 130, 9, `hsla(${hue},95%,80%,0.7)`, 2)
+    }
     const moving = Math.hypot(a.moveX, a.moveY)
     if (moving < 0.1) return
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(a.moveY, a.moveX))
@@ -127,7 +139,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.moveTo(r, 0); ctx.lineTo(r * 0.1, r * 0.7); ctx.lineTo(-r * 0.65, r * 0.52)
       ctx.lineTo(-r * 0.4, 0); ctx.lineTo(-r * 0.65, -r * 0.52); ctx.lineTo(r * 0.1, -r * 0.7); ctx.closePath()
     } else {
-      const count = a.behavior === 'boss' ? 6 : a.behavior === 'turret' ? 3 : 4
+      const count = a.behavior === 'boss' ? 6 : a.behavior === 'bomber' ? 8 : a.behavior === 'skirmish' ? 5 : a.behavior === 'turret' || a.behavior === 'lancer' ? 3 : 4
       for (let i = 0; i < count; i++) {
         const angle = i * Math.PI * 2 / count - Math.PI / 2
         if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r)
@@ -146,6 +158,26 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = player ? '#effcff' : '#ffe0ea'; ctx.beginPath(); ctx.arc(0, 0, Math.min(6, a.coreRadius * 0.4), 0, Math.PI * 2); ctx.fill()
     } else { ctx.fillStyle = color; ctx.fillRect(-4, -4, 8, 8) }
     ctx.restore()
+    if (player || a.weapon > 0) {
+      const tint = weaponPalette(a.team, a.damageType, 1, a.damage).color
+      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = 12
+      if (a.weapon === 1) {
+        for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(r * 0.55, side * 10); ctx.lineTo(r + 13, side * 16); ctx.lineTo(r + 24, side * 7); ctx.stroke() }
+        ring(r + 9, 0, 7, tint, 2)
+      } else { ctx.fillRect(r * 0.5, -7, r * 0.7 + 12, 14); ctx.strokeRect(r * 0.5, -7, r * 0.7 + 12, 14); if (a.weapon === 2) ring(r + 21, 0, 11, tint, 2) }
+      ctx.restore()
+    }
+    if (a.traits.includes('bark')) { ctx.setLineDash([13, 5]); ring(a.x, a.y, r + 10, '#b7a37b', 5); ctx.setLineDash([]) }
+    if (a.shocked) ring(a.x, a.y, r + 15, '#a4bcff', 2)
+    if (a.burning) ring(a.x, a.y, r + 19 + Math.sin(tick * 0.4) * 3, '#ffac72', 2)
+    if (a.bombTicks !== null) {
+      ctx.fillStyle = `rgba(255,110,77,${0.04 + 0.05 * Math.sin(tick * 0.6) ** 2})`; ctx.beginPath(); ctx.arc(a.x, a.y, ARSENAL_RULES.bombRadius, 0, Math.PI * 2); ctx.fill()
+      ctx.setLineDash([12, 10]); ring(a.x, a.y, ARSENAL_RULES.bombRadius, '#ff916f', 3); ctx.setLineDash([])
+      ctx.textAlign = 'center'; text(`${(a.bombTicks / 60).toFixed(1)}s`, a.x, a.y - r - 30, 22, '#ffd7ac'); ctx.textAlign = 'left'
+    }
+    if (a.windupTicks !== null) {
+      ctx.save(); ctx.strokeStyle = 'rgba(255,124,95,0.55)'; ctx.lineWidth = 2; ctx.setLineDash([12, 12]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + Math.cos(a.windupAngle) * a.range, a.y + Math.sin(a.windupAngle) * a.range); ctx.stroke(); ctx.restore()
+    }
     if (a.shield > 0) ring(a.x, a.y, r + 5, 'rgba(180,210,255,0.5)', 2)
     if (player) {
       cooldown(a, r + 13, a.fireCooldownSeconds, a.fireCooldownTotal, 0.3, CYAN)
@@ -168,16 +200,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (a.damageFlashTicks > 0) {
         ctx.textAlign = 'center'
         text(a.name ?? '敌人', a.x, a.y - r - 54, 18, '#e3c7d9')
-        text(`${Math.ceil(a.hp)} / ${Math.round(a.maxHp)}  护甲 ${Math.round(a.armor)}`, a.x, a.y - r - 32, 14, '#aebed0')
+        text(`${Math.ceil(a.hp)} / ${Math.round(a.maxHp)}  护甲 ${Math.round(a.armor)}  格挡 ${Number(a.block.toFixed(1))}`, a.x, a.y - r - 32, 14, '#aebed0')
         ctx.textAlign = 'left'
       }
     }
   }
   const drawEffect = (e: EffectView) => {
     const alpha = clamp(e.ttl / 18, 0, 1), progress = 1 - alpha
-    const color = e.kind === 'explosion' ? GOLD : e.kind === 'coreHit' || e.kind === 'reflect' ? PURPLE : e.kind === 'death' ? RED : CYAN
+    const color = e.kind === 'block' ? '#d4c49b' : e.kind === 'explosion' ? GOLD : e.kind === 'coreHit' || e.kind === 'reflect' ? PURPLE : e.kind === 'death' ? RED : CYAN
     ctx.globalAlpha = alpha
     ring(e.x, e.y, e.radius * (0.3 + progress), color, Math.max(1, 5 * alpha))
+    if (e.kind === 'block') text('格挡', e.x - 15, e.y - e.radius - 10, 13, color)
     for (let i = 0; i < 7; i++) {
       const angle = i * 2.399, radius = e.radius * progress
       ctx.fillStyle = color; ctx.fillRect(e.x + Math.cos(angle) * radius, e.y + Math.sin(angle) * radius, 4 * alpha + 1, 4 * alpha + 1)
@@ -194,7 +227,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
-    text('P R I S M', 20, 29, 15, CYAN)
+    text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
     text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
@@ -246,23 +279,24 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawTarget = (s: Snapshot) => {
     const target = s.actors.find((a) => a.locked && a.alive)
     if (!target) return
-    const phone = width < 700, w = phone ? 190 : 220, x = phone ? 20 : width - w - 18, y = phone ? 150 : 190
-    const h = target.rewardMultiplier < 1 ? 134 : 113
+    const phone = width < 700, w = phone ? 220 : 260, x = phone ? 20 : width - w - 18, y = phone ? 150 : 190
+    const h = target.rewardMultiplier < 1 ? 193 : 173
     ctx.fillStyle = 'rgba(5,14,25,0.92)'; ctx.fillRect(x, y, w, h)
     ctx.strokeStyle = target.manualLocked ? '#9c8354' : '#37687d'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h)
-    text(`${target.manualLocked ? '◆' : '◇'} ${target.name ?? '目标'} · ${target.manualLocked ? '手动锁定' : '方向锁定'}`, x + 10, y + 19, 11, target.manualLocked ? GOLD : CYAN)
+    text(`${target.manualLocked ? '◆' : '◇'} ${(target.name ?? '目标').slice(0, 18)}`, x + 10, y + 19, 11, target.manualLocked ? GOLD : CYAN)
     ctx.fillStyle = '#253244'; ctx.fillRect(x + 10, y + 29, w - 20, 3)
     ctx.fillStyle = RED; ctx.fillRect(x + 10, y + 29, (w - 20) * clamp(target.hp / target.maxHp, 0, 1), 3)
     text(`生命 ${Math.ceil(target.hp)} / ${Math.round(target.maxHp)}   盾 ${Math.ceil(target.shield)}`, x + 10, y + 49, 11)
-    text(`护甲 ${Math.round(target.armor)}   移速 ${Math.round(target.movementSpeed)}`, x + 10, y + 70, 11)
+    text(`护甲 ${Math.round(target.armor)}   格挡 ${Number(target.block.toFixed(1))}`, x + 10, y + 70, 11)
     text(`伤害 ${Number(target.damage.toFixed(1))}   攻速 ${Number(target.fireRate.toFixed(2))}/s`, x + 10, y + 91, 11)
-    if (target.rewardMultiplier < 1) text(`棱晶收益 ${Number((target.rewardMultiplier * 100).toFixed(2))}%`, x + 10, y + 112, 11, GOLD)
+    text(`抗性 物${Math.round(target.physicalResist)} / 电${Math.round(target.electricResist)} / 热${Math.round(target.heatResist)}`, x + 10, y + 112, 11)
+    text(`词条 ${target.traits.map((t) => TRAIT_NAMES[t]).join(' · ') || '无'}`, x + 10, y + 133, 11, GOLD)
+    text(`移速 ${Math.round(target.movementSpeed)} · ${target.damageType === 'electric' ? '电伤' : target.damageType === 'heat' ? '热伤' : '物理'}${target.bombTicks !== null ? ' · 引爆中' : target.windupTicks !== null ? ' · 蓄能中' : ''}`, x + 10, y + 154, 11)
+    if (target.rewardMultiplier < 1) text(`棱晶收益 ${Number((target.rewardMultiplier * 100).toFixed(2))}%`, x + 10, y + 175, 11, GOLD)
   }
   const drawBullet = (bullet: Snapshot['projectiles'][number]) => {
     const energy = bullet.rangeRatio
-    const hue = bullet.team === 'player' ? 245 - 55 * energy : bullet.team === 'neutral' ? 35 + 15 * energy : (382 - 32 * energy) % 360
-    const color = `hsl(${hue}, 90%, ${38 + 42 * energy}%)`
-    const halo = `hsla(${hue}, 95%, ${48 + 24 * energy}%, ${0.06 + 0.3 * energy})`
+    const { hue, color, halo } = weaponPalette(bullet.team, bullet.damageType, energy, bullet.power)
     ctx.save(); ctx.globalAlpha = 0.65 + 0.35 * energy
     const count = Math.min(bullet.trail.length, Math.ceil(bullet.speed / 160))
     const trail = bullet.trail.slice(-count)
@@ -282,6 +316,19 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.fillStyle = `hsl(${hue}, 90%, ${60 + 38 * energy}%)`; ctx.beginPath(); ctx.arc(bullet.x - bullet.radius * 0.17, bullet.y - bullet.radius * 0.17, Math.max(2, bullet.radius * 0.29), 0, Math.PI * 2); ctx.fill()
     ctx.restore()
   }
+  const drawEnergy = (beam: EnergyTrace, tick: number) => {
+    const type = beam.damageType ?? (beam.kind === 'electric' ? 'electric' : 'heat'), palette = weaponPalette(beam.team, type, beam.rangeRatio, beam.power)
+    const dx = beam.to.x - beam.from.x, dy = beam.to.y - beam.from.y, length = Math.hypot(dx, dy)
+    ctx.save(); ctx.globalAlpha = Math.min(1, beam.ttl / 4); ctx.shadowColor = palette.color; ctx.shadowBlur = beam.kind === 'electric' ? 14 : 20
+    ctx.lineWidth = Math.max(2, Math.min(14, beam.width * 0.3 + Math.log2(1 + beam.power) * 0.4)); ctx.strokeStyle = palette.color
+    ctx.beginPath(); ctx.moveTo(beam.from.x, beam.from.y)
+    const count = beam.kind === 'electric' ? Math.max(2, Math.min(40, Math.ceil(length / 30))) : 1
+    for (let i = 1; i <= count; i++) {
+      const t = i / count, wiggle = i === count || beam.kind !== 'electric' ? 0 : Math.sin(i * 5.8 + tick * 0.9 + beam.ownerId) * 9
+      ctx.lineTo(beam.from.x + dx * t - dy / Math.max(1, length) * wiggle, beam.from.y + dy * t + dx / Math.max(1, length) * wiggle)
+    }
+    ctx.stroke(); ctx.shadowBlur = 0; ctx.lineWidth *= 0.28; ctx.strokeStyle = '#f4fcff'; ctx.stroke(); ctx.restore()
+  }
   const draw = (s: Snapshot, debug: RenderDebug) => {
     lastScene = s
     camera = cameraFor(s)
@@ -295,7 +342,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const mine of s.mines) {
       ctx.fillStyle = 'rgba(255,207,135,0.035)'; ctx.beginPath(); ctx.arc(mine.x, mine.y, mine.slowRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([10, 16]); ring(mine.x, mine.y, mine.blastRadius, 'rgba(251,209,142,0.18)', 2); ctx.setLineDash([])
-      ring(mine.x, mine.y, mine.bodyRadius, mine.fuseTicks !== null ? RED : GOLD, 3)
+      ring(mine.x, mine.y, mine.bodyRadius, mine.child ? '#bda3ff' : mine.fuseTicks !== null ? RED : GOLD, 3)
+      if (mine.pulseCount > 1) text(`${mine.pulsesRemaining}/${mine.pulseCount}`, mine.x + mine.bodyRadius + 6, mine.y + 5, 13, GOLD)
       ctx.fillStyle = mine.grenade ? '#b8c5a5' : GOLD
       ctx.beginPath(); ctx.arc(mine.x, mine.y, 12, 0, Math.PI * 2); ctx.fill()
       if (mine.ignoreBullets) { ctx.setLineDash([3, 4]); ring(mine.x, mine.y, 21, '#9de6bd', 1.5); ctx.setLineDash([]) }
@@ -305,6 +353,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     ctx.lineCap = 'round'
     for (const bullet of s.projectiles) drawBullet(bullet)
+    for (const beam of s.traces ?? []) drawEnergy(beam, s.tick)
     for (const pickup of s.pickups) {
       const { x, y } = pickup.pos
       ctx.shadowBlur = 14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'

@@ -1,7 +1,9 @@
 import type { AttrSet } from '../core/attrs'
+import { ARSENAL_DEFAULTS } from '../core/attrs'
 
 /** Numbers mirror docs/balance.md. Never inline these elsewhere. */
 export const PLAYER_BASE_ATTRS: AttrSet = {
+  ...ARSENAL_DEFAULTS,
   maxHp: 50,
   speed: 330,
   radius: 40,

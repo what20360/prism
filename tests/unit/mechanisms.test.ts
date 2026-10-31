@@ -161,7 +161,7 @@ describe('mine divisor, upgrades and drops', () => {
     const w = world(), p = getPlayer(w)
     expect(buyCard(w, 'sluggish').ok).toBe(false); buyCard(w, 'grenade'); buyCard(w, 'sluggish'); tryPlaceMine(w, p)
     enemy(w, 150, 400); updateMines(w)
-    expect(w.mines[0]!.hp).toBe(13); expect(w.mines[0]!.fuseTicks).toBeGreaterThan(15)
+    expect(w.mines[0]!.hp).toBe(17); expect(w.mines[0]!.fuseTicks).toBeGreaterThan(15)
     expect(toSnapshot(w).mines[0]!.fuseTotal).toBeGreaterThan(0.3)
   })
   it('shrapnel emits player-strength bullets and inherits projectile mechanics', () => {
@@ -170,14 +170,15 @@ describe('mine divisor, upgrades and drops', () => {
     expect(w.projectiles).toHaveLength(4)
     expect(w.projectiles.every((b) => b.damage === 12 && b.ricochet && b.homingTurn! > 0)).toBe(true)
   })
-  it('only effective bullet/mine damage creates the corresponding pickup, which heals/pays on contact', () => {
-    const w = world({ bloodOrbChance: 1, mineShardChance: 1 }), p = getPlayer(w), target = enemy(w, 140, 400)
+  it('only true kills create guaranteed pickups, which heal/pay once on contact', () => {
+    const w = world({ bloodOrbChance: 1, mineShardChance: 1 }), p = getPlayer(w), target = enemy(w, 140, 400, { maxHp: 20 })
     p.hp = 10
-    for (const kind of ['bullet', 'mine'] as const) applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind })
-    expect(w.pickups.map((d) => d.kind)).toEqual(['blood', 'shard'])
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' })
+    expect(w.pickups).toHaveLength(0)
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
+    expect(w.pickups.map((d) => d.kind)).toEqual(['shard', 'blood'])
     const shards = w.shards; updatePickups(w)
-    expect(p.hp).toBe(14); expect(w.shards).toBe(shards + 3); expect(w.pickups).toHaveLength(0)
-    target.iframesTicks = 20
+    expect(p.hp).toBe(12); expect(w.shards).toBe(shards + 2); expect(w.pickups).toHaveLength(0)
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' })
     expect(w.pickups).toHaveLength(0)
   })

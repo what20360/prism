@@ -238,11 +238,16 @@ describe('seeded seven-level dungeon', () => {
     const a = buildDungeon({ seed: 765, difficulty: 5 })
     expect(a).toEqual(buildDungeon({ seed: 765, difficulty: 5 })); expect(a).not.toEqual(buildDungeon({ seed: 766, difficulty: 5 }))
   })
-  it('keeps the easiest enemy stats, count and single-wave rules at baseline', () => {
+  it('uses base populations and single waves while drawing seeded archetypes and traits', () => {
     const baseline = buildDungeon(), easy = buildDungeon({ seed: 4123, difficulty: 1 })
     for (let i = 0; i < easy.length; i++) {
       expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length).toBe(baseline[i]!.spawns.length); expect(easy[i]!.waves ?? []).toHaveLength(0)
-      for (let j = 0; j < easy[i]!.spawns.length; j++) { expect(easy[i]!.spawns[j]!.attrs).toEqual(baseline[i]!.spawns[j]!.attrs); expect(easy[i]!.spawns[j]!.contactDamage).toBe(baseline[i]!.spawns[j]!.contactDamage) }
+      for (const enemy of easy[i]!.spawns) {
+        const type = Object.values(ENEMIES).find((type) => enemy.name?.endsWith(type.name))!
+        expect(type).toBeDefined(); expect(enemy.attrs.maxHp).toBeGreaterThanOrEqual(type.attrs.maxHp)
+        expect(enemy.attrs.damage).toBe(type.attrs.damage); expect(enemy.contactDamage).toBe(type.contactDamage)
+        expect(enemy.attrs.block).toBeGreaterThanOrEqual(type.attrs.block)
+      }
     }
   })
   it('grows late-wave populations at higher difficulty and keeps a single final boss', () => {

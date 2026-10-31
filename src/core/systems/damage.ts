@@ -1,11 +1,12 @@
 import { combatAttrs } from '../combat'
-import { nextFloat } from '../rng'
 import { allocateId } from '../world'
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
-import { DROP_RULES } from '../rules'
-import type { EffectKind, Actor, FloaterKind, World } from '../world'
+import { ARSENAL_RULES, killLootBoost, killLootBase } from '../rules'
+import { hasLineOfSight } from '../navigation'
+import { releaseDeathBurst } from './hostileBursts'
+import type { DamageType, EffectKind, Actor, FloaterKind, World } from '../world'
 import { tryGetPlayer, progressOf } from '../world'
 import type { Team } from '../types'
 import { breakChain, offenseShards, registerKill, takenShards } from './rewards'
@@ -24,13 +25,14 @@ export interface DamageEvent {
   readonly raw: number
   readonly penetration: number
   readonly isCore: boolean
-  readonly kind?: 'bullet' | 'mine' | 'contact'
+  readonly kind?: 'bullet' | 'mine' | 'contact' | 'electric' | 'laser' | 'status'
+  readonly damageType?: DamageType
   readonly rewardMultiplier?: number
 }
 
 /**
  * The only place hp, shield and shard rewards change.
- * Order: armor -> iframes -> shield -> hp -> rewards -> lifesteal -> death.
+ * Order: invulnerability -> block -> armor -> resistance -> shield -> hp -> rewards -> death/status.
  */
 export function applyDamage(world: World, event: DamageEvent): void {
   const target = world.actors.get(event.targetId)
@@ -39,8 +41,10 @@ export function applyDamage(world: World, event: DamageEvent): void {
   // Invulnerability nullifies the hit entirely: no damage, no rewards.
   if (target.iframesTicks > 0) return
 
-  const actual = resolveDamage(event.raw, combatAttrs(target).armor, event.penetration)
-  if (actual <= 0) return
+  const attrs = combatAttrs(target), type = event.damageType ?? 'physical'
+  const resistance = type === 'electric' ? attrs.electricResist : type === 'heat' ? attrs.heatResist : attrs.physicalResist
+  const actual = resolveDamage(event.raw, attrs.armor, event.penetration, attrs.block, resistance)
+  if (actual <= 0) { target.damageFlashTicks = DAMAGE_FLASH_TICKS; pushEffect(world, 'block', target.pos.x, target.pos.y, target.radius + 8); return }
 
   const hpBefore = target.hp
   const absorbed = Math.min(target.shield, actual)
@@ -60,11 +64,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
     const source = world.actors.get(event.sourceId)
     if (source?.alive && world.participants[source.id] && source.team !== target.team) {
       applyLifesteal(source, effectiveDamage)
-      const chance = event.kind === 'mine' ? source.attrs.mineShardChance : event.kind === 'bullet' ? source.attrs.bloodOrbChance : 0
-      if (world.resourceDrops && chance > 0 && world.pickups.length < 24 && nextFloat(world.rng) < chance) {
-        world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-          value: event.kind === 'mine' ? DROP_RULES.shardValue : Math.max(DROP_RULES.bloodMinimum, source.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
-      }
+
     }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
   } else if (event.sourceTeam === 'player' && player && target.team === 'enemy') {
@@ -74,11 +74,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
     world.shards += gained
     world.score += effectiveDamage + overkill * world.economy.overflowRate
     applyLifesteal(player, effectiveDamage)
-    const chance = event.kind === 'mine' ? player.attrs.mineShardChance : event.kind === 'bullet' ? player.attrs.bloodOrbChance : 0
-    if (effectiveDamage > 0 && chance > 0 && world.pickups.length < 100 && nextFloat(world.rng) < chance) {
-      world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-        value: event.kind === 'mine' ? DROP_RULES.shardValue * reward : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
-    }
+
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
     if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)
     if (gained > 0.05) pushFloater(world, 'shard', gained, target.pos.x, target.pos.y)
@@ -101,7 +97,16 @@ export function applyDamage(world: World, event: DamageEvent): void {
   }
 
   if (target.hp <= 0) {
-    killActor(world, target, player)
+    const killer = world.actors.get(event.sourceId)
+    if (killer && killer.team !== target.team && !world.participants?.[target.id] && target.team !== 'player') dropKillLoot(world, target, killer, overkill)
+    killActor(world, target, killer?.team === 'player' ? killer : undefined)
+  } else if (event.kind !== 'status') {
+    if (type === 'electric') target.shockTicks = ARSENAL_RULES.shockTicks
+    if (type === 'heat') {
+      const raw = event.raw * ARSENAL_RULES.burnDamage, old = target.burn
+      target.burn = { sourceId: old && old.raw > raw ? old.sourceId : event.sourceId, sourceTeam: old && old.raw > raw ? old.sourceTeam : event.sourceTeam,
+        raw: Math.max(raw, old?.raw ?? 0), remaining: ARSENAL_RULES.burnHits, timer: old?.timer ?? ARSENAL_RULES.burnInterval, rewardMultiplier: event.rewardMultiplier }
+    }
   }
 }
 
@@ -142,10 +147,41 @@ function killActor(world: World, target: Actor, player: Actor | undefined): void
   }
 
   target.alive = false
+  target.burn = undefined
+  releaseDeathBurst(world, target)
   pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
   if (world.participants) {
     if (world.monsterShardDrop && world.pickups.length < 24) world.pickups.push({ id: allocateId(world), kind: 'shard', pos: { ...target.pos }, value: world.monsterShardDrop, ttl: 30 * TICK_RATE })
   } else if (player) registerKill(world, player)
+}
+
+/** Guaranteed base loot per true kill; overkill is post-block/armor/resistance. */
+function dropKillLoot(world: World, target: Actor, killer: Actor, overkill: number): void {
+  if (world.participants ? !world.resourceDrops || !world.participants[killer.id] : killer.team !== 'player') return
+  const boost = killLootBoost(overkill, target.attrs.maxHp), reward = target.rewardMultiplier ?? 1
+  const drops = [
+    { kind: 'shard' as const, level: killer.attrs.mineShardChance, base: killLootBase(1, killer.attrs.maxHp).shard * reward },
+    { kind: 'blood' as const, level: killer.attrs.bloodOrbChance, base: killLootBase(1, killer.attrs.maxHp).blood },
+  ]
+  for (const drop of drops) {
+    if (drop.level <= 0 || drop.base <= 0) continue
+    const limit = world.participants ? 24 : 100
+    if (world.pickups.length >= limit) { const index = world.pickups.findIndex((p) => p.ttl > 0); if (index < 0) continue; world.pickups.splice(index, 1) }
+    world.pickups.push({ id: allocateId(world), kind: drop.kind, pos: { x: target.pos.x + (drop.kind === 'shard' ? -16 : 16), y: target.pos.y },
+      value: Math.min(Number.MAX_VALUE / 1e6, drop.base * drop.level * boost), ttl: 30 * TICK_RATE })
+  }
+}
+/** Self destruction is not a player kill and cannot pay kill-card rewards. */
+export function selfDestruct(world: World, actor: Actor): void {
+  if (!actor.alive) return
+  actor.hp = 0; actor.alive = false; actor.burn = undefined
+  releaseDeathBurst(world, actor)
+  pushEffect(world, 'explosion', actor.pos.x, actor.pos.y, ARSENAL_RULES.bombRadius)
+  for (const target of world.actors.values()) {
+    if (!target.alive || target.team === actor.team || !(world.participants ? world.participants[target.id] : target.team === 'player') || distance(actor.pos, target.pos) > ARSENAL_RULES.bombRadius + target.radius || !hasLineOfSight(actor.pos, target.pos, world.room.walls)) continue
+    applyDamage(world, { targetId: target.id, sourceId: actor.id, sourceTeam: actor.team, raw: actor.attrs.damage * ARSENAL_RULES.bombDamage,
+      penetration: actor.attrs.penetration, isCore: false, kind: 'contact', damageType: actor.attackType ?? 'heat', rewardMultiplier: actor.rewardMultiplier })
+  }
 }
 
 function clearNearbyProjectiles(world: World, x: number, y: number, radius: number): void {
@@ -189,7 +225,7 @@ export function resolveContactDamage(world: World): void {
       if (!target.alive || target.iframesTicks > 0 || (target.contactCooldownTicks ?? 0) > 0) continue
       for (const source of world.actors.values()) {
         if (!source.alive || source.team === target.team || source.contactDamage <= 0 || distance(source.pos, target.pos) > source.radius + target.radius) continue
-        applyDamage(world, { targetId: target.id, sourceId: source.id, sourceTeam: source.team, raw: source.contactDamage, penetration: source.attrs.penetration, isCore: false })
+        applyDamage(world, { targetId: target.id, sourceId: source.id, sourceTeam: source.team, raw: source.contactDamage, penetration: source.attrs.penetration, isCore: false, damageType: source.attackType })
         target.contactCooldownTicks = IFRAME_TICKS
         break
       }
@@ -208,7 +244,7 @@ export function resolveContactDamage(world: World): void {
       targetId: player.id,
       sourceId: actor.id,
       sourceTeam: 'enemy',
-      raw: actor.contactDamage,
+      raw: actor.contactDamage, damageType: actor.attackType,
       penetration: actor.attrs.penetration,
       isCore: false,
       rewardMultiplier: actor.rewardMultiplier,

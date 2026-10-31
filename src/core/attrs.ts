@@ -4,6 +4,15 @@
  * computed on demand so there is only one source of truth.
  */
 export interface AttrSet {
+  block: number
+  physicalResist: number
+  electricResist: number
+  heatResist: number
+  weapon: number
+  arcEfficiency: number
+  laserPower: number
+  minePulseLevel: number
+  mineBroodLevel: number
   maxHp: number
   speed: number
   radius: number
@@ -39,7 +48,9 @@ export interface AttrSet {
   mineIgnoreBullets: number
   grenade: number
   mineFragments: number
+  /** Historical storage key: guaranteed crystal-loot level per kill. */
   mineShardChance: number
+  /** Historical storage key: guaranteed blood-orb level per kill. */
   bloodOrbChance: number
   pickupRadius: number
   burstCount: number
@@ -83,10 +94,14 @@ export function armorToMitigation(armor: number): number {
 }
 
 /** Damage after armor penetration, never negative. */
-export function resolveDamage(raw: number, armor: number, penetration: number): number {
+export function resolveDamage(raw: number, armor: number, penetration: number, block = 0, resistance = 0): number {
   const effectiveArmor = Math.max(0, armor - penetration)
-  return Math.max(0, raw * (1 - armorToMitigation(effectiveArmor)))
+  return Math.max(0, raw - Math.max(0, block)) * (1 - armorToMitigation(effectiveArmor)) * 100 / (100 + Math.max(-80, resistance))
 }
+
+/** Added in balance version 4; only the versioned importer fills legacy files. */
+export const ARSENAL_DEFAULTS = { block: 0, physicalResist: 0, electricResist: 0, heatResist: 0, weapon: 0,
+  arcEfficiency: 0, laserPower: 0, minePulseLevel: 0, mineBroodLevel: 0 } as const
 
 export function shieldCap(attrs: AttrSet): number {
   return attrs.shield > 0 ? attrs.maxHp * attrs.shieldCapMult : 0

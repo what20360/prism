@@ -1,4 +1,6 @@
 import { circleIntersectsRect, resolveSpawnPosition } from '../collision'
+import { ARSENAL_RULES } from '../rules'
+import { selfDestruct } from './damage'
 import { normalize } from '../math'
 import { findPath, hasLineOfSight } from '../navigation'
 import type { World } from '../world'
@@ -25,7 +27,30 @@ export function updateAi(world: World, controlled: ReadonlySet<number> = new Set
       const goal = actor.navPath[0]
       if (goal) move = normalize({ x: goal.x - actor.pos.x, y: goal.y - actor.pos.y })
     }
+    const separation = Math.hypot(player.pos.x - actor.pos.x, player.pos.y - actor.pos.y)
+    if (actor.behavior === 'skirmish' && visible) {
+      const toward = normalize({ x: player.pos.x - actor.pos.x, y: player.pos.y - actor.pos.y }), side = actor.id % 2 ? 1 : -1
+      if (separation < 440) move = { x: -toward.x, y: -toward.y }
+      else if (separation < 680) move = { x: -toward.y * side, y: toward.x * side }
+    }
+    if (actor.behavior === 'bomber' || actor.traits?.includes('volatile')) {
+      if (actor.bombTicks === undefined && visible && separation <= ARSENAL_RULES.bombTrigger) actor.bombTicks = ARSENAL_RULES.bombFuse
+      if (actor.bombTicks !== undefined) {
+        actor.intent = { move: { x: 0, y: 0 }, fire: false }
+        if (--actor.bombTicks <= 0) selfDestruct(world, actor)
+        continue
+      }
+    }
     const lead = visible ? Math.min(0.25, Math.hypot(player.pos.x - actor.pos.x, player.pos.y - actor.pos.y) / Math.max(1, actor.attrs.bulletSpeed)) : 0
+    if (actor.behavior === 'lancer') {
+      if (!visible || separation > actor.attrs.range * 1.8 || actor.fireCooldownTicks > 0 || (actor.laserTicks ?? 0) > 0) actor.windupTicks = undefined
+      else {
+        if (actor.windupTicks === undefined) { actor.windupTicks = 36; actor.windupAngle = Math.atan2(player.pos.y - actor.pos.y, player.pos.x - actor.pos.x) }
+        const armed = actor.windupTicks <= 0; actor.windupTicks = Math.max(0, actor.windupTicks - 1)
+        actor.intent = { move: { x: 0, y: 0 }, fire: armed, aim: { x: Math.cos(actor.windupAngle!), y: Math.sin(actor.windupAngle!) } }
+        continue
+      }
+    }
     actor.intent = { move, fire: actor.behavior === 'boss' || (visible && Math.hypot(player.pos.x - actor.pos.x, player.pos.y - actor.pos.y) <= actor.attrs.range),
       aim: normalize({ x: player.pos.x + player.intent.move.x * player.attrs.speed * lead - actor.pos.x,
         y: player.pos.y + player.intent.move.y * player.attrs.speed * lead - actor.pos.y }) }

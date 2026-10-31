@@ -40,6 +40,7 @@ export function validateAttrs(value: unknown, keys: readonly string[]): AttrSet 
   if (Object.keys(attrs).length !== keys.length) throw new Error('属性版本不匹配')
   for (const key of keys) finite(attrs[key])
   if (finite(attrs.maxHp) < 1 || finite(attrs.speed) < 0 || finite(attrs.bulletSpeed) < 0 || finite(attrs.range) < 0 || finite(attrs.radius) <= 0 || finite(attrs.vision) <= 0) throw new Error('属性无效')
+  if (keys.includes('weapon')) { oneOf(attrs.weapon, [0, 1, 2]); for (const key of ['block', 'arcEfficiency', 'laserPower', 'minePulseLevel', 'mineBroodLevel']) finite(attrs[key], 0); for (const key of ['physicalResist', 'electricResist', 'heatResist']) finite(attrs[key], -80) }
   return attrs as unknown as AttrSet
 }
 function intent(value: unknown): void {
@@ -53,7 +54,7 @@ function intent(value: unknown): void {
 /** Plain, versionable data; injected functions are never serialized. */
 export function serializeWorld(world: World, cosmetics = false): WorldData {
   return JSON.parse(JSON.stringify({ ...world, registry: undefined, economy: undefined,
-    actors: [...world.actors.values()], effects: cosmetics ? world.effects : [], floaters: cosmetics ? world.floaters : [] })) as WorldData
+    actors: [...world.actors.values()], traces: cosmetics ? world.traces : [], effects: cosmetics ? world.effects : [], floaters: cosmetics ? world.floaters : [] })) as WorldData
 }
 /** Validates untrusted save/network input before attaching any runtime services. */
 export function restoreWorld(value: unknown, registry: CardRegistry, economy: EconomyRates, attrKeys: readonly string[]): World {
@@ -63,7 +64,9 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   const numbers = (r: RecordData, names: string, min = 0) => { for (const key of names.split(' ')) finite(r[key], min) }
   const spawn = (value: unknown) => {
     const s = record(value); vector(s.pos); validateAttrs(s.attrs, attrKeys)
-    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss']); finite(s.contactDamage, 0); bool(s.hasCore)
+    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer']);
+    if (s.attackType !== undefined) oneOf(s.attackType, ['physical', 'electric', 'heat'])
+    if (s.traits !== undefined) { const traits = array(s.traits, 6); for (const t of traits) oneOf(t, ['bark', 'swift', 'bulwark', 'storm', 'cinder', 'volatile']); if (new Set(traits).size !== traits.length) throw new Error('重复词条') } finite(s.contactDamage, 0); bool(s.hasCore)
     if (s.name !== undefined) text(s.name)
     if (s.rewardMultiplier !== undefined) finite(s.rewardMultiplier, 0, 1)
     if (s.damageIframesTicks !== undefined) integer(s.damageIframesTicks, 0, 600)
@@ -81,6 +84,9 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
+    for (const key of ['shockTicks', 'bombTicks', 'windupTicks', 'laserTicks', 'laserTimer']) if (a[key] !== undefined) integer(a[key], 0, 1000000)
+    if (a.windupAngle !== undefined) finite(a.windupAngle)
+    if (a.burn !== undefined) { const b = record(a.burn); integer(b.sourceId, 1); oneOf(b.sourceTeam, ['player', 'enemy', 'neutral']); finite(b.raw, 0); integer(b.remaining, 1, 3); integer(b.timer, 0, 20); if (b.rewardMultiplier !== undefined) finite(b.rewardMultiplier, 0, 1) }
     if (a.contactCooldownTicks !== undefined) integer(a.contactCooldownTicks, 0, 600)
     if (finite(a.hp) > finite(record(a.attrs).maxHp)) throw new Error('生命超过上限')
     for (const key of ['lockTargetId', 'manualLockId']) if (a[key] !== null) integer(a[key], 1)
@@ -98,7 +104,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     for (const wave of remaining) { const enemies = array(wave, 200); if (!enemies.length) throw new Error('敌人波次为空'); for (const spec of enemies) spawn(spec) }
   }
   for (const value of array(d.projectiles, 4000)) {
-    const p = entity(value); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
+    const p = entity(value); if (p.damageType !== undefined) oneOf(p.damageType, ['physical', 'electric', 'heat']); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
     numbers(p, 'radius damage penetration innerMult travelLeft'); integer(p.pierceLeft)
     for (const key of ['rewardMultiplier', 'rangeBudget', 'pierceSpeedMultiplier', 'pierceRangeGain', 'blastRadius', 'resolvedTick', 'homingTurn', 'cruiseSpeed']) if (p[key] !== undefined) finite(p[key], 0)
     if (p.targetId !== undefined && p.targetId !== null) integer(p.targetId, 1)
@@ -112,11 +118,18 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     numbers(m, 'bodyRadius triggerRadius blastRadius slowRadius slowMultiplier damage hp')
     if (m.fuseTicks !== null) integer(m.fuseTicks)
     for (const key of ['rewardMultiplier', 'fuseTotalTicks', 'travelLeft', 'fragments']) if (m[key] !== undefined) finite(m[key], 0)
+    for (const key of ['pulseCount', 'pulsesRemaining']) if (m[key] !== undefined) integer(m[key], 1)
+    if (m.broodLevel !== undefined) integer(m.broodLevel)
+    if (m.expiresAt !== undefined) integer(m.expiresAt)
+    for (const key of ['child', 'exploding']) if (m[key] !== undefined) bool(m[key])
     if (m.ignoreBullets !== undefined) bool(m.ignoreBullets)
     if (m.velocity !== undefined) vector(m.velocity)
   }
   for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied) }
-  for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
+  for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup', 'block']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
+  if (d.traces !== undefined) for (const value of array(d.traces, 256)) {
+    const t = record(value); if (t.damageType !== undefined) oneOf(t.damageType, ['physical', 'electric', 'heat']); integer(t.ownerId, 1); oneOf(t.team, ['player', 'enemy', 'neutral']); oneOf(t.kind, ['electric', 'laser']); vector(t.from); vector(t.to); finite(t.rangeRatio, 0, 1); finite(t.power, 0); finite(t.width, 0); integer(t.ttl, 0, 10)
+  }
   for (const value of array(d.floaters, 2000)) { const f = record(value); oneOf(f.kind, ['damage', 'overflow', 'taken', 'shard', 'heal']); numbers(f, 'value ttl'); finite(f.x); finite(f.y); finite(f.driftX) }
   const purchases = (values: unknown) => {
     const purchased = new Set<string>()

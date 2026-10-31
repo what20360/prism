@@ -9,12 +9,23 @@ import type { EntityId, Rect, Team, Vec2 } from './types'
 
 export type RoomPhase = 'idle' | 'entered' | 'combat' | 'cleared' | 'exited'
 export type EnemyTier = 'normal' | 'elite' | 'boss'
-export type EnemyBehavior = 'chase' | 'turret' | 'boss'
+export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer'
+export type DamageType = 'physical' | 'electric' | 'heat'
+export type MonsterTrait = 'bark' | 'swift' | 'bulwark' | 'storm' | 'cinder' | 'volatile'
+export interface EnemyMechanics { readonly attackType?: DamageType; readonly traits?: readonly MonsterTrait[] }
+export interface Burn { sourceId: number; sourceTeam: Team; raw: number; remaining: number; timer: number; rewardMultiplier?: number }
 
 export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
 export type SkillId = 'deflect' | 'rage' | 'dash'
 
-export interface Actor {
+export interface Actor extends EnemyMechanics {
+  shockTicks?: number
+  burn?: Burn
+  bombTicks?: number
+  windupTicks?: number
+  windupAngle?: number
+  laserTicks?: number
+  laserTimer?: number
   readonly id: EntityId
   readonly team: Team
   readonly tier: EnemyTier
@@ -67,6 +78,7 @@ export interface Actor {
 }
 
 export interface Projectile {
+  damageType?: DamageType
   readonly id: EntityId
   /** Mutable: deflect/reflect transfers ownership mid-flight. */
   ownerId: EntityId
@@ -101,6 +113,12 @@ export interface Projectile {
 }
 
 export interface Mine {
+  child?: boolean
+  expiresAt?: number
+  pulsesRemaining?: number
+  pulseCount?: number
+  exploding?: boolean
+  broodLevel?: number
   readonly id: EntityId
   readonly ownerId: EntityId
   readonly rewardMultiplier?: number
@@ -131,7 +149,7 @@ export interface Pickup {
   ttl: number
 }
 
-export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death' | 'deflect' | 'reflect' | 'revive' | 'rage' | 'dash' | 'pickup'
+export type EffectKind = 'hit' | 'coreHit' | 'explosion' | 'death' | 'deflect' | 'reflect' | 'revive' | 'rage' | 'dash' | 'pickup' | 'block'
 
 export interface Effect {
   readonly kind: EffectKind
@@ -140,6 +158,8 @@ export interface Effect {
   readonly radius: number
   ttl: number
 }
+/** Cosmetic only. Active laser timers live on the actor and are serialized. */
+export interface EnergyTrace { readonly damageType?: DamageType; readonly ownerId: number; readonly team: Team; readonly kind: 'electric' | 'laser'; readonly from: Vec2; readonly to: Vec2; readonly rangeRatio: number; readonly power: number; readonly width: number; ttl: number }
 
 export type FloaterKind = 'damage' | 'overflow' | 'taken' | 'shard' | 'heal'
 
@@ -182,6 +202,7 @@ export interface PlayerProgress { shards: number; purchases: Purchase[]; revives
 export interface WaveState { index: number; total: number; remaining: EnemySpawnSpec[][]; countdown: number; delayTicks: number }
 
 export interface World {
+  traces?: EnergyTrace[]
   tick: number
   readonly seed: number
   readonly rng: Rng
@@ -237,7 +258,7 @@ export interface RoomTemplate {
 
 export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number }
 
-export interface EnemySpawnSpec {
+export interface EnemySpawnSpec extends EnemyMechanics {
   readonly damageIframesTicks?: number
   readonly pos: Vec2
   readonly attrs: AttrSet
@@ -329,7 +350,7 @@ export function configureRoomWaves(world: World, room: RoomTemplate): void {
   world.waves = room.waves === undefined ? undefined : { index: 1, total: room.waves.length + 1, remaining: room.waves.map((wave) => [...wave]), countdown: 0, delayTicks: 90 }
 }
 
-interface CreateActorSpec {
+interface CreateActorSpec extends EnemyMechanics {
   readonly damageIframesTicks?: number
   readonly team: Team
   readonly tier: EnemyTier
@@ -347,6 +368,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
   world.nextEntityId += 1
 
   const actor: Actor = {
+    attackType: spec.attackType, traits: spec.traits,
     id,
     team: spec.team,
     tier: spec.tier,

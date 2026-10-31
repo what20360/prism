@@ -4,6 +4,8 @@ import { formatRuleNumber } from '../content/format'
 
 /** UI-side labels; core stays free of presentation text. */
 export const ATTR_LABELS: Record<AttrKey, string> = {
+  block: '固定格挡', physicalResist: '物理抗性', electricResist: '电抗性', heatResist: '热抗性', weapon: '主武器',
+  arcEfficiency: '电容绕组', laserPower: '聚焦透镜', minePulseLevel: '震荡雷芯', mineBroodLevel: '蜂巢雷芯',
   maxHp: '最大生命',
   speed: '移动速度',
   radius: '碰撞半径',
@@ -33,7 +35,7 @@ export const ATTR_LABELS: Record<AttrKey, string> = {
   mineSlowMultiplier: '地雷减速倍率',
   mineTriggerRadius: '侦测半径', mineSlowRadius: '减速半径', mineCooldownRate: '布雷冷却速度',
   mineHp: '地雷生命', mineFuseSeconds: '引爆延迟', mineIgnoreBullets: '无视', grenade: '手榴弹',
-  mineFragments: '破片弹数', mineShardChance: '晶片概率', bloodOrbChance: '血球概率', pickupRadius: '拾取半径',
+  mineFragments: '破片弹数', mineShardChance: '击杀晶片等级', bloodOrbChance: '击杀血球等级', pickupRadius: '拾取半径',
   burstCount: '连发轮数', homing: '追踪', pierceBoost: '贯穿推进', maxProjectiles: '同时存在子弹上限', vision: '视野',
   rageLevel: '狂暴', dashLevel: '冲刺', skillCooldownRate: '技能冷却速度',
 

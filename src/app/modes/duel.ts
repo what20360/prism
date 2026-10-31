@@ -12,6 +12,7 @@ import { nextInt } from '../../core/rng'
 import { step } from '../../core/simulation'
 import { validateTargets, moveTarget, removeTarget, type PurchasePlan } from '../upgradePlans'
 import { createPurchaseQueue, type PurchaseNotice } from '../purchaseQueue'
+import { withMonsterTraits } from '../../content/monsterTraits'
 export interface DuelMatch {
   world(): World; state(): DuelState; ready(seat: 0 | 1): void; tick(host: Intent, guest: Intent): void; forfeit(seat: 0 | 1): void
   action(seat: 0 | 1, action: DuelAction): boolean
@@ -69,8 +70,8 @@ export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMat
     if (elapsed >= monsterAt) {
       monsterAt = elapsed + nextInt(world.rng, DUEL_RULES.monsterMinTicks, DUEL_RULES.monsterMaxTicks + 1)
       if ([...world.actors.values()].filter((a) => a.alive && a.team === 'neutral').length >= DUEL_RULES.monsterLimit) return
-      const spec = ENEMIES[nextInt(world.rng, 0, 2) ? 'turret' : 'drifter']!, pos = spawnPosition(spec.attrs.radius)
-      if (pos) createActor(world, { ...spec, pos, team: 'neutral', attrs: { ...spec.attrs }, name: spec.behavior === 'chase' ? '游荡者' : '哨戒机' })
+      const kinds = ['drifter', 'turret', 'stalker', 'bomber', 'lancer'], type = ENEMIES[kinds[nextInt(world.rng, 0, kinds.length)]!]!, pos = spawnPosition(type.attrs.radius)
+      if (pos) createActor(world, { ...withMonsterTraits({ ...type, pos }, world.rng, 2), team: 'neutral' })
     }
   }
   return {
@@ -90,7 +91,8 @@ export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMat
       const clean = (intent: Intent, id: number): Intent => ({ ...intent, autoAim: intent.autoAim === true && world.actors.get(id)!.attrs.autoAim > 0,
         fire: intent.fire === true, autoPickup: intent.autoPickup !== false })
       step(world, new Map([[1, clean(host, 1)], [2, clean(guest, 2)]])); remaining--
-      world.projectiles = world.projectiles.slice(-DUEL_RULES.projectileLimit); world.mines = world.mines.slice(-DUEL_RULES.mineLimit)
+      world.projectiles = world.projectiles.slice(-DUEL_RULES.projectileLimit)
+      while (world.mines.length > DUEL_RULES.mineLimit) { const child = world.mines.findIndex((m) => m.child); world.mines.splice(child < 0 ? 0 : child, 1) }
       world.effects = world.effects.slice(-64); world.floaters = world.floaters.slice(-64)
       const a = world.actors.get(1)!, b = world.actors.get(2)!
       if (!a.alive || !b.alive) finishRound(!a.alive && !b.alive ? 'draw' : a.alive ? 0 : 1)

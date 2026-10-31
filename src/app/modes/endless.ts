@@ -1,4 +1,5 @@
 import { ENEMIES } from '../../content/enemies'
+import { withMonsterTraits, clampMonsterStats } from '../../content/monsterTraits'
 import { applyRoom, type RoomSpec } from '../../core/dungeon'
 import { circleIntersectsRect, distance } from '../../core/collision'
 import { createRoomPickups } from '../../core/roomResources'
@@ -8,7 +9,7 @@ import type { Vec2 } from '../../core/types'
 import { getPlayer, spawnEnemy, type EnemySpawnSpec, type World } from '../../core/world'
 
 export const ENDLESS_RULES = { tailAlpha: 2.5, finiteMin: 0.5, finiteMax: 2.5, respawnTicks: 60,
-  growth: { maxHp: 1.18, damage: 1.13, armor: 1.09, speed: 1.012, bulletSpeed: 1.015, fireRate: 1.01, range: 1.008 } } as const
+  growth: { maxHp: 1.18, damage: 1.13, armor: 1.09, speed: 1.012, bulletSpeed: 1.015, fireRate: 1.01, range: 1.008, block: 1.08 } } as const
 const ARENA = { x: 0, y: 0, width: 3200, height: 1800 }, ENTRY = { x: 1600, y: 1560 }
 const finite = (value: number) => Math.min(Number.MAX_VALUE / 1e6, value)
 export function endlessCount(floor: number): number { return 4 + Math.ceil(2 * Math.sqrt(floor)) }
@@ -26,7 +27,7 @@ export function endlessFactor(rng: Rng, open: boolean): number {
   return open ? value : Math.max(ENDLESS_RULES.finiteMin, Math.min(ENDLESS_RULES.finiteMax, value))
 }
 export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0): EnemySpawnSpec {
-  const typeRoll = nextFloat(rng), type = typeRoll < 0.6 ? ENEMIES.drifter! : typeRoll < 0.9 ? ENEMIES.turret! : ENEMIES.warden!
+  const typeRoll = nextFloat(rng), type = ENEMIES[typeRoll < 0.3 ? 'drifter' : typeRoll < 0.46 ? 'turret' : typeRoll < 0.64 ? 'stalker' : typeRoll < 0.8 ? 'bomber' : typeRoll < 0.93 ? 'warden' : 'lancer']!
   const factor = endlessFactor(rng, open), elite = type.hasCore
   const stat = (base: number, growth: number, exponent = 1, bias = 1): number => {
     const mean = finite(base * growth ** (floor - 1))
@@ -35,14 +36,23 @@ export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0
   }
   const g = ENDLESS_RULES.growth
   const attrs = { ...type.attrs,
-    maxHp: stat(28, g.maxHp, 1, elite ? 1.4 : 1), damage: stat(6, g.damage, 0.7), armor: stat(12, g.armor, 0.5, elite ? 1.2 : 0.6),
-    speed: type.behavior === 'chase' ? stat(150, g.speed, 0.2) : 0,
-    bulletSpeed: stat(380, g.bulletSpeed, 0.2), fireRate: type.behavior === 'chase' ? 0 : stat(0.6, g.fireRate, 0.2),
-    range: stat(750, g.range, 0.1), shield: 0,
+    maxHp: stat(50, g.maxHp, 1, elite ? 1.6 : type.attrs.maxHp / 50), damage: stat(9, g.damage, 0.7, Math.max(0.7, type.attrs.damage / 13)), armor: stat(15, g.armor, 0.5, elite ? 1.2 : 0.6), block: stat(3, g.block, 0.5, elite ? 1 : 0.25),
+    speed: type.attrs.speed > 0 ? stat(185, g.speed, 0.2, type.attrs.speed / 185) : 0,
+    bulletSpeed: stat(430, g.bulletSpeed, 0.2), fireRate: type.attrs.fireRate > 0 ? stat(0.8, g.fireRate, 0.2, type.attrs.fireRate / 0.8) : 0,
+    range: stat(900, g.range, 0.1), shield: 0,
   }
-  return { pos: { x: 1600, y: 400 }, attrs, tier: elite ? 'elite' : 'normal', behavior: type.behavior,
-    contactDamage: type.behavior === 'chase' ? attrs.damage : 0, hasCore: type.hasCore,
-    name: `${open && factor > ENDLESS_RULES.finiteMax ? '异常·' : ''}${type.behavior === 'chase' ? '游荡者' : elite ? '核心守卫' : '炮台'}` }
+  let result = withMonsterTraits({ pos: { x: 1600, y: 400 }, attrs, tier: elite ? 'elite' : 'normal', behavior: type.behavior,
+    contactDamage: type.contactDamage > 0 ? attrs.damage : 0, hasCore: type.hasCore, attackType: type.attackType, traits: type.traits,
+    name: `${open && factor > ENDLESS_RULES.finiteMax ? '异常·' : ''}${type.name}` }, rng, Math.sqrt(floor))
+  if (!open) {
+    const upper = ENDLESS_RULES.finiteMax
+    result = { ...result, attrs: clampMonsterStats(result.attrs, { maxHp: finite(50 * g.maxHp ** (floor - 1) * upper), damage: finite(9 * g.damage ** (floor - 1) * upper),
+      armor: finite(15 * g.armor ** (floor - 1) * upper), block: finite(3 * g.block ** (floor - 1) * upper), speed: finite(185 * g.speed ** (floor - 1) * upper),
+      bulletSpeed: finite(430 * g.bulletSpeed ** (floor - 1) * upper), fireRate: finite(0.8 * g.fireRate ** (floor - 1) * upper), range: finite(900 * g.range ** (floor - 1) * upper),
+      physicalResist: 60, electricResist: 60, heatResist: 60 }) }
+  }
+  return { ...result, contactDamage: type.contactDamage > 0 ? result.attrs.damage : 0 }
+
 }
 export interface EndlessState {
   readonly seed: number; readonly floor: number; readonly open: boolean; readonly initialCount: number

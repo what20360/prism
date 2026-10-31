@@ -6,6 +6,7 @@ import { createRng, nextFloat, nextInt, type Rng } from '../core/rng'
 import { resolveSpawnPosition, circleIntersectsRect } from '../core/collision'
 import { dungeonProfile, dungeonDifficulty, type DungeonDifficulty } from './difficulties'
 import { ENEMIES } from './enemies'
+import { withMonsterTraits } from './monsterTraits'
 
 const ENTRY: Vec2 = { x: 1600, y: 1560 }
 
@@ -62,7 +63,7 @@ function spawn(type: string, pos: Vec2): EnemySpawnSpec {
     behavior: definition.behavior,
     contactDamage: definition.contactDamage,
     hasCore: definition.hasCore,
-    name: definition.name,
+    name: definition.name, attackType: definition.attackType, traits: definition.traits,
   }
 }
 
@@ -128,9 +129,12 @@ export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
 function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = []): EnemySpawnSpec[] {
   const profile = dungeonProfile(difficulty, depth), placed: EnemySpawnSpec[] = []
   for (let i = 0; i < count; i++) {
-    const source = original[i % original.length]!, factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
+    const originalSource = original[i % original.length]!
+    const options = ['drifter', 'turret', 'stalker', 'bomber', 'lancer']
+    const source = originalSource.behavior !== 'boss' && nextFloat(rng) < 0.48 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
+    const factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
     const attrs = { ...source.attrs, maxHp: source.attrs.maxHp * profile.hp * factor, damage: source.attrs.damage * profile.damage * factor,
-      armor: source.attrs.armor + profile.armor, speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,
+      armor: source.attrs.armor + profile.armor, block: source.attrs.block + 0.7 * (difficulty - 1) * (1 + depth / 3), speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,
       fireRate: source.attrs.fireRate * profile.fireRate }
     let pos = source.pos
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -138,7 +142,7 @@ function populateWave(original: readonly EnemySpawnSpec[], count: number, depth:
       if (!walls.some((w) => circleIntersectsRect(candidate.x, candidate.y, attrs.radius + 4, w)) && Math.hypot(candidate.x - ENTRY.x, candidate.y - ENTRY.y) > 360 && [...reserved, ...placed].every((s) => Math.hypot(candidate.x - s.pos.x, candidate.y - s.pos.y) > s.attrs.radius + attrs.radius + 35)) { pos = candidate; break }
     }
     pos = resolveSpawnPosition(pos, attrs.radius + 4, walls, ARENA)
-    placed.push({ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor })
+    placed.push(withMonsterTraits({ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor }, rng, difficulty - 1 + depth))
   }
   return placed
 }

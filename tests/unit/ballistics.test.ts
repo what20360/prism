@@ -158,9 +158,9 @@ describe('range is actual path length', () => {
 describe('formula-driven growth cards', () => {
   it('caps only pure binary mechanisms and lets numeric effects and descriptions grow', () => {
     expect(ALL_CARDS.filter((card) => card.maxLevel !== undefined).map((card) => card.id).sort())
-      .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'ricochet'])
+      .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'ricochet', 'weapon-electric', 'weapon-laser'])
     for (const card of ALL_CARDS.filter((card) => card.maxLevel === undefined)) {
-      const context = { ...PLAYER_BASE_ATTRS, shield: 12 }
+      const context = { ...PLAYER_BASE_ATTRS, shield: 12, weapon: card.id === 'arc-coil' ? 1 : card.id === 'laser-focus' ? 2 : 0 }
       const a = card.effectFn(30, context), b = card.effectFn(31, context)
       expect(b, card.id).not.toEqual(a)
       expect(card.summary?.(31), card.id).not.toBe(card.summary?.(30))

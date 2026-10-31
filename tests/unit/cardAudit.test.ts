@@ -28,9 +28,9 @@ function legacySave(registry = LEGACY_V2_REGISTRY) {
   return { format: 'prism-save', version: 1, balanceVersion: registry === LEGACY_V2_REGISTRY ? 2 : 1, name: '保留的构筑', savedAt: '2026-10-31T00:00:00Z', mode: 'dungeon', initialSeed: 9, restarts: 0, roomIndex: 0, world: w }
 }
 describe('complete card audit', () => {
-  it('accounts for all 54 old cards as 49 current cards or explicit aliases with clear purposes', () => {
-    expect(ALL_CARDS).toHaveLength(49); expect(new Set(ALL_CARDS.map((c) => c.name)).size).toBe(49)
-    expect(new Set([...ALL_CARDS.map((c) => c.id), ...Object.keys(RETIRED_CARDS)])).toEqual(new Set(LEGACY_V2_REGISTRY.all().map((c) => c.id)))
+  it('accounts for all 54 old cards through explicit aliases alongside the new arsenal or explicit aliases with clear purposes', () => {
+    expect(ALL_CARDS).toHaveLength(55); expect(new Set(ALL_CARDS.map((c) => c.name)).size).toBe(55)
+    for (const old of LEGACY_V2_REGISTRY.all()) expect(CARD_REGISTRY.get(RETIRED_CARDS[old.id] ?? old.id)).toBeDefined()
     for (const c of ALL_CARDS) { expect(c.purpose).toBeTruthy(); expect(c.purpose).toBe(CARD_PURPOSES[c.id]) }
     for (const [oldId, id] of Object.entries(RETIRED_CARDS)) { expect(CARD_REGISTRY.get(oldId)).toBeUndefined(); expect(CARD_REGISTRY.get(id)).toBeDefined() }
   })
@@ -70,14 +70,16 @@ describe('complete card audit', () => {
     const mine = w.mines[0]!, hp = mine.hp; expect(hp).toBeGreaterThan(10); p.pos = { x: 300, y: 700 }
     const enemy = createActor(w, { ...ENEMIES.turret!, team: 'enemy', attrs: ENEMIES.turret!.attrs, pos: { x: 700, y: 300 } })
     emitProjectile(w, enemy, Math.PI, { ...mine.pos }); resolveHits(w)
-    expect(w.mines[0]!.hp).toBe(hp - 10)
+    expect(w.mines[0]!.hp).toBe(hp - enemy.attrs.damage)
   })
   it('applies shard gain once on pickup and preserves already-valued legacy resources', () => {
     const w = arena(), p = getPlayer(w); p.attrs = { ...p.attrs, mineShardChance: 1, shardGain: 1.5 }
-    const target = createActor(w, { ...ENEMIES.turret!, attrs: { ...ENEMIES.turret!.attrs, maxHp: 1000 }, team: 'enemy', rewardMultiplier: 0.4, pos: { x: 500, y: 300 } })
+    const target = createActor(w, { ...ENEMIES.turret!, attrs: { ...ENEMIES.turret!.attrs, maxHp: 20, armor: 0, block: 0 }, team: 'enemy', rewardMultiplier: 0.4, pos: { x: 500, y: 300 } })
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
-    const drop = w.pickups[0]!; expect(drop.value).toBeCloseTo(1.2); p.pos = { ...drop.pos }
-    const before = w.shards; updatePickups(w); expect(w.shards - before).toBeCloseTo(1.8)
+    expect(w.pickups).toHaveLength(0)
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
+    const drop = w.pickups[0]!; expect(drop.value).toBeCloseTo(0.8); p.pos = { ...drop.pos }
+    const before = w.shards; updatePickups(w); expect(w.shards - before).toBeCloseTo(1.2)
     w.pickups.push({ id: allocateId(w), kind: 'shard', pos: { ...p.pos }, value: 6, ttl: 600, gainApplied: true }); const old = w.shards
     updatePickups(w); expect(w.shards - old).toBe(6)
   })
@@ -88,7 +90,7 @@ describe('complete card audit', () => {
     const mob = createActor(w, { ...ENEMIES.drifter!, team: 'neutral', attrs: ENEMIES.drifter!.attrs, pos: { ...guest.pos } })
     resolveContactDamage(w); const hp = guest.hp; resolveContactDamage(w); expect(guest.hp).toBe(hp)
     applyDamage(w, { targetId: guest.id, sourceId: host.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' }); expect(guest.hp).toBe(hp - 10)
-    for (let i = 0; i < 30; i++) updateTimers(w); mob.pos = { ...guest.pos }; resolveContactDamage(w); expect(guest.hp).toBe(hp - 16)
+    for (let i = 0; i < 30; i++) updateTimers(w); mob.pos = { ...guest.pos }; resolveContactDamage(w); expect(guest.hp).toBe(hp - 10 - mob.contactDamage)
   })
 })
 describe('card consolidation compatibility', () => {

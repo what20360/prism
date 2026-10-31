@@ -1,4 +1,5 @@
 import { CARD_REGISTRY } from '../content/cards'
+import { LEGACY_V3_REGISTRY } from '../content/legacyCardsV3'
 import { RETIRED_CARDS } from '../content/cardRoles'
 import { LEGACY_V1_REGISTRY, LEGACY_V2_REGISTRY } from '../content/legacyCards'
 import { isFiniteBuild, resolveAttrs, type CardRegistry, type Purchase } from '../core/cards'
@@ -7,10 +8,10 @@ import { reapplyAttrs } from '../core/progress'
 import { shieldCap, type AttrSet } from '../core/attrs'
 import type { World } from '../core/world'
 import type { UpgradeTarget } from './upgradePlans'
-export const CURRENT_BALANCE_VERSION = 3
+export const CURRENT_BALANCE_VERSION = 4
 export function canonicalCardId(id: string): string { return Object.hasOwn(RETIRED_CARDS, id) ? RETIRED_CARDS[id]! : id }
 export function migrateFavoriteIds(value: unknown): string[] {
-  const ids = array(value, LEGACY_V2_REGISTRY.all().length).map((id) => {
+  const ids = array(value, Math.max(CARD_REGISTRY.all().length, LEGACY_V2_REGISTRY.all().length)).map((id) => {
     if (typeof id !== 'string' || !CARD_REGISTRY.get(canonicalCardId(id))) throw new Error('收藏卡片配置无效')
     return id
   })
@@ -43,6 +44,7 @@ function matches(actual: AttrSet, expected: AttrSet): boolean {
 }
 export function registryForSave(version: unknown): CardRegistry {
   if (version === CURRENT_BALANCE_VERSION) return CARD_REGISTRY
+  if (version === 3) return LEGACY_V3_REGISTRY
   if (version === 1) return LEGACY_V1_REGISTRY
   if (version === 2 || version === undefined) return LEGACY_V2_REGISTRY
   throw new Error('不支持的存档数值版本')
@@ -65,6 +67,6 @@ export function migrateWorldBuild(world: World, version: unknown): { world: Worl
   const migrated: World = { ...world, registry: CARD_REGISTRY, purchases }, hp = player.hp, shield = player.shield
   reapplyAttrs(migrated, player)
   player.hp = Math.min(hp, player.attrs.maxHp); player.shield = Math.min(shield, shieldCap(player.attrs))
-  for (const pickup of migrated.pickups) if (pickup.kind === 'shard') pickup.gainApplied = true
+  for (const pickup of migrated.pickups) if (registry !== LEGACY_V3_REGISTRY && pickup.kind === 'shard') pickup.gainApplied = true
   return { world: migrated, legacy: true, owned }
 }

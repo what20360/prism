@@ -1,6 +1,7 @@
 import { combatAttrs } from './combat'
 import { skillRemaining, skillTotal, unlocked } from './systems/skills'
-import type { Actor, SkillId, Pickup } from './world'
+import type { Actor, SkillId, Pickup, DamageType, MonsterTrait, EnergyTrace } from './world'
+import { ARSENAL_RULES } from './rules'
 import type {
   EffectKind,
   EnemyBehavior,
@@ -27,6 +28,18 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly block: number
+  readonly physicalResist: number
+  readonly electricResist: number
+  readonly heatResist: number
+  readonly weapon: number
+  readonly damageType: DamageType
+  readonly traits: readonly MonsterTrait[]
+  readonly bombTicks: number | null
+  readonly windupTicks: number | null
+  readonly windupAngle: number
+  readonly shocked: boolean
+  readonly burning: boolean
   readonly id: number
   readonly team: Team
   readonly tier: EnemyTier
@@ -74,6 +87,8 @@ export interface ActorView {
 }
 
 export interface ProjectileView {
+  readonly damageType: DamageType
+  readonly power: number
   readonly id: number
   readonly team: Team
   readonly x: number
@@ -87,6 +102,9 @@ export interface ProjectileView {
 }
 
 export interface MineView {
+  readonly child: boolean
+  readonly pulsesRemaining: number
+  readonly pulseCount: number
   readonly id: number
   readonly team: Team
   readonly x: number
@@ -126,6 +144,7 @@ export interface HudStats {
 
 /** Read-only view handed to render/ and ui/. Never mutated by consumers. */
 export interface Snapshot {
+  readonly traces?: readonly EnergyTrace[]
   readonly wave?: { readonly index: number; readonly total: number; readonly countdown: number; readonly spawns: readonly { x: number; y: number; radius: number }[] }
   readonly tick: number
   readonly bounds: Rect
@@ -156,6 +175,10 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   for (const actor of world.actors.values()) {
     const attrs = combatAttrs(actor)
     actors.push({
+      block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
+      weapon: attrs.weapon, damageType: actor.attackType ?? (attrs.weapon === 1 ? 'electric' : attrs.weapon === 2 ? 'heat' : 'physical'),
+      traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.windupTicks ?? null, windupAngle: actor.windupAngle ?? actor.aimAngle,
+      shocked: (actor.shockTicks ?? 0) > 0, burning: actor.burn !== undefined,
       id: actor.id,
       team: viewTeam(actor.team),
       tier: actor.tier,
@@ -184,7 +207,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       deflectCooldownSeconds: Math.max(0, actor.deflectCooldownTicks / TICK_RATE),
       deflectCooldownTotal: skillTotal(actor, 'deflect'),
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
-      range: actor.attrs.range,
+      range: actor.attrs.range * (attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1),
       fireCooldownSeconds: actor.fireCooldownTicks / TICK_RATE,
       fireCooldownTotal: 1 / Math.max(0.001, attrs.fireRate),
       mineCooldownSeconds: actor.mineCooldownTicks / TICK_RATE,
@@ -201,6 +224,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   }
 
   const projectiles: ProjectileView[] = world.projectiles.map((p) => ({
+    damageType: p.damageType ?? 'physical', power: p.damage,
     id: p.id,
     team: viewTeam(p.team),
     x: p.pos.x,
@@ -214,6 +238,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   }))
 
   const mines: MineView[] = world.mines.map((m) => ({
+    child: m.child === true, pulsesRemaining: m.pulsesRemaining ?? 1, pulseCount: m.pulseCount ?? 1,
     id: m.id,
     team: viewTeam(m.team),
     x: m.pos.x,
@@ -245,6 +270,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   }))
 
   return {
+    traces: world.traces?.map((t) => ({ ...t, from: { ...t.from }, to: { ...t.to }, team: viewTeam(t.team) })) ?? [],
     wave: world.waves ? { index: world.waves.index, total: world.waves.total, countdown: world.waves.countdown,
       spawns: world.waves.countdown ? (world.waves.remaining[0] ?? []).map((s) => ({ ...s.pos, radius: s.attrs.radius })) : [] } : undefined,
     tick: world.tick,

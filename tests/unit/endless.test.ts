@@ -45,7 +45,7 @@ describe('seeded endless generation', () => {
       const rng = createRng(100)
       for (let i = 0; i < 500; i++) {
         const e = rollEndlessEnemy(floor, rng, false), g = ENDLESS_RULES.growth, cap = ENDLESS_RULES.finiteMax
-        for (const [key, base, growth] of [['maxHp', 28, g.maxHp], ['damage', 6, g.damage], ['armor', 12, g.armor], ['speed', 150, g.speed], ['bulletSpeed', 380, g.bulletSpeed], ['fireRate', 0.6, g.fireRate], ['range', 750, g.range]] as const)
+        for (const [key, base, growth] of [['maxHp', 50, g.maxHp], ['damage', 9, g.damage], ['armor', 15, g.armor], ['block', 3, g.block], ['speed', 185, g.speed], ['bulletSpeed', 430, g.bulletSpeed], ['fireRate', 0.8, g.fireRate], ['range', 900, g.range]] as const)
           expect(e.attrs[key]).toBeLessThanOrEqual(base * growth ** (floor - 1) * cap + 1e-6)
       }
     }
@@ -100,7 +100,7 @@ describe('open floors and declining rewards', () => {
     expect(endlessReward(10000, 10)).toBeLessThan(1e-5)
     const { world, enter } = setup(); enter(); world.pickups = []
     const enemy = [...world.actors.values()].find((a) => a.team === 'enemy')!
-    const copy = { ...enemy, id: 800, rewardMultiplier: 0.25, hp: 1000, attrs: { ...enemy.attrs, armor: 0 } }
+    const copy = { ...enemy, id: 800, rewardMultiplier: 0.25, hp: 1000, attrs: { ...enemy.attrs, armor: 0, block: 0, physicalResist: 0 } }
     world.actors.set(copy.id, copy); const start = world.shards
     applyDamage(world, { targetId: copy.id, sourceId: getPlayer(world).id, sourceTeam: 'player', raw: 20, penetration: 0, isCore: false })
     expect(world.shards - start).toBeCloseTo(20 * world.economy.tierRate[copy.tier] * 0.25)

@@ -1,3 +1,4 @@
+import { ARSENAL_DEFAULTS } from '../core/attrs'
 import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { buildDungeon } from '../content/dungeon'
@@ -9,7 +10,7 @@ import { dungeonDifficulty, type DungeonDifficulty } from '../content/difficulti
 import { CURRENT_BALANCE_VERSION, migrateOrderedTargets, migrateWorldBuild, registryForSave } from './cardMigrations'
 export { CURRENT_BALANCE_VERSION } from './cardMigrations'
 export interface RunCheckpoint {
-  readonly balanceVersion?: 1 | 2 | typeof CURRENT_BALANCE_VERSION
+  readonly balanceVersion?: 1 | 2 | 3 | typeof CURRENT_BALANCE_VERSION
   readonly name?: string
   readonly difficulty?: DungeonDifficulty
   readonly format: 'prism-save'; readonly version: 1; readonly savedAt: string
@@ -29,6 +30,7 @@ export function readCheckpoint(text: string): RunCheckpoint {
   if (d.difficulty !== undefined) { dungeonDifficulty(d.difficulty); if (d.mode !== 'dungeon') throw new Error('难度模式无效') }
   if (typeof d.savedAt !== 'string' || d.savedAt.length > 40 || !Number.isFinite(Date.parse(d.savedAt))) throw new Error('存档时间无效')
   integer(d.initialSeed); integer(d.restarts); integer(d.roomIndex, 0, buildDungeon().length - 1)
+  if (d.balanceVersion !== CURRENT_BALANCE_VERSION) extendLegacyAttrs(d.world)
   let world = restoreWorld(d.world, registry, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
   if (world.participants || world.cardRestrictions) throw new Error('联网对局不能作为单人存档导入')
   const player = [...world.actors.values()].find((a) => a.team === 'player')!
@@ -60,4 +62,13 @@ export function preserveSaveName(saved: RunCheckpoint, existing?: RunCheckpoint)
 function finiteSeed(seed: unknown, restarts: unknown): number { return integer(seed) + integer(restarts) }
 export function checkpointLabel(saved: RunCheckpoint): string {
   return `${saved.mode === 'endless' ? `无尽第 ${saved.endless!.floor} 层` : `闯关${saved.difficulty ? ` D${saved.difficulty}` : ''} F${Math.floor(saved.roomIndex / 5) + 1}-${saved.roomIndex % 5 + 1}`} · 生命 ${Math.ceil(saved.world.actors.find((a) => a.team === 'player')!.hp)} · ${saved.world.purchases.reduce((n, p) => n + p.level, 0)} 级构筑`
+}
+
+/** Fill only fields introduced by v4; unknown fields still reach strict validation. */
+function extendLegacyAttrs(value: unknown): void {
+  const world = record(value), fill = (value: unknown) => { const a = record(value); for (const [key, fallback] of Object.entries(ARSENAL_DEFAULTS)) if (!Object.hasOwn(a, key)) a[key] = fallback }
+  fill(world.basePlayerAttrs)
+  for (const item of array(world.actors, 2000)) fill(record(item).attrs)
+  for (const item of array(world.pendingSpawns, 2000)) fill(record(item).attrs)
+  if (world.waves !== undefined) for (const wave of array(record(world.waves).remaining, 24)) for (const item of array(wave, 200)) fill(record(item).attrs)
 }

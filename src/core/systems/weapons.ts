@@ -1,7 +1,8 @@
 import { combatAttrs } from '../combat'
 import { hasLineOfSight } from '../navigation'
 import { TICK_RATE } from '../types'
-import { homingProfile, penetrationProfile, WEAPON_RULES } from '../rules'
+import { ARSENAL_RULES, homingProfile, penetrationProfile, WEAPON_RULES } from '../rules'
+import { fireElectric, fireLaserPulse } from './energyWeapons'
 import type { Vec2 } from '../types'
 import type { Actor, World } from '../world'
 import { allocateId } from '../world'
@@ -17,6 +18,14 @@ export function updateWeapons(world: World): void {
     if (attrs.maxProjectiles === 1) { actor.burstRemaining = 0; actor.burstTimer = 0 }
     if (angle !== undefined) actor.aimAngle = angle
     if (actor.fireCooldownTicks > 0) actor.fireCooldownTicks -= 1
+    if (attrs.weapon !== 0) {
+      actor.burstRemaining = 0; actor.burstTimer = 0
+      if (attrs.weapon === 2 && (actor.laserTicks ?? 0) > 0) { updateLaser(world, actor); continue }
+      if (actor.fireCooldownTicks > 0 || attrs.fireRate <= 0 || actor.intent.fire === false || angle === undefined) continue
+      if (attrs.weapon === 1) fireElectric(world, actor, angle)
+      else { actor.laserTicks = Math.max(1, Math.round(ARSENAL_RULES.laserTicks * attrs.burstCount)); actor.laserTimer = 0; updateLaser(world, actor) }
+      actor.fireCooldownTicks = Math.max(1, Math.round(TICK_RATE / attrs.fireRate)); continue
+    }
     if (actor.burstTimer > 0) actor.burstTimer -= 1
     if (actor.burstRemaining > 0) {
       if (actor.burstTimer <= 0 && hasBulletCapacity(world, actor)) {
@@ -37,6 +46,10 @@ export function updateWeapons(world: World): void {
     actor.fireCooldownTicks = Math.max(1, Math.round(TICK_RATE / attrs.fireRate))
   }
 }
+function updateLaser(world: World, actor: Actor): void {
+  if ((actor.laserTimer ?? 0) <= 0) { fireLaserPulse(world, actor, actor.aimAngle); actor.laserTimer = ARSENAL_RULES.laserGap }
+  actor.laserTimer!--; actor.laserTicks!--
+}
 function resolveAimAngle(world: World, actor: Actor): number | undefined {
   if (actor.behavior === 'boss') return undefined
   if (actor.intent.autoAim) {
@@ -56,12 +69,14 @@ function fireAt(world: World, actor: Actor, angle: number): void {
 /** Central emitter enforces sniper capacity for guns, bursts and mine fragments. */
 export function emitProjectile(world: World, actor: Actor, angle: number, origin?: Vec2): boolean {
   if (!hasBulletCapacity(world, actor)) return false
+  if (world.projectiles.length >= ARSENAL_RULES.projectileLimit) world.projectiles.shift()
   const attrs = combatAttrs(actor), dx = Math.cos(angle), dy = Math.sin(angle)
   const pos = origin ?? { x: actor.pos.x + dx * actor.radius * 0.5, y: actor.pos.y + dy * actor.radius * 0.5 }
   const profile = homingProfile(attrs.homing)
   const penetration = penetrationProfile(attrs.pierceBoost)
   const speed = attrs.bulletSpeed * profile.initialMultiplier
   world.projectiles.push({ id: allocateId(world), ownerId: actor.id, team: actor.team,
+    damageType: actor.attackType ?? 'physical',
     rewardMultiplier: actor.rewardMultiplier,
     pos: { ...pos }, prevPos: { ...pos }, vel: { x: dx * speed, y: dy * speed }, radius: attrs.bulletSize,
     damage: attrs.damage, penetration: attrs.penetration, pierceLeft: Math.max(1, Math.floor(attrs.pierce)),

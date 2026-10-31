@@ -1,7 +1,8 @@
 import type { AttrSet } from '../core/attrs'
-import type { EnemyBehavior, EnemyTier } from '../core/world'
+import { ARSENAL_DEFAULTS } from '../core/attrs'
+import type { EnemyBehavior, EnemyTier, EnemyMechanics } from '../core/world'
 
-export interface EnemyType {
+export interface EnemyType extends EnemyMechanics {
   readonly name: string
   readonly attrs: AttrSet
   readonly tier: EnemyTier
@@ -11,6 +12,7 @@ export interface EnemyType {
 }
 
 const ZERO_ATTRS: AttrSet = {
+  ...ARSENAL_DEFAULTS,
   maxHp: 30,
   speed: 0,
   radius: 34,
@@ -81,51 +83,51 @@ function enemyAttrs(overrides: Partial<AttrSet>): AttrSet {
 /** Values from docs/balance.md 4. */
 export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   drifter: {
-    name: 'Drifter',
+    name: '游荡者',
     tier: 'normal',
     behavior: 'chase',
-    contactDamage: 6,
+    contactDamage: 9,
     hasCore: false,
     attrs: enemyAttrs({
-      maxHp: 20,
-      speed: 150,
+      maxHp: 32,
+      speed: 185,
       radius: 34,
-      damage: 6,
+      damage: 9,
     }),
   },
 
   turret: {
-    name: 'Turret',
+    name: '哨戒炮台',
     tier: 'normal',
     behavior: 'turret',
     contactDamage: 0,
     hasCore: false,
     attrs: enemyAttrs({
-      maxHp: 30,
-      armor: 20,
+      maxHp: 55,
+      armor: 25,
       speed: 0,
       radius: 40,
-      damage: 10,
-      fireRate: 0.6,
-      bulletSpeed: 380,
+      damage: 13,
+      fireRate: 0.8,
+      bulletSpeed: 430,
       range: 900,
       bulletSize: 10,
     }),
   },
 
   warden: {
-    name: 'Warden',
+    name: '核心守卫',
     tier: 'elite',
     behavior: 'turret',
     contactDamage: 0,
     hasCore: true,
     attrs: enemyAttrs({
-      maxHp: 220,
-      armor: 60,
+      maxHp: 280,
+      armor: 65, block: 3, shield: 45, shieldRegen: 4,
       speed: 0,
       radius: 56,
-      damage: 12,
-      fireRate: 0.9,
+      damage: 18,
+      fireRate: 1.1,
       bulletSpeed: 480,
       range: 1100,
       bulletSize: 12,
@@ -134,22 +136,29 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   },
 
   boss: {
-    name: 'Prism Heart',
+    name: '棱镜之心',
     tier: 'boss',
     behavior: 'boss',
     contactDamage: 0,
     hasCore: true,
     attrs: enemyAttrs({
-      maxHp: 2000,
-      armor: 80,
+      maxHp: 3000,
+      armor: 90, block: 5,
       speed: 0,
       radius: 90,
-      damage: 12,
-      fireRate: 0.6,
-      bulletSpeed: 420,
+      damage: 18,
+      fireRate: 0.85,
+      bulletSpeed: 500,
       range: 1800,
       bulletSize: 14,
-      multishot: 8,
+      multishot: 10,
     }),
   },
+  bomber: { name: '自爆体', tier: 'normal', behavior: 'bomber', contactDamage: 0, hasCore: false, attackType: 'heat', traits: ['volatile'],
+    attrs: enemyAttrs({ maxHp: 42, speed: 230, radius: 32, damage: 16, bulletSpeed: 330, range: 850 }) },
+  stalker: { name: '游猎射手', tier: 'normal', behavior: 'skirmish', contactDamage: 7, hasCore: false, attackType: 'physical',
+    attrs: enemyAttrs({ maxHp: 60, armor: 10, speed: 170, radius: 34, damage: 10, fireRate: 1.2, bulletSpeed: 580, range: 1000, multishot: 2 }) },
+  lancer: { name: '灼线哨兵', tier: 'elite', behavior: 'lancer', contactDamage: 0, hasCore: true, attackType: 'heat',
+    attrs: enemyAttrs({ maxHp: 100, armor: 35, block: 2, speed: 100, radius: 42, damage: 20, fireRate: 0.45, range: 900, weapon: 2, pierce: 2 }) },
+
 }

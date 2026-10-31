@@ -7,14 +7,15 @@ import { resolveProjectilePath } from './hits'
 export function slowDivisor(world: World, projectile: Projectile): number {
   let divisor = 1
   for (const mine of world.mines) {
-    if (mine.team === projectile.team || distance(mine.pos, projectile.pos) > mine.slowRadius) continue
+    if (mine.exploding || mine.team === projectile.team || distance(mine.pos, projectile.pos) > mine.slowRadius) continue
     divisor = Math.max(divisor, mine.slowMultiplier)
   }
   return divisor
 }
 export function updateProjectiles(world: World, dt: number): void {
-  const survivors: Projectile[] = []
-  for (const projectile of world.projectiles) {
+  const initial = [...world.projectiles], initialIds = new Set(initial.map((p) => p.id)), survivors = new Set<number>()
+  for (const projectile of initial) {
+    if (!world.projectiles.includes(projectile)) continue
     projectile.prevPos = { ...projectile.pos }
     projectile.trail ??= []; projectile.trail.push({ ...projectile.pos }); if (projectile.trail.length > 9) projectile.trail.shift()
     steer(world, projectile, dt)
@@ -46,9 +47,9 @@ export function updateProjectiles(world: World, dt: number): void {
       projectile.trail.push({ ...projectile.pos }); if (projectile.trail.length > 9) projectile.trail.shift()
     }
     projectile.resolvedTick = world.tick
-    if (alive && (projectile.travelLeft > 0 || reflected)) survivors.push(projectile)
+    if (alive && (projectile.travelLeft > 0 || reflected)) survivors.add(projectile.id)
   }
-  world.projectiles = survivors
+  world.projectiles = world.projectiles.filter((p) => !initialIds.has(p.id) || survivors.has(p.id))
 }
 function steer(world: World, projectile: Projectile, dt: number): void {
   if (!projectile.homingTurn) return

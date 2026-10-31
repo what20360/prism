@@ -6,6 +6,8 @@ import { isFiniteBuild, resolveAttrs } from '../../core/cards'
 import { getPlayer, type World, type EnemySpawnSpec } from '../../core/world'
 
 export interface PracticeConfig {
+  readonly block?: number
+  readonly enemy?: string
   readonly scenario: 'targets' | 'combat'
   readonly layout: 'open' | 'cover'
   readonly count: number
@@ -14,7 +16,7 @@ export interface PracticeConfig {
   readonly invincible: boolean
   readonly freeCards: boolean
 }
-export const DEFAULT_PRACTICE: PracticeConfig = { scenario: 'targets', layout: 'open', count: 3, hp: 10000, armor: 0, invincible: true, freeCards: true }
+export const DEFAULT_PRACTICE: PracticeConfig = { block: 0, enemy: 'mixed', scenario: 'targets', layout: 'open', count: 3, hp: 10000, armor: 0, invincible: true, freeCards: true }
 const CREDIT = 1e12
 export interface PracticeState {
   readonly config: PracticeConfig
@@ -39,7 +41,7 @@ export interface PracticeMode {
 }
 function finite(value: number, fallback: number, min: number, max: number): number { return Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback }
 function configOf(value: PracticeConfig): PracticeConfig {
-  return { scenario: value.scenario === 'combat' ? 'combat' : 'targets', layout: value.layout === 'cover' ? 'cover' : 'open',
+  return { block: finite(value.block ?? 0, 0, 0, 10000), enemy: value.enemy && (Object.hasOwn(ENEMIES, value.enemy) || value.enemy === 'bark') ? value.enemy : 'mixed', scenario: value.scenario === 'combat' ? 'combat' : 'targets', layout: value.layout === 'cover' ? 'cover' : 'open',
     count: finite(value.count, 3, 1, 12), hp: finite(value.hp, 10000, 1, 100000), armor: finite(value.armor, 0, 0, 1000),
     invincible: value.invincible === true, freeCards: value.freeCards === true }
 }
@@ -50,11 +52,12 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
     const spawns: EnemySpawnSpec[] = []
     for (let i = 0; i < config.count; i++) {
       const pos = { x: 1600 + [0, -1, 1, -2, 2][i % 5]! * 400, y: 820 - Math.floor(i / 5) * 240 }
-      if (config.scenario === 'targets') spawns.push({ pos, attrs: { ...PLAYER_BASE_ATTRS, maxHp: config.hp, armor: config.armor,
+      if (config.scenario === 'targets') spawns.push({ pos, attrs: { ...PLAYER_BASE_ATTRS, maxHp: config.hp, armor: config.armor, block: config.block ?? 0,
         speed: 0, fireRate: 0, damage: 0, autoFire: 0 }, tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: i % 2 === 1, name: `${i % 2 ? '核心靶机' : '训练靶机'} ${i + 1}` })
       else {
-        const type = ENEMIES[i % 3 === 2 ? 'turret' : 'drifter']!
-        spawns.push({ ...type, pos, attrs: { ...type.attrs, maxHp: config.hp, armor: config.armor } })
+        const types = ['drifter', 'turret', 'bomber', 'stalker', 'lancer', 'warden']; const id = config.enemy === 'mixed' ? types[i % types.length]! : config.enemy === 'bark' ? 'drifter' : config.enemy!
+        const type = ENEMIES[id]!
+        spawns.push({ ...type, pos, name: config.enemy === 'bark' ? '树皮·游荡者' : type.name, traits: config.enemy === 'bark' ? ['bark'] : type.traits, attrs: { ...type.attrs, maxHp: config.hp, armor: config.armor, block: config.enemy === 'bark' ? Math.max(6, config.block ?? 0) : config.block ?? type.attrs.block } })
       }
     }
     return { id: 'practice', kind: 'combat', pickups: [], bounds: { x: 0, y: 0, width: 3200, height: 1800 },
@@ -65,7 +68,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
   const restore = (world: World) => {
     const p = getPlayer(world); p.hp = p.attrs.maxHp; p.shield = p.attrs.shield
     p.iframesTicks = 0; p.fireCooldownTicks = 0; p.mineCooldownTicks = 0
-    p.deflectWindowTicks = 0; p.deflectCooldownTicks = 0; p.rageTicks = 0; p.dashTicks = 0; p.rageCooldownTicks = 0; p.dashCooldownTicks = 0; p.burstRemaining = 0
+    p.deflectWindowTicks = 0; p.deflectCooldownTicks = 0; p.rageTicks = 0; p.dashTicks = 0; p.rageCooldownTicks = 0; p.dashCooldownTicks = 0; p.burstRemaining = 0; p.laserTicks = 0; p.laserTimer = 0; p.burn = undefined; p.shockTicks = 0
   }
   const resetScene = (world: World) => {
     const player = getPlayer(world)
@@ -101,7 +104,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       else if (action.type === 'scene-reset') resetScene(world)
       else if (action.type === 'meters-reset') resetMeters(world)
       else if (action.type === 'restore') restore(world)
-      else if (action.type === 'clear') { world.projectiles = []; world.mines = []; getPlayer(world).burstRemaining = 0 }
+      else if (action.type === 'clear') { world.projectiles = []; world.mines = []; world.traces = []; getPlayer(world).burstRemaining = 0; getPlayer(world).laserTicks = 0 }
       else if (action.type === 'card-level') {
         const card = world.registry.get(action.id)
         if (!card || !Number.isSafeInteger(action.level) || action.level < 0 || (card.maxLevel !== undefined && action.level > card.maxLevel)) return false

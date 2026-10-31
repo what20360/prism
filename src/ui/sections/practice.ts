@@ -17,13 +17,15 @@ export function renderPracticeSection(state: PracticeState, onAction: (action: P
   const number = (value: number, min: number, max: number): HTMLInputElement => { const input = document.createElement('input'); input.type = 'number'; input.min = String(min); input.max = String(max); input.step = '1'; input.value = String(value); input.required = true; return input }
   const scenario = select([['targets', '固定靶机'], ['combat', '敌人演练']], state.config.scenario); field('场景类型', scenario)
   const layout = select([['open', '开阔场地'], ['cover', '掩体场地']], state.config.layout); field('场地布局', layout)
+  const enemy = select([['mixed', '混合敌群'], ['drifter', '游荡者'], ['turret', '哨戒炮台'], ['bark', '树皮游荡者'], ['bomber', '自爆体'], ['stalker', '游猎射手'], ['lancer', '灼线哨兵'], ['warden', '核心守卫'], ['boss', '棱镜之心']], state.config.enemy ?? 'mixed'); field('演练敌人', enemy)
+  const block = number(state.config.block ?? 0, 0, 10000); field('目标格挡', block)
   const count = number(state.config.count, 1, 12); field('目标数量', count)
   const hp = number(state.config.hp, 1, 100000); field('目标生命', hp)
   const armor = number(state.config.armor, 0, 1000); field('目标护甲', armor)
   const check = (text: string, checked: boolean) => { const input = document.createElement('input'); input.type = 'checkbox'; input.checked = checked; field(text, input); return input }
   const invincible = check('玩家无敌', state.config.invincible), freeCards = check('自由购卡', state.config.freeCards)
   const apply = document.createElement('button'); apply.className = 'practice__primary'; apply.type = 'submit'; apply.textContent = '应用场景（保留构筑）'; form.append(apply)
-  form.onsubmit = (event) => { event.preventDefault(); if (form.reportValidity()) onAction({ type: 'configure', config: { scenario: scenario.value as PracticeConfig['scenario'], layout: layout.value as PracticeConfig['layout'], count: count.valueAsNumber, hp: hp.valueAsNumber, armor: armor.valueAsNumber, invincible: invincible.checked, freeCards: freeCards.checked } }) }
+  form.onsubmit = (event) => { event.preventDefault(); if (form.reportValidity()) onAction({ type: 'configure', config: { enemy: enemy.value, block: block.valueAsNumber, scenario: scenario.value as PracticeConfig['scenario'], layout: layout.value as PracticeConfig['layout'], count: count.valueAsNumber, hp: hp.valueAsNumber, armor: armor.valueAsNumber, invincible: invincible.checked, freeCards: freeCards.checked } }) }
   root.append(form)
   const actions = document.createElement('div'); actions.className = 'practice__actions'
   for (const [type, text] of [['scene-reset', '重置场景（保留构筑）'], ['meters-reset', '重置伤害统计'], ['restore', '恢复生命与技能冷却'], ['clear', '清除弹幕与地雷']] as const) {

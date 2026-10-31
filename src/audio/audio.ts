@@ -1,7 +1,7 @@
 import type { Snapshot } from '../core/snapshot'
 import type { ControlSettings } from '../storage/config'
 
-export type Sound = 'shot' | 'hit' | 'coreHit' | 'explosion' | 'hurt' | 'buy' | 'sell' | 'deflect' | 'revive' | 'victory' | 'failure' | 'mine' | 'rage' | 'dash' | 'pickup'
+export type Sound = 'shot' | 'electric' | 'laser' | 'hit' | 'coreHit' | 'explosion' | 'hurt' | 'buy' | 'sell' | 'deflect' | 'revive' | 'victory' | 'failure' | 'mine' | 'rage' | 'dash' | 'pickup'
 
 /** Procedural audio stays outside the deterministic simulation and needs no assets. */
 export function createAudioEngine() {
@@ -16,6 +16,7 @@ export function createAudioEngine() {
   let previousBullets = new Set<number>()
   let previousMines = new Set<number>()
   let previousEffects = new Set<string>()
+  let previousTraces = new Set<string>()
   let lastHealth: number | undefined
   let ended = false
   let lastShotTime = -1
@@ -43,6 +44,8 @@ export function createAudioEngine() {
     const play = (f: number, d: number, v: number, wave: OscillatorType = 'sine', end = f, delay = 0) =>
       tone(f, d, v, wave, now + delay, effects!, end)
     if (sound === 'shot') { if (now - lastShotTime < 0.045) return; lastShotTime = now; play(420, 0.08, 0.18, 'triangle', 100) }
+    else if (sound === 'electric') { if (now - lastShotTime < 0.07) return; lastShotTime = now; play(1400, 0.13, 0.09, 'sawtooth', 190); play(2500, 0.08, 0.04, 'triangle', 420) }
+    else if (sound === 'laser') { if (now - lastShotTime < 0.085) return; lastShotTime = now; play(520, 0.14, 0.08, 'sine', 300); play(1040, 0.12, 0.04, 'triangle', 620) }
     else if (sound === 'hit') play(900, 0.06, 0.12, 'sine', 400)
     else if (sound === 'coreHit') { play(1200, 0.15, 0.16); play(1800, 0.1, 0.09, 'sine', 1800, 0.04) }
     else if (sound === 'explosion') { play(110, 0.32, 0.32, 'sawtooth', 24); play(47, 0.36, 0.3) }
@@ -126,6 +129,12 @@ export function createAudioEngine() {
       const shots = snapshot.projectiles.filter((bullet) => bullet.team === 'player')
       if (shots.some((bullet) => !previousBullets.has(bullet.id))) notify('shot')
       previousBullets = new Set(shots.map((bullet) => bullet.id))
+      const traceKeys = new Set<string>()
+      for (const trace of snapshot.traces ?? []) {
+        const key = `${trace.ownerId}:${trace.kind}:${trace.from.x}:${trace.to.x}:${snapshot.tick + trace.ttl}`; traceKeys.add(key)
+        if (trace.team === 'player' && !previousTraces.has(key)) notify(trace.kind)
+      }
+      previousTraces = traceKeys
       const mines = snapshot.mines.filter((mine) => mine.team === 'player')
       if (mines.some((mine) => !previousMines.has(mine.id))) notify('mine')
       previousMines = new Set(mines.map((mine) => mine.id))
@@ -134,7 +143,7 @@ export function createAudioEngine() {
         const key = `${effect.kind}:${effect.x}:${effect.y}:${snapshot.tick + effect.ttl}`
         keys.add(key)
         if (!previousEffects.has(key)) {
-          const sound: Sound = effect.kind === 'reflect' ? 'deflect' : effect.kind === 'death' ? 'hit' : effect.kind
+          const sound: Sound = effect.kind === 'block' ? 'hit' : effect.kind === 'reflect' ? 'deflect' : effect.kind === 'death' ? 'hit' : effect.kind
           notify(sound)
         }
       }

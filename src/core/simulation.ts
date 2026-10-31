@@ -70,6 +70,7 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   // 11. room state
   updateRoom(world)
   updateExit(world)
+  world.effects = world.effects.slice(-512); world.floaters = world.floaters.slice(-1024)
 
   world.tick += 1
 }

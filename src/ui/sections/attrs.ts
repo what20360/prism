@@ -1,6 +1,6 @@
 import { armorToMitigation, type AttrSet } from '../../core/attrs'
 import { formatNumber } from '../cardInfo'
-import { homingProfile, penetrationProfile, mineSlowMultiplier, WEAPON_RULES } from '../../core/rules'
+import { homingProfile, penetrationProfile, mineSlowMultiplier, WEAPON_RULES, ARSENAL_RULES, arcProfile, pulseProfile, broodProfile } from '../../core/rules'
 
 export interface PlayerView {
   readonly attrs: AttrSet
@@ -49,6 +49,8 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
     group('生存', [
       row('生命', `${Math.ceil(view.hp)} / ${formatNumber(attrs.maxHp)}`),
       row('护盾', `${Math.ceil(view.shield)} / ${formatNumber(view.shieldCap)}`),
+      row('固定格挡', formatNumber(attrs.block)),
+      row('物理 / 电 / 热抗性', `${formatNumber(attrs.physicalResist)} / ${formatNumber(attrs.electricResist)} / ${formatNumber(attrs.heatResist)}`),
       row('护甲', formatNumber(attrs.armor)),
       row('减伤', `${formatNumber(mitigation * 100)}%`),
       row('移动速度', `${formatNumber(attrs.speed)} /秒`),
@@ -56,10 +58,11 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('复活次数', formatNumber(attrs.revives)),
     ]),
     group('火力', [
+      row('主武器', attrs.weapon === 1 ? '电弧 · 电伤' : attrs.weapon === 2 ? '激光 · 热伤' : '弹芯枪 · 物理'),
       row('单发伤害', formatNumber(attrs.damage)),
       row('射速', `${formatNumber(attrs.fireRate)} 发/秒`),
-      row('理论 DPS', formatNumber(dps)),
-      row('射程（路径距离）', formatNumber(attrs.range)),
+      row('理论 DPS', attrs.weapon === 0 ? formatNumber(dps) : '依目标与穿透；可在测试场测量'),
+      row('射程（路径距离）', formatNumber(attrs.range * (attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1))),
       row('弹速', formatNumber(attrs.bulletSpeed)),
       row('发射初速 / 最高弹速', `${formatNumber(attrs.bulletSpeed * homing.initialMultiplier)} / ${formatNumber(attrs.bulletSpeed * homing.cruiseMultiplier)}`),
       row('穿透层数', formatNumber(attrs.pierce)),
@@ -70,6 +73,8 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('多重射击', formatNumber(attrs.multishot)),
       row('弹射', attrs.ricochet > 0 ? '每次消耗 1 穿透' : '未解锁'),
       row('连发轮数', formatNumber(attrs.burstCount)),
+      row('电弧传导保留 / 强化', `${formatNumber(arcProfile(attrs.arcEfficiency).retention * 100)}% / ${formatNumber(arcProfile(attrs.arcEfficiency).boostedRetention * 100)}%`),
+      row('激光脉冲 / 照射时间', `${formatNumber(attrs.damage * ARSENAL_RULES.laserDamage * (1 + 0.2 * attrs.laserPower))} / ${formatNumber(ARSENAL_RULES.laserTicks * attrs.burstCount / 60)} 秒`),
       row('追踪转速', attrs.homing > 0 ? `${formatNumber(homing.turnRate)} 弧度/秒` : '未解锁'),
       row('同时存在子弹', attrs.maxProjectiles > 0 ? `${attrs.maxProjectiles} 颗` : '不限'),
       row('视野倍率', `×${formatNumber(attrs.vision)}`),
@@ -77,6 +82,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('自动索敌 / 扳机', `${attrs.autoAim > 0 ? '已装配' : '未购买'} / ${attrs.autoFire > 0 ? '已装配' : '未购买'}`),
     ]),
     group('恢复与收益', [
+      row('击杀晶片 / 血球等级', `${formatNumber(attrs.mineShardChance)} / ${formatNumber(attrs.bloodOrbChance)}`),
       row('吸血', `${formatNumber(attrs.lifesteal * 100)}%`),
       row('吸盾', `${formatNumber(attrs.shieldSteal * 100)}%`),
       row('棱晶收益', `×${formatNumber(attrs.shardGain)}`),
@@ -91,7 +97,9 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('反射伤害倍率', `×${formatNumber(attrs.reflectDamageMult)}`),
     ]),
     group('雷场装备', [
-      row('伤害', formatNumber(attrs.mineDamage)),
+      row('每段伤害 / 段数', `${formatNumber(attrs.mineDamage / pulseProfile(attrs.minePulseLevel).divisor)} / ${pulseProfile(attrs.minePulseLevel).count}`),
+      row('子雷数量 / 继承', attrs.mineBroodLevel > 0 ? `${broodProfile(attrs.mineBroodLevel).children} / ${formatNumber(broodProfile(attrs.mineBroodLevel).inherit * 100)}%` : '未解锁'),
+      row('子雷独立上限', attrs.mineBroodLevel > 0 ? String(Math.floor(attrs.mineLimit * broodProfile(attrs.mineBroodLevel).capMultiplier)) : '未解锁'),
       row('爆炸半径', formatNumber(attrs.mineBlastRadius)),
       row('侦测 / 减速半径', `${formatNumber(attrs.mineTriggerRadius)} / ${formatNumber(attrs.mineSlowRadius)}`),
       row('减速倍率', `÷${formatNumber(mineSlowMultiplier(attrs.mineSlowMultiplier, attrs.mineIgnoreBullets > 0))}`),

@@ -5,8 +5,9 @@ import { applyDamage } from './damage'
 import { removeMine } from './mines'
 
 export function resolveHits(world: World): void {
-  world.projectiles = world.projectiles.filter((projectile) => projectile.resolvedTick === world.tick ||
-    resolveProjectilePath(world, projectile, projectile.prevPos, projectile.pos) !== 'stopped')
+  const initial = [...world.projectiles], removed = new Set<number>()
+  for (const projectile of initial) if (world.projectiles.includes(projectile) && projectile.resolvedTick !== world.tick && resolveProjectilePath(world, projectile, projectile.prevPos, projectile.pos) === 'stopped') removed.add(projectile.id)
+  world.projectiles = world.projectiles.filter((p) => !removed.has(p.id))
 }
 function contactTime(from: Vec2, to: Vec2, centre: Vec2, radius: number): number | null {
   const dx = to.x - from.x, dy = to.y - from.y, x = from.x - centre.x, y = from.y - centre.y
@@ -27,7 +28,7 @@ export function resolveProjectilePath(world: World, projectile: Projectile, from
   }
   const contacts: { t: number; id: number; actor?: Actor; mine?: typeof world.mines[number] }[] = []
   for (const mine of world.mines) {
-    if (mine.team === projectile.team || mine.ignoreBullets || mine.hp <= 0) continue
+    if (mine.team === projectile.team || mine.ignoreBullets || mine.hp <= 0 || mine.exploding) continue
     const t = contactTime(from, to, mine.pos, projectile.radius + mine.bodyRadius)
     if (t !== null) contacts.push({ t, id: mine.id, mine })
   }
@@ -54,13 +55,13 @@ export function resolveProjectilePath(world: World, projectile: Projectile, from
       length ? (to.y - from.y) / length : Math.sin(Math.atan2(projectile.vel.y, projectile.vel.x))) <= core
     if (isCore) world.stats.coreHits += 1
     applyDamage(world, { targetId: target.id, sourceId: projectile.ownerId, sourceTeam: projectile.team,
-      raw: projectile.damage * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet', rewardMultiplier: projectile.rewardMultiplier })
+      raw: projectile.damage * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
     const radius = projectile.blastRadius ?? 0
     if (radius > 0) {
       world.effects.push({ kind: 'explosion', x: target.pos.x, y: target.pos.y, radius, ttl: 14 })
       for (const other of world.actors.values()) {
         if (!other.alive || other.team === projectile.team || other.id === target.id || distance(other.pos, target.pos) > radius + other.radius) continue
-        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false, kind: 'bullet', rewardMultiplier: projectile.rewardMultiplier })
+        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
       }
     }
     projectile.hitIds.push(target.id); projectile.pierceLeft -= isCore ? 2 : 1

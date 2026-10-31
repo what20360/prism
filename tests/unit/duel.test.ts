@@ -99,7 +99,7 @@ describe('economic duel modes', () => {
   })
   it('replays deterministic resource/monster schedules with equal timed stipends', () => {
     const a = start('resource'), b = start('resource')
-    for (let i = 0; i < 900; i++) { a.tick(IDLE_INPUT, IDLE_INPUT); b.tick(IDLE_INPUT, IDLE_INPUT) }
+    for (let i = 0; i < 900; i++) { for (const run of [a, b]) for (const id of [1, 2]) run.world().actors.get(id)!.iframesTicks = 1000; a.tick(IDLE_INPUT, IDLE_INPUT); b.tick(IDLE_INPUT, IDLE_INPUT) }
     expect(serializeWorld(a.world())).toEqual(serializeWorld(b.world()))
     expect(a.world().participants![1]!.shards).toBe(615); expect(a.world().participants![2]!.shards).toBe(615)
     expect(a.world().actors.size).toBeGreaterThan(2); expect(a.world().pickups.length).toBeGreaterThan(0)
@@ -129,8 +129,8 @@ describe('economic duel modes', () => {
     const m = start('resource'), w = m.world(), host = w.actors.get(1)!, guest = w.actors.get(2)!
     const monster = createActor(w, { ...ENEMIES.drifter!, attrs: { ...ENEMIES.drifter!.attrs }, team: 'neutral', pos: { x: guest.pos.x - 30, y: guest.pos.y } })
     updateAi(w, new Set([1, 2])); expect(monster.intent.aim!.x).toBeGreaterThan(0)
-    resolveContactDamage(w); expect(guest.hp).toBe(94); expect(host.hp).toBe(100)
-    monster.pos = { x: host.pos.x + 30, y: host.pos.y }; resolveContactDamage(w); expect(host.hp).toBe(94)
+    resolveContactDamage(w); expect(guest.hp).toBe(100 - monster.contactDamage); expect(host.hp).toBe(100)
+    monster.pos = { x: host.pos.x + 30, y: host.pos.y }; resolveContactDamage(w); expect(host.hp).toBe(100 - monster.contactDamage)
     w.actors.delete(monster.id); host.pos = { x: 800, y: 700 }; guest.pos = { x: 840, y: 700 }; separateActors(w)
     expect(800 - host.pos.x).toBeCloseTo(guest.pos.x - 840)
   })

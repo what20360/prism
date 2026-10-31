@@ -1,6 +1,8 @@
 import { shieldCap } from '../attrs'
 import { TICK_RATE } from '../types'
 import type { Effect, World } from '../world'
+import { ARSENAL_RULES } from '../rules'
+import { applyDamage } from './damage'
 
 /** Chain breaks after 3 seconds without a kill. */
 const CHAIN_IDLE_TICKS = 3 * TICK_RATE
@@ -10,6 +12,13 @@ const REGEN_DELAY_TICKS = 3 * TICK_RATE
 /** Step 3: cooldowns, invulnerability, deflection, regen, chain timeout, effects. */
 export function updateTimers(world: World): void {
   for (const actor of world.actors.values()) {
+    if (actor.shockTicks) actor.shockTicks--
+    if (actor.alive && actor.burn && --actor.burn.timer <= 0) {
+      const burn = actor.burn
+      burn.timer = ARSENAL_RULES.burnInterval; burn.remaining--
+      if (burn.remaining <= 0) actor.burn = undefined
+      applyDamage(world, { targetId: actor.id, sourceId: burn.sourceId, sourceTeam: burn.sourceTeam, raw: burn.raw, penetration: 0, isCore: false, kind: 'status', damageType: 'heat', rewardMultiplier: burn.rewardMultiplier })
+    }
     if (actor.contactCooldownTicks) actor.contactCooldownTicks--
     if (actor.rageTicks > 0) actor.rageTicks -= 1
     if (actor.dashTicks > 0) actor.dashTicks -= 1
@@ -41,6 +50,7 @@ export function updateTimers(world: World): void {
     if (effect.ttl > 0) alive.push(effect)
   }
   world.effects = alive
+  if (world.traces) world.traces = world.traces.filter((trace) => --trace.ttl > 0)
 
   const visible = []
   for (const floater of world.floaters) {

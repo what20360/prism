@@ -1,6 +1,15 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  { version: '1.18', date: '2026-10-31', title: '武器分化与词条敌人', items: [
+    '掘金者和美食家改为击杀保底掉落，溢出重击提高资源价值；非致命命中不再逐次刷资源。',
+    '伤害先扣固定格挡，再结算护甲与物理、电、热抗性；电伤短暂减速，热伤附带燃烧。',
+    '敌人扩展为七种原型，加入树皮、迅捷、重甲、雷涌、炽热和裂核词条；自爆有范围预警，死亡会释放环形弹幕。',
+    '增加电弧与激光武器卡和各自专精；电弧将连发转为传导，激光将连发转为持续照射，霰弹与穿透分别适配。',
+    '增加震荡雷芯的多段爆炸、蜂巢雷芯的独立子雷限额；子雷有存活时间且不递归繁殖。',
+    '武器外形、瞄准标识、共享配色和声音随主武器变化；锁定面板展示格挡、抗性与词条。测试控制可选择新敌人和格挡。',
+    '存档数值版本4兼容旧1–3版，保存激光、燃烧、自爆倒计时与地雷阶段；联机协议同步提升。',
+  ] },
   { version: '1.17', date: '2026-10-31', title: '卡片整理与构筑选择', items: [
     '逐张核对54张卡，整理为49张：护盾上限、雷场侦测/减速范围、引力织网及核心稳态合并到对应主卡。',
     '改善基础防御、核心命中、单发狙击、地雷耐久与高等级追踪的购买收益；保留风险姿态和悬浮弹芯的独立用途。',
