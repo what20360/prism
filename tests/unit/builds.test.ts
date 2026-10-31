@@ -77,7 +77,7 @@ describe('builds and card recycling', () => {
     const w = world(), p = getPlayer(w)
     buyCard(w, 'mine-power'); buyCard(w, 'mine-radius'); buyCard(w, 'mine-cooldown'); buyCard(w, 'mine-slow')
     tryPlaceMine(w, p)
-    expect(w.mines[0]).toMatchObject({ damage: 38, blastRadius: 225, triggerRadius: 120 })
+    expect(w.mines[0]).toMatchObject({ damage: 38, blastRadius: 225, triggerRadius: 135 })
     expect(w.mines[0]?.slowMultiplier).toBeCloseTo(2.5)
     expect(p.mineCooldownTicks).toBeLessThan(120)
   })
@@ -88,7 +88,7 @@ describe('builds and card recycling', () => {
     const radius = p.attrs.deflectFieldRadius
     buyCard(w, 'deflect')
     expect(p.attrs.deflectFieldRadius).toBe(radius + 40)
-    expect(p.attrs.deflectFieldStrength).toBe(750)
+    expect(p.attrs.deflectFieldStrength).toBe(820)
   })
 })
 

@@ -2,6 +2,7 @@ import { CARD_REGISTRY } from '../content/cards'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { isFiniteBuild, resolveAttrs } from '../core/cards'
 import { array, integer, record } from '../core/serialization'
+import { migrateFavoriteIds, migrateOrderedTargets } from './cardMigrations'
 export interface UpgradeTarget { readonly id: string; readonly level: number }
 export type QuickMode = 'favorites' | 'planned'
 export interface PurchasePlan { enabled: boolean; targets: UpgradeTarget[]; quickMode?: QuickMode }
@@ -9,7 +10,7 @@ export interface BuildPreset { readonly format: 'prism-build'; readonly version:
 export const DEFAULT_FAVORITES = ['gun-damage', 'gun-firerate', 'gun-range', 'gun-pierce', 'magnet']
 export function validateTargets(value: unknown): UpgradeTarget[] {
   const levels = new Map<string, number>()
-  const targets = array(value, 2048).map((value) => {
+  const targets = migrateOrderedTargets(value).map((value) => {
     const item = record(value), id = typeof item.id === 'string' ? item.id : '', card = CARD_REGISTRY.get(id)
     if (!card) throw new Error('预设含未知卡片')
     const level = integer(item.level, (levels.get(id) ?? 0) + 1, card.maxLevel); levels.set(id, level)
@@ -20,7 +21,7 @@ export function validateTargets(value: unknown): UpgradeTarget[] {
   return targets
 }
 export function validateFavorites(value: unknown): string[] {
-  const ids = array(value, CARD_REGISTRY.all().length)
+  const ids = migrateFavoriteIds(value)
   if (ids.some((id) => typeof id !== 'string' || !CARD_REGISTRY.get(id)) || new Set(ids).size !== ids.length) throw new Error('收藏卡片配置无效')
   return ids as string[]
 }
@@ -36,8 +37,8 @@ export function readPreset(text: string): BuildPreset {
   let favorites: string[], quickMode: QuickMode
   if (d.version === 1) {
     const old = array(d.quickSlots, 5)
-    if (old.length !== 5 || old.some((id) => id !== null && (typeof id !== 'string' || !CARD_REGISTRY.get(id)))) throw new Error('快捷栏配置无效')
-    favorites = validateFavorites([...new Set(old.filter((id) => id !== null))]); quickMode = 'planned'
+    if (old.length !== 5) throw new Error('快捷栏配置无效')
+    favorites = validateFavorites([...new Set(migrateFavoriteIds(old.filter((id) => id !== null)))]); quickMode = 'planned'
   } else { favorites = validateFavorites(d.favorites); quickMode = validateQuickMode(d.quickMode) }
   return { format: 'prism-build', version: 2, name: d.name.trim(), targets: validateTargets(d.targets), favorites, quickMode }
 }

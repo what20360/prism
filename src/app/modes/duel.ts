@@ -1,4 +1,4 @@
-import { DUEL_RULES, DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, type DuelMode, type DuelAction, type DuelPhase, type DuelWinner, type DuelState } from '../../content/duel'
+import { DUEL_RULES, DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, duelCardRestrictions, type DuelMode, type DuelAction, type DuelPhase, type DuelWinner, type DuelState } from '../../content/duel'
 export { DUEL_RULES, DUEL_ATTRS, type DuelState } from '../../content/duel'
 import { CARD_REGISTRY } from '../../content/cards'
 import { ENEMIES } from '../../content/enemies'
@@ -27,14 +27,15 @@ export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMat
   const base = mode === 'fixed' ? DUEL_ATTRS : DUEL_BUILD_ATTRS
   const makeWorld = (nextRound: number) => {
     const hostX = nextRound % 2 === 1 ? 500 : 1700, guestX = 2200 - hostX
-    const created = createWorld({ seed: (seed + Math.max(1, nextRound) * 997) >>> 0, registry: CARD_REGISTRY, economy: DUEL_ECONOMY, playerAttrs: { ...base }, room: {
+    const created = createWorld({ seed: (seed + Math.max(1, nextRound) * 997) >>> 0, registry: CARD_REGISTRY, economy: DUEL_ECONOMY, playerAttrs: { ...base }, playerDamageIframesTicks: 0, room: {
       id: 'duel', kind: 'safe', bounds: { x: 0, y: 0, width: 2200, height: 1400 }, walls: [
         { x: 1040, y: 220, width: 120, height: 260 }, { x: 1040, y: 920, width: 120, height: 260 },
       ], entry: { x: hostX, y: 700 }, pickups: [], spawns: [{ pos: { x: guestX, y: 700 }, attrs: { ...base },
-        tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: true, damageIframesTicks: 30, name: '对手' }],
+        tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: true, damageIframesTicks: 0, name: '对手' }],
     } })
     created.participants = { 1: { shards: mode === 'fixed' ? 0 : DUEL_RULES.initialShards, purchases: [], revivesUsed: 0 }, 2: { shards: mode === 'fixed' ? 0 : DUEL_RULES.initialShards, purchases: [], revivesUsed: 0 } }
     created.resourceDrops = mode === 'resource'; created.monsterShardDrop = mode === 'resource' ? DUEL_RULES.monsterDrop : 0
+    created.cardRestrictions = duelCardRestrictions(mode)
     created.room.phase = 'idle'; created.actors.get(1)!.aimAngle = hostX < guestX ? 0 : Math.PI; created.actors.get(2)!.aimAngle = hostX < guestX ? Math.PI : 0
     resourceAt = nextInt(created.rng, DUEL_RULES.resourceMinTicks, DUEL_RULES.resourceMaxTicks + 1)
     monsterAt = nextInt(created.rng, DUEL_RULES.monsterMinTicks, DUEL_RULES.monsterMaxTicks + 1)

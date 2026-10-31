@@ -107,7 +107,7 @@ export function createEndlessMode(): EndlessMode {
       }
       if (!open) return
       const due = queue.filter((tick) => tick <= world.tick); queue = queue.filter((tick) => tick > world.tick)
-      for (const _tick of due) {
+      for (let i = 0; i < due.length; i++) {
         const spec = rollEndlessEnemy(floor, rng, true)
         respawned += 1
         spawnEnemy(world, { ...spec, pos: freePosition(world.room.walls, spec.attrs.radius, getPlayer(world).pos), rewardMultiplier: endlessReward(respawned, population) })

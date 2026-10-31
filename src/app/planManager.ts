@@ -77,7 +77,7 @@ export function createPlanManager(options: { game: () => PlanSession | undefined
     return { canUse: Boolean(game), cards: CARD_REGISTRY.all().map((c) => ({ id: c.id, name: c.name, level: cards?.find((v) => v.id === c.id)?.level ?? 0 })),
       presets: store.presets, draft: current, editing: Boolean(editing), message, favorites: store.favorites, quickMode: plan?.quickMode ?? store.quickMode, enabled: plan?.enabled ?? false,
       queue: (plan?.targets ?? []).map((target) => { const card = cards!.find((c) => c.id === target.id)!; return { ...target, name: card.name, current: card.level, price: card.price,
-        status: card.level >= target.level ? '目标已完成' : card.availability === 'locked' ? '等待前置升级' : card.availability === 'not-enough-shards' ? '等待足够棱晶' : '继续游戏后购买' } }),
+        status: card.level >= target.level ? '目标已完成' : card.availability === 'locked' ? card.blockedReason ?? '等待前置升级' : card.availability === 'not-enough-shards' ? '等待足够棱晶' : '继续游戏后购买' } }),
     }
   }
   return { state, actions, favorites: () => store.favorites, quickMode: () => options.game()?.plan().quickMode ?? store.quickMode }

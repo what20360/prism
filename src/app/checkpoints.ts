@@ -1,17 +1,15 @@
-import { CARD_REGISTRY } from '../content/cards'
 import { DEFAULT_ECONOMY } from '../content/economy'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { buildDungeon } from '../content/dungeon'
 import { array, integer, record, restoreWorld, serializeWorld, type WorldData } from '../core/serialization'
-import { resolveAttrs } from '../core/cards'
-import type { AttrSet } from '../core/attrs'
 import { MAX_SAVE_BYTES } from '../storage/saveStore'
 import type { EndlessCheckpoint } from './modes/endless'
 import { validateTargets, validateQuickMode, type PurchasePlan } from './upgradePlans'
 import { dungeonDifficulty, type DungeonDifficulty } from '../content/difficulties'
-export const CURRENT_BALANCE_VERSION = 2
+import { CURRENT_BALANCE_VERSION, migrateOrderedTargets, migrateWorldBuild, registryForSave } from './cardMigrations'
+export { CURRENT_BALANCE_VERSION } from './cardMigrations'
 export interface RunCheckpoint {
-  readonly balanceVersion?: typeof CURRENT_BALANCE_VERSION
+  readonly balanceVersion?: 1 | 2 | typeof CURRENT_BALANCE_VERSION
   readonly name?: string
   readonly difficulty?: DungeonDifficulty
   readonly format: 'prism-save'; readonly version: 1; readonly savedAt: string
@@ -25,28 +23,23 @@ export function readCheckpoint(text: string): RunCheckpoint {
   try { raw = JSON.parse(text) } catch { throw new Error('请选择有效的 JSON 存档文件') }
   const d = record(raw)
   if (d.format !== 'prism-save' || d.version !== 1) throw new Error('不支持的存档版本')
-  if (d.balanceVersion !== undefined && d.balanceVersion !== CURRENT_BALANCE_VERSION) throw new Error('不支持的存档数值版本')
+  const registry = registryForSave(d.balanceVersion)
   if (d.name !== undefined) d.name = validateSaveName(d.name)
   if (d.mode !== 'dungeon' && d.mode !== 'endless') throw new Error('该模式不支持读档')
   if (d.difficulty !== undefined) { dungeonDifficulty(d.difficulty); if (d.mode !== 'dungeon') throw new Error('难度模式无效') }
   if (typeof d.savedAt !== 'string' || d.savedAt.length > 40 || !Number.isFinite(Date.parse(d.savedAt))) throw new Error('存档时间无效')
-  if (d.plan !== undefined) { const plan = record(d.plan); if (typeof plan.enabled !== 'boolean') throw new Error('预购开关无效'); validateTargets(plan.targets); if (plan.quickMode !== undefined) validateQuickMode(plan.quickMode) }
   integer(d.initialSeed); integer(d.restarts); integer(d.roomIndex, 0, buildDungeon().length - 1)
-  const world = restoreWorld(d.world, CARD_REGISTRY, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
-  if (world.participants) throw new Error('联网对局不能作为单人存档导入')
+  let world = restoreWorld(d.world, registry, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
+  if (world.participants || world.cardRestrictions) throw new Error('联网对局不能作为单人存档导入')
   const player = [...world.actors.values()].find((a) => a.team === 'player')!
   if (!player.alive || world.gameOver || world.victory) throw new Error('此存档中的对局已经结束')
-  const resolved = resolveAttrs(world.basePlayerAttrs, world.purchases, CARD_REGISTRY)
-  const matches = (expected: AttrSet) => (Object.keys(expected) as (keyof AttrSet)[]).every((key) => Math.abs(player.attrs[key] - expected[key]) <= 1e-7 * Math.max(1, Math.abs(expected[key])))
-  if (!matches(resolved)) {
-    if (d.balanceVersion !== undefined || !world.purchases.some((p) => p.id === 'suspension')) throw new Error('卡片与角色属性不匹配')
-    const legacy = { ...CARD_REGISTRY, get: (id: string) => {
-      const card = CARD_REGISTRY.get(id)
-      return card?.id === 'suspension' ? { ...card, effectFn: (level: number, attrs: AttrSet): AttrSet => ({ ...attrs,
-        bulletSpeed: attrs.bulletSpeed / (1 + 0.6 * level), maxHp: Math.max(1, attrs.maxHp), armor: Math.max(0, attrs.armor) }) } : card
-    } }
-    if (!matches(resolveAttrs(world.basePlayerAttrs, world.purchases, legacy))) throw new Error('卡片与角色属性不匹配')
-    player.attrs = resolved; d.world = serializeWorld(world, true)
+  const migrated = migrateWorldBuild(world, d.balanceVersion)
+  world = migrated.world
+  if (migrated.legacy) d.world = serializeWorld(world, true)
+  if (d.plan !== undefined) {
+    const plan = record(d.plan); if (typeof plan.enabled !== 'boolean') throw new Error('预购开关无效')
+    d.plan = { enabled: plan.enabled, targets: validateTargets(migrated.legacy ? migrateOrderedTargets(plan.targets, migrated.owned, true) : plan.targets),
+      ...(plan.quickMode === undefined ? {} : { quickMode: validateQuickMode(plan.quickMode) }) }
   }
   d.balanceVersion = CURRENT_BALANCE_VERSION
   if (d.mode === 'endless') {

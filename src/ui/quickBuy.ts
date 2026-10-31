@@ -29,7 +29,7 @@ export function createQuickBuy(root: HTMLElement, options: {
         if (!favorites.length) { const empty = document.createElement('p'); empty.textContent = '在升级页收藏常用卡片'; tray.append(empty) }
         for (const card of favorites) {
           const b = document.createElement('button'); b.type = 'button'; b.textContent = `${card.name} Lv${card.level + 1} · ${card.price}◆`
-          b.setAttribute('aria-label', `购买收藏卡片${card.name}`); b.disabled = card.availability !== 'ok'; b.title = card.summary ?? ''
+          b.setAttribute('aria-label', `购买收藏卡片${card.name}`); b.disabled = card.availability !== 'ok'; b.title = card.blockedReason ?? card.summary ?? ''
           b.onclick = () => { options.buy(card.id); favoriteSignature = ''; render() }; tray.append(b)
         }
       }

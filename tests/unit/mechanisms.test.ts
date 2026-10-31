@@ -68,7 +68,7 @@ describe('shared target locks', () => {
     const w = world(), p = getPlayer(w)
     buyCard(w, 'homing'); expect(p.attrs.range).toBeCloseTo(560 / 1.2)
     emitProjectile(w, p, 0); expect(w.projectiles[0]!.travelLeft).toBeCloseTo(560 / 1.2)
-    buyCard(w, 'homing'); expect(p.attrs.range).toBeCloseTo(560 / 1.4)
+    buyCard(w, 'homing'); expect(p.attrs.range).toBeCloseTo(560 / (1 + 0.2 * Math.sqrt(2)))
   })
   it('homing launches slowly, turns toward the lock and accelerates', () => {
     const w = world({ homing: 1 }), p = getPlayer(w), target = enemy(w, 500, 650)
@@ -136,18 +136,18 @@ describe('mine divisor, upgrades and drops', () => {
     w.mines.push({ ...w.mines[0]!, id: 99, slowMultiplier: 4 }); shot.pos = { x: 100, y: 450 }
     updateProjectiles(w, 0.1); expect(shot.pos.x).toBeCloseTo(117.5)
   })
-  it('grows the three mine radii independently and upgrades cooldown speed', () => {
+  it('grows the three mine radii together and upgrades cooldown speed', () => {
     const w = world(), p = getPlayer(w)
-    for (const id of ['mine-radius', 'mine-detection', 'mine-field', 'mine-cooldown']) buyCard(w, id)
+    for (const id of ['mine-radius', 'mine-cooldown']) expect(buyCard(w, id).ok).toBe(true)
     tryPlaceMine(w, p)
-    expect(w.mines[0]).toMatchObject({ blastRadius: 225, triggerRadius: 140, slowRadius: 140 })
+    expect(w.mines[0]).toMatchObject({ blastRadius: 225, triggerRadius: 135, slowRadius: 140 })
     expect(p.mineCooldownTicks).toBe(100)
   })
   it('ignore prevents bullet triggering and body hits while weakening the divisor', () => {
     const w = world(), p = getPlayer(w); buyCard(w, 'mine-ignore'); tryPlaceMine(w, p)
     const shot = bullet({ team: 'enemy', pos: { ...p.pos } }); w.projectiles = [shot]
     expect(firstMineBodyHit(w, shot)).toBeUndefined(); updateMines(w)
-    expect(w.mines[0]!.fuseTicks).toBeNull(); expect(w.mines[0]!.slowMultiplier).toBeCloseTo(1.45)
+    expect(w.mines[0]!.fuseTicks).toBeNull(); expect(w.mines[0]!.slowMultiplier).toBeCloseTo(1.65)
   })
   it('grenades keep their release direction and explode after travelling', () => {
     const w = world(), p = getPlayer(w); buyCard(w, 'grenade')
@@ -161,8 +161,8 @@ describe('mine divisor, upgrades and drops', () => {
     const w = world(), p = getPlayer(w)
     expect(buyCard(w, 'sluggish').ok).toBe(false); buyCard(w, 'grenade'); buyCard(w, 'sluggish'); tryPlaceMine(w, p)
     enemy(w, 150, 400); updateMines(w)
-    expect(w.mines[0]!.hp).toBe(4); expect(w.mines[0]!.fuseTicks).toBeGreaterThan(30)
-    expect(toSnapshot(w).mines[0]!.fuseTotal).toBeGreaterThan(0.5)
+    expect(w.mines[0]!.hp).toBe(13); expect(w.mines[0]!.fuseTicks).toBeGreaterThan(15)
+    expect(toSnapshot(w).mines[0]!.fuseTotal).toBeGreaterThan(0.3)
   })
   it('shrapnel emits player-strength bullets and inherits projectile mechanics', () => {
     const w = world({ homing: 1, ricochet: 1 }), p = getPlayer(w); buyCard(w, 'shrapnel'); buyCard(w, 'gun-damage')
@@ -176,7 +176,7 @@ describe('mine divisor, upgrades and drops', () => {
     for (const kind of ['bullet', 'mine'] as const) applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind })
     expect(w.pickups.map((d) => d.kind)).toEqual(['blood', 'shard'])
     const shards = w.shards; updatePickups(w)
-    expect(p.hp).toBe(14); expect(w.shards).toBe(shards + 2); expect(w.pickups).toHaveLength(0)
+    expect(p.hp).toBe(14); expect(w.shards).toBe(shards + 3); expect(w.pickups).toHaveLength(0)
     target.iframesTicks = 20
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' })
     expect(w.pickups).toHaveLength(0)

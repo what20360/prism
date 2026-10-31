@@ -1,11 +1,11 @@
 /** Shared numeric rules used by simulation and generated card descriptions. */
 export const CARD_ECONOMY = { growth: 1.6, refundRatio: 0.6 } as const
 export const WEAPON_RULES = { burstGapTicks: 4, spreadStep: 0.12 } as const
-export const HOMING_RULES = { initialMultiplier: 0.2, cruiseMultiplier: 1, acceleration: 250, baseTurn: 1.35, rootTurn: 0.25 } as const
+export const HOMING_RULES = { initialMultiplier: 0.2, cruiseMultiplier: 1, acceleration: 250, baseTurn: 1, rootTurn: 0.6 } as const
 export const ROOM_RESOURCE_RULES = { bloodMin: 1, bloodMax: 2, shardMin: 3, shardMax: 5, bloodValue: 10, shardValueMin: 4, shardValueMax: 6 } as const
 export function penetrationProfile(level: number) { return { speedMultiplier: 1 + 0.12 * level, rangeGain: 60 * level } }
-export const MINE_RULES = { ignoreSlowFactor: 0.45, grenadeSpeed: 160, grenadeTravel: 360 } as const
-export const DROP_RULES = { shardValue: 2, bloodMinimum: 4, bloodHpFraction: 0.04 } as const
+export const MINE_RULES = { ignoreSlowFactor: 0.65, grenadeSpeed: 160, grenadeTravel: 360 } as const
+export const DROP_RULES = { shardValue: 3, bloodMinimum: 4, bloodHpFraction: 0.04 } as const
 export const DEFLECT_RULES = { activeForceMultiplier: 5 } as const
 
 export function homingProfile(level: number) {

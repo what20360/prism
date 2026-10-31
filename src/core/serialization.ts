@@ -81,6 +81,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
+    if (a.contactCooldownTicks !== undefined) integer(a.contactCooldownTicks, 0, 600)
     if (finite(a.hp) > finite(record(a.attrs).maxHp)) throw new Error('生命超过上限')
     for (const key of ['lockTargetId', 'manualLockId']) if (a[key] !== null) integer(a[key], 1)
     const slots = array(a.skillSlots, 2); if (slots.length !== 2) throw new Error('技能槽无效')
@@ -114,7 +115,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (m.ignoreBullets !== undefined) bool(m.ignoreBullets)
     if (m.velocity !== undefined) vector(m.velocity)
   }
-  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1) }
+  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied) }
   for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
   for (const value of array(d.floaters, 2000)) { const f = record(value); oneOf(f.kind, ['damage', 'overflow', 'taken', 'shard', 'heal']); numbers(f, 'value ttl'); finite(f.x); finite(f.y); finite(f.driftX) }
   const purchases = (values: unknown) => {
@@ -123,6 +124,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
       const p = record(value); text(p.id); const card = registry.get(p.id as string)
       if (!card || purchased.has(card.id)) throw new Error('未知或重复的卡片')
       purchased.add(card.id); const level = integer(p.level, 1, card.maxLevel)
+      if (!Number.isFinite(card.priceFn(level))) throw new Error('卡片等级超出可计算范围')
       if (p.paid !== undefined) for (const price of array(p.paid, Math.min(level, 10000))) finite(price, 0)
     }
   }
@@ -137,6 +139,10 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   }
   if (d.resourceDrops !== undefined) bool(d.resourceDrops)
   if (d.monsterShardDrop !== undefined) finite(d.monsterShardDrop, 0)
+  if (d.cardRestrictions !== undefined) for (const [id, reason] of Object.entries(record(d.cardRestrictions))) {
+    if (!registry.get(id)) throw new Error('未知的卡片限制')
+    text(reason, 180)
+  }
   integer(d.nextEntityId, Math.max(...ids) + 1); numbers(d, 'shards score revivesUsed')
   const stats = record(d.stats); numbers(stats, 'kills coreHits chain chainIdleTicks bestChain damageDealt damageTaken')
   for (const key of ['roomCleared', 'playerTookHit', 'exitReached', 'gameOver', 'victory', 'paused']) bool(d[key])

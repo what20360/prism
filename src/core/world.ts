@@ -44,6 +44,7 @@ export interface Actor {
   /** Cooldown for boss-only special attacks. */
   specialCooldownTicks: number
   iframesTicks: number
+  contactCooldownTicks?: number
   mineCooldownTicks: number
   deflectWindowTicks: number
   deflectCooldownTicks: number
@@ -122,6 +123,7 @@ export interface Mine {
 }
 
 export interface Pickup {
+  gainApplied?: boolean
   readonly id: EntityId
   readonly kind: 'blood' | 'shard'
   pos: Vec2
@@ -212,6 +214,7 @@ export interface World {
   resourceDrops?: boolean
   monsterShardDrop?: number
   waves?: WaveState
+  cardRestrictions?: Record<string, string>
 }
 
 export function progressOf(world: World, actorId?: number): PlayerProgress {
@@ -248,6 +251,7 @@ export interface EnemySpawnSpec {
 }
 
 export interface CreateWorldOptions {
+  readonly playerDamageIframesTicks?: number
   readonly seed: number
   readonly room: RoomTemplate
   readonly economy: EconomyRates
@@ -301,6 +305,7 @@ export function createWorld(options: CreateWorldOptions): World {
   }
 
   createActor(world, {
+    damageIframesTicks: options.playerDamageIframesTicks,
     team: 'player',
     tier: 'normal',
     behavior: 'turret',
@@ -364,6 +369,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     phase: 1,
     specialCooldownTicks: 0,
     iframesTicks: 0,
+    contactCooldownTicks: 0,
     mineCooldownTicks: 0,
     deflectWindowTicks: 0,
     deflectCooldownTicks: 0,

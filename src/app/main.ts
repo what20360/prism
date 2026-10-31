@@ -9,7 +9,7 @@ import { createTouchControls } from '../input/touch'
 import { createAudioEngine } from '../audio/audio'
 import { createCanvasRenderer } from '../render/canvas2d/renderer'
 import { createSettingsStore, type SettingKey, type ControlSettings } from '../storage/config'
-import { createHomeMenu, type HomeMenu } from '../ui/homeMenu'
+import { createHomeMenu } from '../ui/homeMenu'
 import { createMenu, type Menu } from '../ui/menu'
 import { createResultPanel, type ResultPanel } from '../ui/resultPanel'
 import { createPracticeMode } from './modes/practice'
@@ -26,7 +26,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) throw new Error('missing #game canvas')
 const renderer = createCanvasRenderer(canvas), input = createKeyboardInput(window), pointer = createPointerInput(canvas)
 const settingsStore = createSettingsStore(), audio = createAudioEngine()
-let preferences = settingsStore.load(), game: Game | undefined, home: HomeMenu, sessionCounter = 0
+let preferences = settingsStore.load(), game: Game | undefined, sessionCounter = 0
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 let duel: ReturnType<typeof createDuelSession> | undefined
 const touch = createTouchControls(document.body, () => duel ? duel.toggleMenu() : game?.setUiMode('menu'))
@@ -78,7 +78,7 @@ const openDuel = () => {
     duel?.dispose(); duel = undefined; document.body.classList.remove('is-duel'); game?.setUiMode('home'); game?.start()
   } })
 }
-home = createHomeMenu(document.body, {
+const home = createHomeMenu(document.body, {
   saves: saves.handlers, getSaves: saves.state, onDuel: openDuel,
   plans: plans.actions, getPlans: plans.state,
   getState: () => {

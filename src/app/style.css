@@ -662,3 +662,11 @@ body { background: #050a13; color: #c2d3e3; }
 .save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid #223d50; padding-top: 12px; margin-top: 10px; }
 .save-rename label { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; font-size: 12px; color: #8bb0c4; }
 .save-rename input { width: min(240px, 60vw); color: #d4e9f5; background: #0a1827; border: 1px solid #39576d; border-radius: 8px; padding: 9px 12px; font: inherit; }
+.card__purpose { display: block; color: #9acac4; font-size: 11px; line-height: 1.6; margin: 4px 0 8px; }
+.changelog-page { max-width: 1000px; margin: 0 auto; }
+.changelog-page h1 { color: #c4edf2; font-size: 30px; margin-bottom: 12px; }
+.changelog-entry { border-left: 2px solid #4eaaa2; border-radius: 0 12px 12px 0; background: #102434a8; margin: 24px 0; padding: 18px 24px; }
+.changelog-entry h2 { color: #bfe7ec; margin: 0 0 7px; font-size: 19px; line-height: 1.5; }
+.changelog-entry time { color: #789fb6; font-size: 12px; font-variant-numeric: tabular-nums; }
+.changelog-entry ul { padding-left: 20px; margin-bottom: 0; }
+.changelog-entry li { color: #a8c3d3; font-size: 13px; line-height: 1.8; margin: 9px 0; }

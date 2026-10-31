@@ -10,6 +10,7 @@ const REGEN_DELAY_TICKS = 3 * TICK_RATE
 /** Step 3: cooldowns, invulnerability, deflection, regen, chain timeout, effects. */
 export function updateTimers(world: World): void {
   for (const actor of world.actors.values()) {
+    if (actor.contactCooldownTicks) actor.contactCooldownTicks--
     if (actor.rageTicks > 0) actor.rageTicks -= 1
     if (actor.dashTicks > 0) actor.dashTicks -= 1
     if (actor.rageCooldownTicks > 0) actor.rageCooldownTicks -= 1

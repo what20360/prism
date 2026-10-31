@@ -63,7 +63,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
       const chance = event.kind === 'mine' ? source.attrs.mineShardChance : event.kind === 'bullet' ? source.attrs.bloodOrbChance : 0
       if (world.resourceDrops && chance > 0 && world.pickups.length < 24 && nextFloat(world.rng) < chance) {
         world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-          value: event.kind === 'mine' ? DROP_RULES.shardValue * source.attrs.shardGain : Math.max(DROP_RULES.bloodMinimum, source.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
+          value: event.kind === 'mine' ? DROP_RULES.shardValue : Math.max(DROP_RULES.bloodMinimum, source.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
       }
     }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
@@ -77,7 +77,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
     const chance = event.kind === 'mine' ? player.attrs.mineShardChance : event.kind === 'bullet' ? player.attrs.bloodOrbChance : 0
     if (effectiveDamage > 0 && chance > 0 && world.pickups.length < 100 && nextFloat(world.rng) < chance) {
       world.pickups.push({ id: allocateId(world), kind: event.kind === 'mine' ? 'shard' : 'blood', pos: { ...target.pos },
-        value: event.kind === 'mine' ? DROP_RULES.shardValue * player.attrs.shardGain * reward : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
+        value: event.kind === 'mine' ? DROP_RULES.shardValue * reward : Math.max(DROP_RULES.bloodMinimum, player.attrs.maxHp * DROP_RULES.bloodHpFraction), ttl: 30 * TICK_RATE })
     }
     pushFloater(world, 'damage', effectiveDamage, target.pos.x, target.pos.y)
     if (overkill > 0) pushFloater(world, 'overflow', overkill, target.pos.x, target.pos.y)
@@ -186,10 +186,11 @@ export function resolveContactDamage(world: World): void {
   if (world.participants) {
     for (const id of Object.keys(world.participants)) {
       const target = world.actors.get(Number(id))!
-      if (!target.alive || target.iframesTicks > 0) continue
+      if (!target.alive || target.iframesTicks > 0 || (target.contactCooldownTicks ?? 0) > 0) continue
       for (const source of world.actors.values()) {
         if (!source.alive || source.team === target.team || source.contactDamage <= 0 || distance(source.pos, target.pos) > source.radius + target.radius) continue
         applyDamage(world, { targetId: target.id, sourceId: source.id, sourceTeam: source.team, raw: source.contactDamage, penetration: source.attrs.penetration, isCore: false })
+        target.contactCooldownTicks = IFRAME_TICKS
         break
       }
     }

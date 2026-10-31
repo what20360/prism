@@ -1,5 +1,6 @@
 import type { AttrSet } from '../core/attrs'
 import type { ControlSettings, SettingKey } from '../storage/config'
+import { renderChangelogSection } from './sections/changelog'
 import { renderHelpSection } from './sections/help'
 import { renderSettingsSection } from './sections/settings'
 import { worldSeed } from '../app/modes/endless'
@@ -27,12 +28,12 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
   const mark = document.createElement('span'); mark.className = 'home__mark'; mark.textContent = 'P R I S M'; header.append(mark)
   const navigation = document.createElement('nav'); navigation.className = 'home__nav'; navigation.setAttribute('aria-label', '主菜单导航'); header.append(navigation)
   const content = document.createElement('div'); content.className = 'home__content'; overlay.append(header, content); root.append(overlay)
-  let page: 'hub' | 'help' | 'settings' | 'saves' | 'plans' = 'hub'
+  let page: 'hub' | 'help' | 'settings' | 'saves' | 'plans' | 'changelog' = 'hub'
   let seedText = '20261030'
   let dungeonSeedText = String(crypto.getRandomValues(new Uint32Array(1))[0]!), difficulty: DungeonDifficulty = 1
   const tabs = new Map<string, HTMLButtonElement>()
   const select = (next: typeof page) => { page = next; render(); content.scrollTop = 0 }
-  for (const [id, label] of [['hub', '主页'], ['help', '帮助'], ['settings', '设置'], ['saves', '存档'], ['plans', '预设']] as const) {
+  for (const [id, label] of [['hub', '主页'], ['help', '帮助'], ['settings', '设置'], ['saves', '存档'], ['plans', '预设'], ['changelog', '更新日志']] as const) {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => select(id); navigation.append(button); tabs.set(id, button)
   }
   const action = (title: string, description: string, className: string, run: () => void): HTMLButtonElement => {
@@ -46,6 +47,7 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
     const state = handlers.getState(); content.replaceChildren()
     for (const [id, button] of tabs) button.setAttribute('aria-current', id === page ? 'page' : 'false')
     content.classList.toggle('home__content--page', page !== 'hub')
+    if (page === 'changelog') { content.append(renderChangelogSection()); return }
     if (page === 'help') { content.append(renderHelpSection()); return }
     if (page === 'saves' && handlers.saves && handlers.getSaves) { content.append(renderSavesSection(handlers.getSaves(), handlers.saves)); return }
     if (page === 'plans' && handlers.plans && handlers.getPlans) { content.append(renderPlansSection(handlers.getPlans(), handlers.plans)); return }

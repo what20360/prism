@@ -16,6 +16,7 @@ export function hashWorld(world: World): string {
   visit({ tick: world.tick, seed: world.seed, rng: world.rng.state, shards: world.shards, score: world.score,
     nextId: world.nextEntityId, room: world.room, spawns: world.pendingSpawns, purchases: world.purchases, waves: world.waves,
     participants: world.participants, resourceDrops: world.resourceDrops, monsterShardDrop: world.monsterShardDrop,
+    cardRestrictions: world.cardRestrictions,
     actors: [...world.actors.values()].sort((a, b) => a.id - b.id), projectiles: world.projectiles, mines: world.mines,
     pickups: world.pickups, stats: world.stats, roomCleared: world.roomCleared, playerTookHit: world.playerTookHit,
     exitReached: world.exitReached, gameOver: world.gameOver, victory: world.victory, paused: world.paused, revivesUsed: world.revivesUsed })

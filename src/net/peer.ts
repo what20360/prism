@@ -32,7 +32,7 @@ export function createDuelPeer(options: { status: (state: PeerStatus) => void; m
   const gathered = () => new Promise<void>((resolve, reject) => {
     if (closed) { reject(new Error('连接已取消')); return }
     if (pc.iceGatheringState === 'complete') { resolve(); return }
-    const done = () => { clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', change); pending.delete(cancel); closed ? reject(new Error('连接已取消')) : resolve() }
+    const done = () => { clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', change); pending.delete(cancel); if (closed) reject(new Error('连接已取消')); else resolve() }
     const change = () => { if (pc.iceGatheringState === 'complete') done() }
     const cancel = () => done()
     const timer = setTimeout(done, 8000); pending.add(cancel); pc.addEventListener('icegatheringstatechange', change)

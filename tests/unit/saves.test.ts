@@ -12,10 +12,10 @@ import { emitProjectile } from '../../src/core/systems/weapons'
 import { tryPlaceMine } from '../../src/core/systems/mines'
 import { buyCard } from '../../src/core/progress'
 import { createEndlessMode } from '../../src/app/modes/endless'
-import { readCheckpoint, type RunCheckpoint } from '../../src/app/checkpoints'
+import { readCheckpoint, CURRENT_BALANCE_VERSION, type RunCheckpoint } from '../../src/app/checkpoints'
 import { createSaveStore, MAX_SAVE_BYTES } from '../../src/storage/saveStore'
 function world() { return createWorld({ seed: 123, room: buildDungeon()[0]!, playerAttrs: PLAYER_BASE_ATTRS, registry: CARD_REGISTRY, economy: DEFAULT_ECONOMY }) }
-function checkpoint(): RunCheckpoint { return { format: 'prism-save', version: 1, savedAt: '2026-10-31T00:00:00.000Z', mode: 'dungeon', initialSeed: 123, restarts: 0, roomIndex: 0, world: serializeWorld(world()) } }
+function checkpoint(): RunCheckpoint { return { format: 'prism-save', version: 1, balanceVersion: CURRENT_BALANCE_VERSION, savedAt: '2026-10-31T00:00:00.000Z', mode: 'dungeon', initialSeed: 123, restarts: 0, roomIndex: 0, world: serializeWorld(world()) } }
 describe('complete run saves', () => {
   it('round-trips the deterministic world including live bullets, mines, paid cards, locks and RNG', () => {
     const a = world(), p = getPlayer(a); a.shards = 1000; buyCard(a, 'gun-pierce'); buyCard(a, 'homing'); emitProjectile(a, p, 0); tryPlaceMine(a, p)
@@ -64,19 +64,19 @@ describe('complete run saves', () => {
     for (const id of ['gun-range', 'homing', 'suspension', 'burst', 'suspension']) buyCard(a, id)
     const current = { ...player.attrs }, legacy = createCardRegistry(CARD_REGISTRY.all().map((card) => card.id === 'suspension' ? { ...card, effectFn: (level, attrs) => ({ ...attrs, bulletSpeed: attrs.bulletSpeed / (1 + 0.6 * level) }) } : card))
     player.attrs = resolveAttrs(a.basePlayerAttrs, a.purchases, legacy); emitProjectile(a, player, 0)
-    const saved = { ...checkpoint(), name: '飞剑旧局', world: serializeWorld(a) }, before = JSON.stringify(saved), loaded = readCheckpoint(before)
-    expect(loaded.balanceVersion).toBe(2); expect(loaded.name).toBe(saved.name); expect(loaded.savedAt).toBe(saved.savedAt)
+    const saved = { ...checkpoint(), balanceVersion: 1, name: '飞剑旧局', world: serializeWorld(a) }, before = JSON.stringify(saved), loaded = readCheckpoint(before)
+    expect(loaded.balanceVersion).toBe(CURRENT_BALANCE_VERSION); expect(loaded.name).toBe(saved.name); expect(loaded.savedAt).toBe(saved.savedAt)
     expect(loaded.world.actors[0]!.attrs).toEqual(current); expect(loaded.world.projectiles).toEqual(saved.world.projectiles)
-    expect(loaded.world.rng).toEqual(saved.world.rng); expect(loaded.world.pickups).toEqual(saved.world.pickups)
+    expect(loaded.world.rng).toEqual(saved.world.rng); expect(loaded.world.pickups).toEqual(saved.world.pickups.map((p) => p.kind === 'shard' ? { ...p, gainApplied: true } : p))
     expect(loaded.world.purchases).toEqual(saved.world.purchases); expect(loaded.world.shards).toBe(saved.world.shards)
     expect(readCheckpoint(JSON.stringify(loaded))).toEqual(loaded); expect(JSON.stringify(saved)).toBe(before)
   })
   it('rejects corrupt legacy attributes and refuses legacy formulas in current-version saves', () => {
     const a = world(); a.shards = 100; buyCard(a, 'suspension')
     const attrs = getPlayer(a).attrs; attrs.bulletSpeed = PLAYER_BASE_ATTRS.bulletSpeed / 1.6; attrs.range = PLAYER_BASE_ATTRS.range
-    const old = { ...checkpoint(), world: serializeWorld(a) }
+    const old = { ...checkpoint(), balanceVersion: 1, world: serializeWorld(a) }
     expect(() => readCheckpoint(JSON.stringify(old))).not.toThrow()
-    expect(() => readCheckpoint(JSON.stringify({ ...old, balanceVersion: 2 }))).toThrow()
+    expect(() => readCheckpoint(JSON.stringify({ ...old, balanceVersion: CURRENT_BALANCE_VERSION }))).toThrow()
     old.world.actors[0]!.attrs.damage++; expect(() => readCheckpoint(JSON.stringify(old))).toThrow()
     expect(() => readCheckpoint(JSON.stringify({ ...checkpoint(), balanceVersion: 99 }))).toThrow()
   })

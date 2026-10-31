@@ -21,12 +21,12 @@ describe('authoritative 1v1', () => {
     match.tick(IDLE_INPUT, { ...IDLE_INPUT, move: { x: 1, y: 0 } })
     expect(b.pos.x).toBeGreaterThan(x); expect(match.world().projectiles).toHaveLength(0)
   })
-  it('uses equal invulnerability for both players', () => {
+  it('uses equal damage rules without swallowing consecutive projectile hits', () => {
     const match = fighting(), world = match.world()
     for (const [targetId, sourceId, sourceTeam] of [[1, 2, 'enemy'], [2, 1, 'player']] as const) {
       applyDamage(world, { targetId, sourceId, sourceTeam, raw: 10, penetration: 0, isCore: false })
       applyDamage(world, { targetId, sourceId, sourceTeam, raw: 10, penetration: 0, isCore: false })
-      expect(world.actors.get(targetId)!.hp).toBe(90); expect(world.actors.get(targetId)!.iframesTicks).toBe(30)
+      expect(world.actors.get(targetId)!.hp).toBe(80); expect(world.actors.get(targetId)!.iframesTicks).toBe(0)
     }
   })
   it('awards rounds, resets temporary entities, swaps sides and finishes at two wins', () => {

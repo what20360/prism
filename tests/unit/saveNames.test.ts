@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createSaveManager } from '../../src/app/saveManager'
-import { readCheckpoint, type RunCheckpoint } from '../../src/app/checkpoints'
+import { readCheckpoint, CURRENT_BALANCE_VERSION, type RunCheckpoint } from '../../src/app/checkpoints'
 import { createWorld } from '../../src/core/world'
 import { serializeWorld } from '../../src/core/serialization'
 import { buildDungeon } from '../../src/content/dungeon'
@@ -9,7 +9,7 @@ import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
 function setup() {
   const values = new Map<string, string>(); let fail = false
-  let current: RunCheckpoint = { format: 'prism-save', version: 1, savedAt: '2026-10-31T00:00:00Z', mode: 'dungeon', initialSeed: 8, restarts: 0, roomIndex: 0,
+  let current: RunCheckpoint = { format: 'prism-save', version: 1, balanceVersion: CURRENT_BALANCE_VERSION, savedAt: '2026-10-31T00:00:00Z', mode: 'dungeon', initialSeed: 8, restarts: 0, roomIndex: 0,
     world: serializeWorld(createWorld({ seed: 8, room: buildDungeon()[0]!, playerAttrs: PLAYER_BASE_ATTRS, registry: CARD_REGISTRY, economy: DEFAULT_ECONOMY })) }
   const manager = createSaveManager({ capture: () => current, setCurrentName: (name) => { current = { ...current, name } }, load: (saved) => { current = saved }, refresh: () => {},
     storage: { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { if (fail) throw new Error('quota'); values.set(key, value) } } })

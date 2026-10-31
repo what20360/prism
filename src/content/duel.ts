@@ -10,6 +10,9 @@ export const DUEL_MODES = {
   resource: { name: '资源争夺', description: '每回合各 600 棱晶，每 10 秒各加 15；随机刷新资源和攻击双方的怪物。' },
 } as const
 export type DuelMode = keyof typeof DUEL_MODES
+export function duelCardRestrictions(mode: DuelMode): Record<string, string> | undefined {
+  return mode !== 'budget' ? undefined : Object.fromEntries(['shard-gain', 'greed', 'miner', 'gourmet'].map((id) => [id, '限额构筑没有额外经济或伤害掉落，此卡在本模式不可购买']))
+}
 export const DUEL_ATTRS = { ...PLAYER_BASE_ATTRS, maxHp: 100, speed: 300, damage: 10, fireRate: 2.5, bulletSpeed: 800, range: 1800,
   pierce: 2, armor: 0, shield: 0, revives: 0, deflectLevel: 1, deflectFieldRadius: 160, deflectFieldStrength: 250, dashLevel: 1,
   autoAim: 0, autoFire: 0, lifesteal: 0, shieldSteal: 0, shardGain: 0 }

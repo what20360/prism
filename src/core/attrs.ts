@@ -89,5 +89,5 @@ export function resolveDamage(raw: number, armor: number, penetration: number): 
 }
 
 export function shieldCap(attrs: AttrSet): number {
-  return attrs.maxHp * attrs.shieldCapMult
+  return attrs.shield > 0 ? attrs.maxHp * attrs.shieldCapMult : 0
 }

@@ -8,6 +8,7 @@ import { renderSkillsSection, type SkillsState } from './sections/skills'
 import type { SkillId } from '../core/world'
 import { renderAttrsSection, type PlayerView } from './sections/attrs'
 import { renderCardsSection, type CardsSectionState } from './sections/cards'
+import { renderChangelogSection } from './sections/changelog'
 import { renderHelpSection } from './sections/help'
 import { renderKeysSection } from './sections/keys'
 import { renderSettingsSection } from './sections/settings'
@@ -15,7 +16,7 @@ import type { ControlSettings, SettingKey } from '../storage/config'
 import { renderDungeonSection } from './sections/dungeon'
 import type { DungeonDifficulty } from '../content/difficulties'
 
-export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice' | 'endless' | 'saves' | 'plans' | 'dungeon'
+export type MenuSection = 'help' | 'keys' | 'upgrade' | 'attrs' | 'settings' | 'skills' | 'practice' | 'endless' | 'saves' | 'plans' | 'dungeon' | 'changelog'
 
 export interface MenuState extends CardsSectionState, SkillsState {
   readonly dungeon?: { readonly difficulty: DungeonDifficulty; readonly seed: number; readonly wave: number; readonly waves: number }
@@ -54,6 +55,7 @@ export interface Menu {
 
 const SECTIONS: readonly { id: MenuSection; label: string }[] = [
   { id: 'help', label: '帮助' },
+  { id: 'changelog', label: '更新日志' },
   { id: 'keys', label: '按键绑定' },
   { id: 'upgrade', label: '升级面板' },
   { id: 'attrs', label: '角色属性' },
@@ -135,6 +137,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     else if (active === 'saves' && handlers.saves && handlers.getSaves) content.append(renderSavesSection(handlers.getSaves(), handlers.saves))
     else if (active === 'practice' && state.practice) content.append(renderPracticeSection(state.practice, handlers.onPractice, handlers.onRestart))
     else if (active === 'endless' && state.endless) content.append(renderEndlessSection(state.endless))
+    else if (active === 'changelog') content.append(renderChangelogSection())
     else if (active === 'help') content.append(renderHelpSection())
     else if (active === 'keys') content.append(renderKeysSection())
     else if (active === 'skills') content.append(renderSkillsSection(state, handlers.onEquip))

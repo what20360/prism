@@ -81,12 +81,13 @@ function cardButton(
   }
   head.append(price)
   if (card.availability === 'locked') {
-    meta.append(element('span', 'card__status', '前置未满足'))
+    meta.append(element('span', 'card__status', card.blockedReason ?? '前置未满足'))
   }
 
   button.append(head)
   if (meta.childElementCount) button.append(meta)
   button.append(element('span', 'card__priority', `优先级 ${card.priority}`))
+  if (card.purpose) button.append(element('span', 'card__purpose', card.purpose))
   if (card.summary) button.append(element('span', 'card__effect', `${card.availability === 'max-level' ? '当前效果' : '下一级累计'}：${card.summary}`))
   if (requirements) button.append(element('span', 'card__req', `前置：${requirements}`))
   if (card.tags.length) button.append(element('span', 'card__tags', card.tags.join(' / ')))

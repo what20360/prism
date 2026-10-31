@@ -76,14 +76,14 @@ describe('card pipeline', () => {
   it('enforces prerequisites', () => {
     const world = makeWorld(1000)
 
-    const locked = listCardStates(world).find((card) => card.id === 'lifesteal')
+    const locked = listCardStates(world).find((card) => card.id === 'shield-steal')
     expect(locked?.availability).toBe('locked')
-    expect(buyCard(world, 'lifesteal')).toEqual({ ok: false, reason: 'requirements' })
+    expect(buyCard(world, 'shield-steal')).toEqual({ ok: false, reason: 'requirements' })
 
-    expect(buyCard(world, 'shard-gain').ok).toBe(true)
-    const unlocked = listCardStates(world).find((card) => card.id === 'lifesteal')
+    expect(buyCard(world, 'shield').ok).toBe(true)
+    const unlocked = listCardStates(world).find((card) => card.id === 'shield-steal')
     expect(unlocked?.availability).toBe('ok')
-    expect(buyCard(world, 'lifesteal').ok).toBe(true)
+    expect(buyCard(world, 'shield-steal').ok).toBe(true)
   })
 
   it('has no hard cap on numeric upgrades', () => {
@@ -92,7 +92,7 @@ describe('card pipeline', () => {
     for (let i = 0; i < 20; i += 1) buyCard(world, 'armor')
 
     const armor = getPlayer(world).attrs.armor
-    expect(armor).toBe(200)
+    expect(armor).toBe(300)
     expect(armorToMitigation(armor)).toBeLessThan(1)
   })
 })
@@ -132,7 +132,7 @@ describe('lifesteal and shield steal', () => {
   it('caps shield steal at max hp * shieldCapMult', () => {
     const world = makeWorld()
     const player = getPlayer(world)
-    setAttrs(player, { shieldSteal: 1, shieldCapMult: 1, armor: 0 })
+    setAttrs(player, { shield: 12, shieldSteal: 1, shieldCapMult: 1, armor: 0 })
 
     world.actors.set(99, {
       ...player,
@@ -364,7 +364,8 @@ describe('card info', () => {
     const states = listCardStates(makeWorld())
 
     const deflect = states.find((state) => state.id === 'deflect')
-    expect(deflect?.requires).toEqual([{ attr: 'armor', min: 20 }])
+    expect(deflect?.requires).toEqual([])
+    expect(states.find((state) => state.id === 'shield-steal')?.requires).toEqual([{ card: 'shield', level: 1 }])
     expect(deflect?.summary).toContain('力场半径')
 
     const damage = states.find((state) => state.id === 'gun-damage')

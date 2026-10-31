@@ -77,8 +77,9 @@ describe('homing and flying-sword ballistics', () => {
 describe('sniper suppresses burst upgrades', () => {
   it.each([['precision-stance', 'burst'], ['burst', 'precision-stance']])('ignores burst bonuses and costs regardless of purchase order: %s first', (first, second) => {
     const { world, player } = setup(); world.shards = 100000
-    buyCard(world, first); buyCard(world, second); buyCard(world, 'burst')
-    expect(player.attrs.damage).toBe(PLAYER_BASE_ATTRS.damage)
+    buyCard(world, first); buyCard(world, second); const funds = world.shards
+    expect(buyCard(world, 'burst').ok).toBe(false); expect(world.shards).toBe(funds)
+    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage * 1.45)
     expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range * 1.6)
     expect(player.attrs.burstCount).toBe(1)
     player.intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: true }; updateWeapons(world)
@@ -87,13 +88,14 @@ describe('sniper suppresses burst upgrades', () => {
     for (let i = 0; i < 180; i++) updateWeapons(world)
     expect(world.projectiles).toHaveLength(0)
     sellCard(world, 'precision-stance')
-    expect(player.attrs.burstCount).toBe(3)
-    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage / 1.4)
-    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range / 1.2)
+    const burstLevels = first === 'burst' ? 1 : 0
+    expect(player.attrs.burstCount).toBe(1 + burstLevels)
+    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage / (1 + 0.2 * burstLevels))
+    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range / (1 + 0.1 * burstLevels))
     player.intent = { ...player.intent, fire: true }; updateWeapons(world)
     player.intent = { ...player.intent, fire: false }
     for (let i = 0; i < 8; i++) updateWeapons(world)
-    expect(world.projectiles).toHaveLength(3)
+    expect(world.projectiles).toHaveLength(1 + burstLevels)
   })
   it('cancels an already queued burst when sniper is bought and does not revive it on sale', () => {
     const { world, player } = setup(); world.shards = 10000; buyCard(world, 'burst')
@@ -158,7 +160,8 @@ describe('formula-driven growth cards', () => {
     expect(ALL_CARDS.filter((card) => card.maxLevel !== undefined).map((card) => card.id).sort())
       .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'ricochet'])
     for (const card of ALL_CARDS.filter((card) => card.maxLevel === undefined)) {
-      const a = card.effectFn(30, PLAYER_BASE_ATTRS), b = card.effectFn(31, PLAYER_BASE_ATTRS)
+      const context = { ...PLAYER_BASE_ATTRS, shield: 12 }
+      const a = card.effectFn(30, context), b = card.effectFn(31, context)
       expect(b, card.id).not.toEqual(a)
       expect(card.summary?.(31), card.id).not.toBe(card.summary?.(30))
       expect(card.priceFn(31), card.id).toBeGreaterThan(card.priceFn(30))

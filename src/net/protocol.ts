@@ -2,9 +2,9 @@ import type { Intent } from '../core/controller'
 import { finite, integer, record, restoreWorld, type WorldData } from '../core/serialization'
 import { CARD_REGISTRY } from '../content/cards'
 import { resolveAttrs } from '../core/cards'
-import { DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, DUEL_MODES, DUEL_RULES, type DuelState, type DuelAction } from '../content/duel'
+import { DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, DUEL_MODES, DUEL_RULES, duelCardRestrictions, type DuelState, type DuelAction } from '../content/duel'
 import { validateQuickMode, validateTargets } from '../app/upgradePlans'
-export const DUEL_PROTOCOL = 3
+export const DUEL_PROTOCOL = 4
 export const MAX_PACKET_BYTES = 512 * 1024
 export const IDLE_INPUT: Intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: false, placeMine: false, skills: [], autoAim: false }
 export function createRemoteInput() {
@@ -72,6 +72,7 @@ export function decodePacket(text: string): DuelPacket {
     if (value !== null) { const notice = record(value); if (typeof notice.id !== 'string' || !CARD_REGISTRY.get(notice.id) || typeof notice.auto !== 'boolean') throw new Error('购买提示无效'); integer(notice.level, 1); finite(notice.price, 0); finite(notice.remainingTicks, 0, 180) }
   }
   const world = restoreWorld(d.world, CARD_REGISTRY, DUEL_ECONOMY, Object.keys(DUEL_ATTRS)), fixed = state.mode === 'fixed'
+  if (JSON.stringify(world.cardRestrictions) !== JSON.stringify(duelCardRestrictions(state.mode as DuelState['mode']))) throw new Error('卡片购买规则不匹配')
   if (!world.participants || Object.keys(world.participants).join(',') !== '1,2' || world.actors.get(1)?.team !== 'player' || world.actors.get(2)?.team !== 'enemy' ||
     world.actors.size > 2 + DUEL_RULES.monsterLimit || world.projectiles.length > DUEL_RULES.projectileLimit || world.mines.length > DUEL_RULES.mineLimit || world.purchases.length || world.waves || world.pendingSpawns.length || world.pickups.length > DUEL_RULES.pickupLimit) throw new Error('对战世界无效')
   if (state.mode !== 'resource' && (world.actors.size !== 2 || world.pickups.length)) throw new Error('此模式不刷新资源')
@@ -81,7 +82,7 @@ export function decodePacket(text: string): DuelPacket {
   for (const id of [1, 2]) {
     const actor = world.actors.get(id)!, progress = world.participants[id]!, resolved = resolveAttrs(base, progress.purchases, CARD_REGISTRY)
     if (fixed && (progress.shards || progress.purchases.length)) throw new Error('固定装备不可购买')
-    if (actor.damageIframesTicks !== (id === 1 ? undefined : 30)) throw new Error('受伤规则不匹配')
+    if (actor.damageIframesTicks !== 0) throw new Error('受伤规则不匹配')
     for (const key of Object.keys(resolved) as (keyof typeof resolved)[]) if (actor.attrs[key] !== resolved[key]) throw new Error('装备与购买记录不匹配')
   }
   return { type: 'state', serial: integer(d.serial), state: state as unknown as DuelState, world: d.world as WorldData }

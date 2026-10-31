@@ -23,6 +23,8 @@ export interface CardState {
   readonly tags: readonly string[]
   readonly priority: number
   readonly saleBlocked: string | null
+  readonly blockedReason?: string | null
+  readonly purpose?: string
 }
 
 /** Read-only view for the upgrade panel. */
@@ -35,10 +37,11 @@ export function listCardStates(world: World, actorId?: number): CardState[] {
     const price = card.priceFn(level + 1)
     const maxed = card.maxLevel !== undefined && level >= card.maxLevel
     const unlocked = meetsRequirements(player.attrs, progress.purchases, card.requires)
+    const blockedReason = world.cardRestrictions?.[card.id] ?? card.unavailable?.(player.attrs) ?? null
 
     let availability: CardAvailability = 'ok'
     if (maxed) availability = 'max-level'
-    else if (!unlocked) availability = 'locked'
+    else if (!unlocked || blockedReason) availability = 'locked'
     else if (!Number.isFinite(price) || progress.shards < price) availability = 'not-enough-shards'
 
     return {
@@ -54,6 +57,7 @@ export function listCardStates(world: World, actorId?: number): CardState[] {
       tags: card.tags ?? [],
       priority: card.priority,
       saleBlocked: null,
+      blockedReason, purpose: card.purpose,
     }
   })
 }
@@ -69,7 +73,7 @@ export function buyCard(world: World, cardId: string, actorId?: number): BuyResu
   if (card.maxLevel !== undefined && level >= card.maxLevel) {
     return { ok: false, reason: 'max-level' }
   }
-  if (!meetsRequirements(player.attrs, progress.purchases, card.requires)) {
+  if (world.cardRestrictions?.[cardId] || card.unavailable?.(player.attrs) || !meetsRequirements(player.attrs, progress.purchases, card.requires)) {
     return { ok: false, reason: 'requirements' }
   }
 

@@ -38,6 +38,8 @@ export interface Card {
   readonly maxLevel?: number
   readonly resellable?: boolean
   readonly tags?: readonly string[]
+  readonly purpose?: string
+  readonly unavailable?: (attrs: AttrSet) => string | null
 }
 
 export interface Purchase {
