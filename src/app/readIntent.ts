@@ -1,3 +1,4 @@
+import { hasLineOfSight } from '../core/navigation'
 import type { Intent } from '../core/controller'
 import type { Snapshot } from '../core/snapshot'
 import type { IntentSource } from '../input/keyboard'
@@ -21,6 +22,7 @@ export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer:
     const pos = selection ? renderer.viewToWorld(selection.x, selection.y, focus) : null
     lockTarget = pos ? snapshot.actors.find((a) => a.team !== 'player' && a.alive && Math.hypot(a.x - pos.x, a.y - pos.y) <= a.radius + 16)?.id ?? null : null
   }
-  return { move, aim, fire: Boolean(actor.autoFire && settings.fireMode === 'auto' || pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
-    autoAim: actor.autoAim && settings.aimMode === 'auto', autoPickup: settings.autoPickup !== false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
+  const inRange = snapshot.actors.some((a) => a.alive && a.team !== 'player' && Math.hypot(a.x - actor.x, a.y - actor.y) <= actor.range && hasLineOfSight({x:actor.x,y:actor.y},{x:a.x,y:a.y},snapshot.walls))
+  return { move, aim, automaticFire: actor.autoFire && settings.fireMode === 'auto', fire: Boolean(inRange && actor.autoFire && settings.fireMode === 'auto' || pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
+    autoAim: inRange && actor.autoAim && settings.aimMode === 'auto', autoPickup: settings.autoPickup !== false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
 }

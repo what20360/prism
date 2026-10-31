@@ -37,17 +37,17 @@ describe('separation-based projectile contacts', () => {
     const initialSpeed = bullet.vel.x, range = bullet.travelLeft
     trace(100, 400)
     expect(bullet.vel.x).toBeCloseTo(initialSpeed * 1.24); expect(bullet.cruiseSpeed).toBeCloseTo(700 * 1.24)
-    expect(bullet.travelLeft).toBe(range + 120)
+    expect(bullet.travelLeft).toBe(range + 400)
     trace(400, 100)
-    expect(bullet.vel.x).toBeCloseTo(initialSpeed * 1.24 ** 2); expect(bullet.travelLeft).toBe(range + 240)
+    expect(bullet.vel.x).toBeCloseTo(initialSpeed * 1.24 ** 2); expect(bullet.travelLeft).toBe(range + 800)
   })
   it('restores a proportional amount of range feedback after penetrating a target', () => {
     const { world, bullet, trace } = setup({ pierceBoost: 2, range: 600 })
     bullet.travelLeft = 120
     expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBeCloseTo(0.2)
     trace(100, 400)
-    expect(bullet.rangeBudget).toBe(720)
-    expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBeCloseTo(240 / 720)
+    expect(bullet.rangeBudget).toBe(1000)
+    expect(toSnapshot(world).projectiles[0]!.rangeRatio).toBeCloseTo(520 / 1000)
   })
   it('does not award growth to a projectile with no penetration left', () => {
     const { bullet, trace } = setup({ pierce: 1, pierceBoost: 2 })

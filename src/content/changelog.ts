@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.20',date:'2026-10-31',title:'盘丝洞与武器调校',items:[
+    '设计关卡集接入种子闯关与无尽，盘丝洞成为最终Boss；新增巢母、布雷工蛛、爆裂幼蛛、缓存与扇形预警，测试场可直接演练。',
+    '电弧改为0.8倍射程的无环分叉树，各树独立穿透，按传递深度衰减。卡片价格成长降至1.5，旧实付退款保留。',
+    '调整霰弹、激光、聚焦透镜、贯穿推进和狙击手；狙击手把连发、霰弹转换为伤害。自动卡首价50，无目标回手动。',
+    '武器音效改为电流嘶声、激光扫频；小型安全屋集中资源，新资源逐颗掉落并用轮廓区分面值。',
+    '按键支持修改保存，升级页增加筛选；新增Boss时序、完整补雷寻路、分叉、电弧深度及价格迁移测试。',
+  ]},
   { version: '1.19', date: '2026-10-31', title: '全方向电弧与概率掉落', items: [
     '武器解锁和专精卡独立分类；设置切换立即刷新，桌面自动索敌可选择身后目标，1v1遵守手动和自动偏好。',
     '电弧锁定和方向仅作为优先级，霰弹可选择全方向目标；每条链独立记录命中、消耗穿透，每跳独立检查距离和墙体。',

@@ -59,9 +59,9 @@ describe('complete card audit', () => {
     const w = arena(), p = getPlayer(w)
     expect(buyCard(w, 'skill-cycle').ok).toBe(false); buyCard(w, 'dash'); expect(buyCard(w, 'skill-cycle').ok).toBe(true)
     buyCard(w, 'burst'); buyCard(w, 'scatter'); buyCard(w, 'precision-stance')
-    const funds = w.shards; expect(p.attrs.multishot).toBe(1); expect(p.attrs.burstCount).toBe(1); expect(p.attrs.damage).toBeCloseTo(14.5)
-    expect(buyCard(w, 'burst').ok).toBe(false); expect(buyCard(w, 'scatter').ok).toBe(false); expect(w.shards).toBe(funds)
-    sellCard(w, 'precision-stance'); expect(p.attrs.multishot).toBe(3); expect(p.attrs.burstCount).toBe(2)
+    const funds = w.shards; expect(p.attrs.multishot).toBe(1); expect(p.attrs.burstCount).toBe(1); expect(p.attrs.damage).toBeCloseTo(24.2)
+    expect(buyCard(w, 'burst').ok).toBe(true); expect(buyCard(w, 'scatter').ok).toBe(true); expect(w.shards).toBeLessThan(funds)
+    sellCard(w, 'precision-stance'); expect(p.attrs.multishot).toBe(5); expect(p.attrs.burstCount).toBe(3)
   })
   it('keeps every range expansion trigger inside the explosion and provides meaningful grenade durability', () => {
     const w = arena(), p = getPlayer(w)
@@ -78,7 +78,7 @@ describe('complete card audit', () => {
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 500, penetration: 0, isCore: false, kind: 'mine' })
     expect(w.pickups).toHaveLength(0)
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 500, penetration: 0, isCore: false, kind: 'mine' })
-    const drop = w.pickups.find((p) => p.kind === 'shard')!; expect(drop.value).toBe(1); expect(drop.quantity).toBe(2); p.pos = { ...drop.pos }
+    const drop = w.pickups.find((p) => p.kind === 'shard')!; expect(drop.value).toBe(1); expect(drop.quantity).toBe(1); p.pos = { ...drop.pos }
     const before = w.shards; updatePickups(w); expect(w.shards - before).toBeCloseTo(3)
     w.pickups.push({ id: allocateId(w), kind: 'shard', pos: { ...p.pos }, value: 6, ttl: 600, gainApplied: true }); const old = w.shards
     updatePickups(w); expect(w.shards - old).toBe(6)

@@ -49,8 +49,8 @@ describe('card pipeline', () => {
     expect(card).toBeDefined()
     if (!card) return
     expect(card.priceFn(1)).toBe(10)
-    expect(card.priceFn(2)).toBe(16)
-    expect(card.priceFn(3)).toBe(26)
+    expect(card.priceFn(2)).toBe(15)
+    expect(card.priceFn(3)).toBe(23)
   })
 
   it('buying deducts shards, raises the level and re-resolves attrs', () => {

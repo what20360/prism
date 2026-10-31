@@ -76,8 +76,9 @@ describe('dungeon layout', () => {
     expect(rooms.filter((room) => room.kind === 'combat')).toHaveLength(15)
   })
 
-  it('keeps the entry corridor clear of walls in every room', () => {
+  it('keeps authored entries clear and ordinary entry corridors open', () => {
     for (const room of buildDungeon()) {
+      if (room.design?.id === 'silk-den') { expect(room.walls.some((w) => circleIntersectsRect(room.entry.x, room.entry.y, 100, w))).toBe(false); continue }
       for (const wall of room.walls) {
         const overlapsCorridor = wall.x < 1800 && wall.x + wall.width > 1400
         const overlapsEntry = wall.y + wall.height > 1400
@@ -256,9 +257,9 @@ describe('seeded seven-level dungeon', () => {
     expect(allSpawns(hard[23]!).length).toBeGreaterThan(easy[23]!.spawns.length * 5)
     const waves = [hard.at(-1)!.spawns, ...hard.at(-1)!.waves!]
     expect(waves.length).toBeGreaterThan(4)
-    expect(waves.slice(0, -1).flat().some((s) => s.behavior === 'boss')).toBe(false)
-    expect(waves.at(-1)!.filter((s) => s.behavior === 'boss')).toHaveLength(1)
-    expect(waves.at(-1)!.find((s) => s.behavior === 'boss')!.attrs.maxHp).toBeGreaterThan(ENEMIES.boss!.attrs.maxHp * 30)
+    expect(waves.slice(0, -1).flat().some((s) => s.tier === 'boss')).toBe(false)
+    expect(waves.at(-1)!.filter((s) => s.tier === 'boss')).toHaveLength(1)
+    expect(waves.at(-1)!.find((s) => s.tier === 'boss')!.attrs.maxHp).toBeGreaterThan(ENEMIES.weaver!.attrs.maxHp * 30)
   })
   it('places every wave safely outside walls, bounds and the entry zone at every difficulty', () => {
     for (const difficulty of [1, 2, 3, 4, 5, 6, 7] as const) for (const room of buildDungeon({ seed: 990, difficulty })) for (const spawn of allSpawns(room)) {

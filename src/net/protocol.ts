@@ -4,7 +4,7 @@ import { CARD_REGISTRY } from '../content/cards'
 import { resolveAttrs } from '../core/cards'
 import { DUEL_ATTRS, DUEL_BUILD_ATTRS, DUEL_ECONOMY, DUEL_MODES, DUEL_RULES, duelCardRestrictions, type DuelState, type DuelAction } from '../content/duel'
 import { validateQuickMode, validateTargets } from '../app/upgradePlans'
-export const DUEL_PROTOCOL = 6
+export const DUEL_PROTOCOL = 7
 export const MAX_PACKET_BYTES = 512 * 1024
 export const IDLE_INPUT: Intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: false, placeMine: false, skills: [], autoAim: false }
 export function createRemoteInput() {
@@ -31,7 +31,7 @@ export function cleanIntent(value: unknown): Intent {
   const d = record(value)
   const skills = Array.isArray(d.skills) ? [...new Set(d.skills.slice(0, 8))].filter((x) => x === 0 || x === 1) as number[] : []
   return { move: direction(d.move), aim: d.aim ? direction(d.aim) : undefined, fire: d.fire === true, placeMine: d.placeMine === true,
-    skills, autoAim: d.autoAim === true, autoPickup: d.autoPickup !== false,
+    skills, automaticFire: d.automaticFire === true, autoAim: d.autoAim === true, autoPickup: d.autoPickup !== false,
     lockTarget: d.lockTarget === null ? null : d.lockTarget === undefined ? undefined : integer(d.lockTarget, 1) }
 }
 export function cleanAction(value: unknown): DuelAction {

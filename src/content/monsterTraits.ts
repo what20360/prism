@@ -7,7 +7,7 @@ const POOL = Object.keys(TRAIT_NAMES) as MonsterTrait[]
 export function withMonsterTraits(spec: EnemySpawnSpec, rng: Rng, threat: number): EnemySpawnSpec {
   let result = { ...spec, attrs: { ...spec.attrs }, traits: [...(spec.traits ?? [])] }
   const count = (nextFloat(rng) < 0.28 + threat * 0.035 ? 1 : 0) + (threat >= 5 && nextFloat(rng) < 0.35 ? 1 : 0)
-  const pool = POOL.filter((t) => !result.traits.includes(t) && (spec.behavior !== 'boss' || t !== 'volatile'))
+  const pool = POOL.filter((t) => !result.traits.includes(t) && (spec.tier !== 'boss' || t !== 'volatile'))
   for (let i = 0; i < count && pool.length; i++) {
     const trait = pool.splice(nextInt(rng, 0, pool.length), 1)[0]!, a = result.attrs
     result.traits.push(trait)

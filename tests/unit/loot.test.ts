@@ -86,9 +86,9 @@ describe('probabilistic kill loot and denominations', () => {
   })
   it('reserves complete denomination packs in busy PvP scenes without evicting its own large pieces', () => {
     const match = createDuelMatch(4, 'resource'), w = match.world()
-    for (let i = 0; i < 24; i++) spawnLoot(w, 'shard', { x: 100, y: 100 }, 1, 60)
+    for (let i = 0; i < 192; i++) spawnLoot(w, 'shard', { x: 100, y: 100 }, 1, 60)
     const firstId = w.nextEntityId; spawnLoot(w, 'blood', { x: 400, y: 400 }, 624, 60)
-    expect(w.pickups).toHaveLength(24); expect(total(w.pickups.filter((p) => p.id >= firstId), 'blood')).toBe(624)
+    expect(w.pickups).toHaveLength(192); expect(total(w.pickups.filter((p) => p.id >= firstId), 'blood')).toBe(624)
   })
   it('combines PvP monster base rewards and bonus crystals into one capped denomination pack', () => {
     const w = createDuelMatch(4, 'resource').world(), p = getPlayer(w)

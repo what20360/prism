@@ -1,3 +1,4 @@
+import { hasAttackTarget } from '../core/systems/targeting'
 import type { PracticeMode, PracticeAction, PracticeState } from './modes/practice'
 import type { EndlessMode, EndlessState } from './modes/endless'
 import { CURRENT_BALANCE_VERSION, type RunCheckpoint } from './checkpoints'
@@ -254,7 +255,8 @@ export function createGame(options: GameOptions): Game {
     const touch = options.touch?.read()
     const player = getPlayer(world)
     const move = touch && (touch.move.x !== 0 || touch.move.y !== 0) ? touch.move : base.move
-    const automaticAim = player.attrs.autoAim > 0 && settings.aimMode === 'auto'
+    const inRange = hasAttackTarget(world, player)
+    const automaticAim = inRange && player.attrs.autoAim > 0 && settings.aimMode === 'auto'
     const fallback = Math.hypot(move.x, move.y) > 0 ? move : { x: Math.cos(player.aimAngle), y: Math.sin(player.aimAngle) }
     const aim = touch?.aim ?? manualAim() ?? fallback
     const selection = options.pointer?.consumeLock?.()
@@ -265,9 +267,9 @@ export function createGame(options: GameOptions): Game {
       candidates.sort((a, b) => Math.hypot(a.pos.x - point!.x, a.pos.y - point!.y) - Math.hypot(b.pos.x - point!.x, b.pos.y - point!.y))
       lockTarget = candidates[0]?.id ?? null
     }
-    const automaticFire = player.attrs.autoFire > 0 && settings.fireMode === 'auto'
-    const fire = automaticFire ? undefined : Boolean(touch?.fire || options.pointer?.firing())
-    return { ...base, move, aim, fire, autoAim: automaticAim, autoPickup: settings.autoPickup !== false, lockTarget, placeMine: base.placeMine || touch?.placeMine,
+    const automaticFire = inRange && player.attrs.autoFire > 0 && settings.fireMode === 'auto'
+    const fire = automaticFire || Boolean(touch?.fire || options.pointer?.firing())
+    return { ...base, move, aim, fire, automaticFire: player.attrs.autoFire > 0 && settings.fireMode === 'auto', autoAim: automaticAim, autoPickup: settings.autoPickup !== false, lockTarget, placeMine: base.placeMine || touch?.placeMine,
       skills: [...(base.skills ?? []), ...(touch?.skills ?? []), ...(base.skill === undefined ? [] : [base.skill]), ...(touch?.skill === undefined ? [] : [touch.skill])] }
   }
 

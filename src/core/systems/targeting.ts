@@ -30,3 +30,5 @@ export function updateTargetLocks(world: World): void {
 }
 export function opponentsOf(world: World, team: Actor['team']): Actor[] { return [...world.actors.values()].filter((actor) => actor.alive && actor.team !== team) }
 export function isAlive(world: World, id: EntityId): boolean { return world.actors.get(id)?.alive === true }
+
+export function hasAttackTarget(world: World, actor: Actor): boolean { return Boolean(nearestOpponent(world, actor, actor.attrs.range * (actor.attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1))) }

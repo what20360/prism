@@ -14,6 +14,7 @@ export function hasBulletCapacity(world: World, actor: Actor): boolean {
 export function updateWeapons(world: World): void {
   for (const actor of world.actors.values()) {
     if (!actor.alive) continue
+    if (actor.intent.automaticFire && actor.intent.fire === false) { actor.burstRemaining = 0; actor.burstTimer = 0; actor.laserTicks = 0; actor.laserTimer = 0 }
     const attrs = combatAttrs(actor), angle = resolveAimAngle(world, actor)
     if (attrs.maxProjectiles === 1) { actor.burstRemaining = 0; actor.burstTimer = 0 }
     if (angle !== undefined) actor.aimAngle = angle
@@ -53,8 +54,10 @@ function updateLaser(world: World, actor: Actor): void {
 function resolveAimAngle(world: World, actor: Actor): number | undefined {
   if (actor.behavior === 'boss') return undefined
   if (actor.intent.autoAim) {
-    const target = (actor.lockTargetId === null ? undefined : world.actors.get(actor.lockTargetId)) ?? nearestOpponent(world, actor, Math.max(actor.attrs.range * (actor.attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1), 900))
-    if (target?.alive && target.team !== actor.team) return Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x)
+    const range = actor.attrs.range * (actor.attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1)
+    const pinned = actor.lockTargetId === null ? undefined : world.actors.get(actor.lockTargetId)
+    const target = pinned?.alive && pinned.team !== actor.team && Math.hypot(pinned.pos.x - actor.pos.x,pinned.pos.y - actor.pos.y) <= range && hasLineOfSight(actor.pos,pinned.pos,world.room.walls) ? pinned : nearestOpponent(world,actor,range)
+    if (target) return Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x)
     return actor.aimAngle
   }
   const aim = actor.intent.aim

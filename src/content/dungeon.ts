@@ -7,35 +7,14 @@ import { resolveSpawnPosition, circleIntersectsRect } from '../core/collision'
 import { dungeonProfile, dungeonDifficulty, type DungeonDifficulty } from './difficulties'
 import { ENEMIES } from './enemies'
 import { withMonsterTraits } from './monsterTraits'
+import { STANDARD_WALLS as WALL_SETS, pickLevelSet, silkDenRoom, safeRoom } from './levelSets'
 
 const ENTRY: Vec2 = { x: 1600, y: 1560 }
 
 export const ARENA: Rect = { x: 0, y: 0, width: 3200, height: 1800 }
 
 /** Wall layouts keep the centre corridor (x 1400-1800) clear for entry and exit. */
-const WALL_SETS: readonly (readonly { x: number; y: number; width: number; height: number }[])[] = [
-  [
-    { x: 600, y: 420, width: 180, height: 960 },
-    { x: 2420, y: 420, width: 180, height: 960 },
-    { x: 1000, y: 760, width: 180, height: 180 },
-    { x: 2020, y: 760, width: 180, height: 180 },
-  ],
-  [
-    { x: 1200, y: 300, width: 160, height: 440 },
-    { x: 1840, y: 300, width: 160, height: 440 },
-    { x: 1200, y: 1060, width: 160, height: 440 },
-    { x: 1840, y: 1060, width: 160, height: 440 },
-    { x: 880, y: 700, width: 260, height: 140 },
-    { x: 2060, y: 700, width: 260, height: 140 },
-  ],
-  [
-    { x: 700, y: 300, width: 300, height: 300 },
-    { x: 2200, y: 300, width: 300, height: 300 },
-    { x: 700, y: 1200, width: 300, height: 300 },
-    { x: 2200, y: 1200, width: 300, height: 300 },
-    { x: 1450, y: 820, width: 300, height: 160 },
-  ],
-]
+
 
 /**
  * Free-standing spawn points: each one keeps clearance from the player entry
@@ -102,7 +81,7 @@ function legacyDungeon(): RoomSpec[] {
       const walls = WALL_SETS[(floor * 5 + room) % WALL_SETS.length] ?? []
 
       if (room === 0) {
-        rooms.push({ id, kind: 'safe', bounds: ARENA, walls: [], spawns: [], entry: ENTRY })
+        rooms.push(safeRoom(id))
       } else if (room === 4) {
         rooms.push({ id, kind: 'guard', bounds: ARENA, walls, spawns: guardSpawns(floor), entry: ENTRY })
       } else {
@@ -111,14 +90,7 @@ function legacyDungeon(): RoomSpec[] {
     }
   }
 
-  rooms.push({
-    id: 'boss',
-    kind: 'boss',
-    bounds: ARENA,
-    walls: [],
-    spawns: [spawn('boss', { x: 1600, y: 520 })],
-    entry: ENTRY,
-  })
+  rooms.push(silkDenRoom())
 
   return rooms
 }
@@ -126,7 +98,7 @@ function legacyDungeon(): RoomSpec[] {
 export const ROOMS_PER_FLOOR = 5
 
 export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
-function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = []): EnemySpawnSpec[] {
+function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = [], entry: Vec2 = ENTRY): EnemySpawnSpec[] {
   const profile = dungeonProfile(difficulty, depth), placed: EnemySpawnSpec[] = []
   for (let i = 0; i < count; i++) {
     const originalSource = original[i % original.length]!
@@ -139,7 +111,7 @@ function populateWave(original: readonly EnemySpawnSpec[], count: number, depth:
     let pos = source.pos
     for (let attempt = 0; attempt < 80; attempt++) {
       const candidate = resolveSpawnPosition({ x: nextInt(rng, 180, 3020), y: nextInt(rng, 180, 1340) }, attrs.radius + 4, walls, ARENA)
-      if (!walls.some((w) => circleIntersectsRect(candidate.x, candidate.y, attrs.radius + 4, w)) && Math.hypot(candidate.x - ENTRY.x, candidate.y - ENTRY.y) > 360 && [...reserved, ...placed].every((s) => Math.hypot(candidate.x - s.pos.x, candidate.y - s.pos.y) > s.attrs.radius + attrs.radius + 35)) { pos = candidate; break }
+      if (!walls.some((w) => circleIntersectsRect(candidate.x, candidate.y, attrs.radius + 4, w)) && Math.hypot(candidate.x - entry.x, candidate.y - entry.y) > 360 && [...reserved, ...placed].every((s) => Math.hypot(candidate.x - s.pos.x, candidate.y - s.pos.y) > s.attrs.radius + attrs.radius + 35)) { pos = candidate; break }
     }
     pos = resolveSpawnPosition(pos, attrs.radius + 4, walls, ARENA)
     placed.push(withMonsterTraits({ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor }, rng, difficulty - 1 + depth))
@@ -153,7 +125,16 @@ export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
   return legacyDungeon().map((room, index) => {
     if (room.kind === 'safe') return room
     const depth = index / ROOMS_PER_FLOOR, profile = dungeonProfile(difficulty, depth)
-    const walls = room.kind === 'boss' ? [] : WALL_SETS[nextInt(rng, 0, WALL_SETS.length)]!
+    if (room.design?.id === 'silk-den') {
+      const boss = room.spawns[0]!, attrs = { ...boss.attrs, maxHp: boss.attrs.maxHp * profile.hp, damage: boss.attrs.damage * profile.damage,
+        armor: boss.attrs.armor + profile.armor, block: boss.attrs.block + (difficulty - 1), speed: boss.attrs.speed * profile.speed,
+        bulletSpeed: boss.attrs.bulletSpeed * profile.bulletSpeed, mineDamage: boss.attrs.mineDamage * profile.damage, mineHp: boss.attrs.mineHp * profile.hp }
+      const waves: EnemySpawnSpec[][] = []
+      for (let wave = 1; wave < profile.waves; wave++) waves.push(populateWave(guardSpawns(4), Math.ceil(3 * profile.count), depth, difficulty, room.walls, rng, [], room.entry))
+      waves.push([{ ...boss, attrs }])
+      return { ...room, spawns: waves[0]!, ...(waves.length > 1 ? { waves: waves.slice(1) } : {}) }
+    }
+    const selected = pickLevelSet(rng, 'dungeon', 'combat'), walls = selected.walls
     const count = Math.ceil(room.spawns.length * profile.count), waves: EnemySpawnSpec[][] = []
     for (let wave = 0; wave < profile.waves; wave++) {
       if (room.kind === 'boss' && difficulty > 1) {
@@ -165,6 +146,6 @@ export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
         } else waves.push(populateWave(guardSpawns(4), Math.ceil(3 * profile.count), depth, difficulty, walls, rng))
       } else waves.push(populateWave(room.spawns, count, depth, difficulty, walls, rng))
     }
-    return { ...room, walls, spawns: waves[0]!, waves: waves.slice(1) }
+    return { ...room, design: selected.design, walls, spawns: waves[0]!, waves: waves.slice(1) }
   })
 }

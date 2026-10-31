@@ -4,7 +4,8 @@ import { applyRoom, type RoomSpec } from '../../core/dungeon'
 import { circleIntersectsRect, distance } from '../../core/collision'
 import { createRoomPickups } from '../../core/roomResources'
 import { createRng, nextFloat, type Rng } from '../../core/rng'
-import { EXIT_RECT } from '../../core/systems/room'
+import { exitForRoom } from '../../core/systems/room'
+import { pickLevelSet } from '../../content/levelSets'
 import type { Vec2 } from '../../core/types'
 import { getPlayer, spawnEnemy, type EnemySpawnSpec, type World } from '../../core/world'
 
@@ -72,13 +73,15 @@ export interface EndlessCheckpoint { readonly floor: number; readonly rngState: 
 export function createEndlessMode(): EndlessMode {
   let floor = 1, seed = 0, rng = createRng(0), population = 0, respawned = 0, queue: number[] = []
   const room = (): RoomSpec => ({ id: 'endless', kind: 'combat', bounds: ARENA, walls: [], entry: ENTRY, spawns: [], pickups: [] })
+  let currentEntry: Vec2 = ENTRY, currentPatrol: readonly Vec2[] = []
+  const getEntry = () => currentEntry
   const freePosition = (walls: RoomSpec['walls'], radius: number, avoid: Vec2): Vec2 => {
     for (let i = 0; i < 160; i++) {
       const pos = { x: 100 + nextFloat(rng) * 3000, y: 300 + nextFloat(rng) * 1100 }
-      if (distance(pos, ENTRY) < 550 || distance(pos, avoid) < 650 || walls.some((wall) => circleIntersectsRect(pos.x, pos.y, radius + 8, wall))) continue
+      if (distance(pos, getEntry()) < 550 || distance(pos, avoid) < 650 || walls.some((wall) => circleIntersectsRect(pos.x, pos.y, radius + 8, wall))) continue
       return pos
     }
-    for (const pos of [{ x: 1600, y: 400 }, { x: 1600, y: 1000 }, { x: 400, y: 400 }, { x: 2800, y: 400 }]) {
+    for (const pos of [...currentPatrol, { x: 1600, y: 400 }, { x: 1600, y: 1000 }, { x: 400, y: 400 }, { x: 2800, y: 400 }]) {
       if (distance(pos, avoid) >= 650 && !walls.some((wall) => circleIntersectsRect(pos.x, pos.y, radius + 8, wall))) return pos
     }
     return { x: 1600, y: 400 }
@@ -86,34 +89,36 @@ export function createEndlessMode(): EndlessMode {
   const enter = (world: World) => {
     rng = createRng((seed ^ Math.imul(floor, 0x9e3779b1)) >>> 0)
     population = endlessCount(floor); respawned = 0; queue = []
-    const walls: { x: number; y: number; width: number; height: number }[] = []
-    const pairs = Math.floor(nextFloat(rng) * 3)
-    for (let i = 0; i < pairs; i++) {
-      const x = 420 + nextFloat(rng) * 600, y = 350 + i * 450 + nextFloat(rng) * 120
-      const width = 120 + nextFloat(rng) * 160, height = 180 + nextFloat(rng) * 180
-      walls.push({ x, y, width, height }, { x: 3200 - x - width, y, width, height })
-    }
-    const geometry = { ...room(), id: `endless-${floor}`, walls }
-    const spawns = Array.from({ length: population }, () => {
+    const selected = pickLevelSet(rng, 'endless', floor < 5 ? 'combat' : undefined)
+    currentEntry = selected.entry; currentPatrol = selected.design?.patrol ?? []
+    const geometry = { ...selected, kind: 'combat' as const, id: `endless-${floor}` }, walls = geometry.walls
+    const spawns = Array.from({ length: population }, (_, index) => {
       const spec = rollEndlessEnemy(floor, rng)
-      return { ...spec, pos: freePosition(walls, spec.attrs.radius, ENTRY), rewardMultiplier: 1 }
+      if (index === 0 && selected.design?.id === 'silk-den') {
+        const q = selected.spawns[0]!, g = ENDLESS_RULES.growth, open = floor % 5 === 0
+        const attrs = { ...q.attrs, maxHp: Math.min(finite(spec.attrs.maxHp * (open ? 8 : 2)), open ? Number.MAX_VALUE : finite(50 * g.maxHp ** (floor - 1) * ENDLESS_RULES.finiteMax)),
+          damage: spec.attrs.damage, armor: spec.attrs.armor, block: spec.attrs.block, speed: Math.min(spec.attrs.speed || 150, floor % 5 === 0 ? Number.MAX_VALUE : finite(185 * g.speed ** (floor - 1) * ENDLESS_RULES.finiteMax) / 1.3), bulletSpeed: spec.attrs.bulletSpeed,
+          range: spec.attrs.range, mineDamage: finite(spec.attrs.damage * 1.8), mineHp: Math.max(10, spec.attrs.maxHp * 0.2) }
+        return { ...q, attrs, rewardMultiplier: 1 }
+      }
+      return { ...spec, pos: freePosition(walls, spec.attrs.radius, geometry.entry), rewardMultiplier: 1 }
     })
     const scale = finite(1.13 ** (floor - 1))
     const pickups = createRoomPickups(rng, geometry).map((pickup) => ({ ...pickup, value: pickup.kind === 'shard' ? finite(pickup.value * scale) : pickup.value }))
     applyRoom(world, { ...geometry, spawns, pickups })
-    if (floor % 5 === 0) world.room.exit = EXIT_RECT
+    if (floor % 5 === 0) world.room.exit = exitForRoom(world, true)
   }
   const advance = (world: World) => { floor += 1; enter(world) }
   return { room, initialize: (world) => { seed = world.seed; floor = 1; enter(world) }, advance,
     checkpoint: () => ({ floor, rngState: rng.state, respawned, spawnQueue: [...queue] }),
-    restore: (world, saved) => { seed = world.seed; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = endlessCount(floor) },
+    restore: (world, saved) => { seed = world.seed; currentEntry = world.room.entry; currentPatrol = world.room.design?.patrol ?? []; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = endlessCount(floor) },
     afterStep: (world) => {
       if (world.gameOver) return
       if (world.exitReached) { advance(world); return }
       const open = floor % 5 === 0
       for (const [id, actor] of world.actors) if (actor.team === 'enemy' && !actor.alive) {
         world.actors.delete(id)
-        if (open) queue.push(world.tick + ENDLESS_RULES.respawnTicks)
+        if (open && !actor.spider) queue.push(world.tick + ENDLESS_RULES.respawnTicks)
       }
       if (!open) return
       const due = queue.filter((tick) => tick <= world.tick); queue = queue.filter((tick) => tick > world.tick)
@@ -122,7 +127,7 @@ export function createEndlessMode(): EndlessMode {
         respawned += 1
         spawnEnemy(world, { ...spec, pos: freePosition(world.room.walls, spec.attrs.radius, getPlayer(world).pos), rewardMultiplier: endlessReward(respawned, population) })
       }
-      world.room.exit = EXIT_RECT; world.roomCleared = false
+      world.room.exit = exitForRoom(world, true); world.roomCleared = false
       if (world.room.phase !== 'entered') world.room.phase = 'combat'
     },
     state: (world) => ({ seed, floor, open: floor % 5 === 0, initialCount: population,

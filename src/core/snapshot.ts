@@ -1,6 +1,6 @@
 import { combatAttrs } from './combat'
 import { skillRemaining, skillTotal, unlocked } from './systems/skills'
-import type { Actor, SkillId, Pickup, DamageType, MonsterTrait, EnergyTrace } from './world'
+import type { Actor, SkillId, Pickup, DamageType, MonsterTrait, EnergyTrace, RoomDesign } from './world'
 import { ARSENAL_RULES } from './rules'
 import type {
   EffectKind,
@@ -28,6 +28,8 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly weaver?: { readonly mineStock: number; readonly spiderStock: number; readonly volley: number; readonly windup: number; readonly shotTicks: number }
+  readonly spider?: { readonly role: 'worker' | 'bomber'; readonly dashUsed: boolean; readonly pursuing: boolean }
   readonly block: number
   readonly physicalResist: number
   readonly electricResist: number
@@ -102,6 +104,7 @@ export interface ProjectileView {
 }
 
 export interface MineView {
+  readonly nestRole?: 'queen' | 'worker'
   readonly child: boolean
   readonly pulsesRemaining: number
   readonly pulseCount: number
@@ -144,6 +147,7 @@ export interface HudStats {
 
 /** Read-only view handed to render/ and ui/. Never mutated by consumers. */
 export interface Snapshot {
+  readonly design?: RoomDesign
   readonly traces?: readonly EnergyTrace[]
   readonly wave?: { readonly index: number; readonly total: number; readonly countdown: number; readonly spawns: readonly { x: number; y: number; radius: number }[] }
   readonly tick: number
@@ -182,6 +186,8 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       id: actor.id,
       team: viewTeam(actor.team),
       tier: actor.tier,
+      weaver: actor.weaver ? { mineStock: actor.weaver.mineStock, spiderStock: actor.weaver.spiderStock, volley: actor.weaver.volley, windup: actor.weaver.volleyTimer, shotTicks: actor.weaver.shotTicks } : undefined,
+      spider: actor.spider ? { role: actor.spider.role, dashUsed: actor.spider.dashUsed, pursuing: actor.spider.pursuing } : undefined,
       behavior: actor.behavior,
       name: actor.name ?? null,
       x: actor.pos.x,
@@ -251,6 +257,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
     fuseTotal: (m.fuseTotalTicks ?? 5) / TICK_RATE,
     grenade: m.velocity !== undefined,
     ignoreBullets: m.ignoreBullets === true,
+    nestRole: m.nestRole,
   }))
 
   const effects: EffectView[] = world.effects.map((e) => ({
@@ -275,6 +282,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       spawns: world.waves.countdown ? (world.waves.remaining[0] ?? []).map((s) => ({ ...s.pos, radius: s.attrs.radius })) : [] } : undefined,
     tick: world.tick,
     bounds: world.room.bounds,
+    design: world.room.design,
     walls: world.room.walls,
     actors,
     projectiles,

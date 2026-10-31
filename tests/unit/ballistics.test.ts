@@ -74,13 +74,13 @@ describe('homing and flying-sword ballistics', () => {
   })
 })
 
-describe('sniper suppresses burst upgrades', () => {
-  it.each([['precision-stance', 'burst'], ['burst', 'precision-stance']])('ignores burst bonuses and costs regardless of purchase order: %s first', (first, second) => {
+describe('sniper converts burst upgrades', () => {
+  it.each([['precision-stance', 'burst'], ['burst', 'precision-stance']])('converts burst damage regardless of purchase order: %s first', (first, second) => {
     const { world, player } = setup(); world.shards = 100000
     buyCard(world, first); buyCard(world, second); const funds = world.shards
-    expect(buyCard(world, 'burst').ok).toBe(false); expect(world.shards).toBe(funds)
-    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage * 1.45)
-    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range * 1.6)
+    expect(buyCard(world, 'burst').ok).toBe(true); expect(world.shards).toBeLessThan(funds)
+    expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage * 2 * 1.2)
+    expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range * 2)
     expect(player.attrs.burstCount).toBe(1)
     player.intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: true }; updateWeapons(world)
     expect(world.projectiles).toHaveLength(1); expect(player.burstRemaining).toBe(0)
@@ -88,7 +88,7 @@ describe('sniper suppresses burst upgrades', () => {
     for (let i = 0; i < 180; i++) updateWeapons(world)
     expect(world.projectiles).toHaveLength(0)
     sellCard(world, 'precision-stance')
-    const burstLevels = first === 'burst' ? 1 : 0
+    const burstLevels = 2
     expect(player.attrs.burstCount).toBe(1 + burstLevels)
     expect(player.attrs.damage).toBeCloseTo(PLAYER_BASE_ATTRS.damage / (1 + 0.2 * burstLevels))
     expect(player.attrs.range).toBeCloseTo(PLAYER_BASE_ATTRS.range / (1 + 0.1 * burstLevels))
@@ -170,9 +170,9 @@ describe('formula-driven growth cards', () => {
   })
   it('keeps generated stance text and cumulative modifiers aligned across levels', () => {
     const card = CARD_REGISTRY.get('precision-stance')!, attrs = card.effectFn(3, PLAYER_BASE_ATTRS)
-    expect(attrs.bulletSpeed).toBe(4900); expect(attrs.range).toBeCloseTo(1568)
+    expect(attrs.bulletSpeed).toBe(4900); expect(attrs.range).toBeCloseTo(4480)
     expect(card.summary?.(3)).toContain('弹速 ×7')
-    expect(card.summary?.(3)).toContain('射程 ×2.8')
+    expect(card.summary?.(3)).toContain('射程 ×8')
     expect(card.summary?.(3)).not.toContain('追踪操控')
   })
   it('scales active skills through the same rules used by their generated descriptions', () => {

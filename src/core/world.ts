@@ -9,16 +9,24 @@ import type { EntityId, Rect, Team, Vec2 } from './types'
 
 export type RoomPhase = 'idle' | 'entered' | 'combat' | 'cleared' | 'exited'
 export type EnemyTier = 'normal' | 'elite' | 'boss'
-export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer'
+export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer' | 'weaver' | 'silk-worker' | 'silk-bomber'
 export type DamageType = 'physical' | 'electric' | 'heat'
 export type MonsterTrait = 'bark' | 'swift' | 'bulwark' | 'storm' | 'cinder' | 'volatile'
 export interface EnemyMechanics { readonly attackType?: DamageType; readonly traits?: readonly MonsterTrait[] }
 export interface Burn { sourceId: number; sourceTeam: Team; raw: number; remaining: number; timer: number; rewardMultiplier?: number }
+export interface WeaverState {
+  mineStock: number; mineRegen: number; spiderStock: number; spiderRegen: number; spawnTimer: number
+  volley: number; volleyTimer: number; volleyCooldown: number; shotTicks: number
+  phaseBurst: boolean; lostMines: Vec2[]; goal: Vec2; moveTimer: number
+}
+export interface SpiderState { ownerId: number; role: 'worker' | 'bomber'; goal: Vec2; roamTimer: number; pursuing: boolean; dashUsed: boolean; task: boolean; expiresAt: number }
 
 export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
 export type SkillId = 'deflect' | 'rage' | 'dash'
 
 export interface Actor extends EnemyMechanics {
+  weaver?: WeaverState
+  spider?: SpiderState
   shockTicks?: number
   burn?: Burn
   bombTicks?: number
@@ -113,6 +121,7 @@ export interface Projectile {
 }
 
 export interface Mine {
+  nestRole?: 'queen' | 'worker'
   child?: boolean
   expiresAt?: number
   pulsesRemaining?: number
@@ -177,10 +186,12 @@ export interface Floater {
   readonly driftX: number
 }
 
+export interface RoomDesign { readonly id: string; readonly title: string; readonly theme: 'prism' | 'silk'; readonly corridorWidth?: number; readonly core?: Rect; readonly patrol: readonly Vec2[]; readonly mineAnchors: readonly Vec2[]; readonly exit: Rect; readonly skipExit?: Rect }
 export interface RoomState {
+  design?: RoomDesign
   phase: RoomPhase
   kind: RoomKind
-  readonly bounds: Rect
+  bounds: Rect
   walls: readonly Rect[]
   /** Where the player appeared; used to delay spawning until they step in. */
   entry: Vec2
@@ -244,6 +255,7 @@ export function progressOf(world: World, actorId?: number): PlayerProgress {
 }
 
 export interface RoomTemplate {
+  readonly design?: RoomDesign
   readonly id: string
   readonly kind: RoomKind
   readonly bounds: Rect
@@ -287,6 +299,7 @@ export function createWorld(options: CreateWorldOptions): World {
     seed: options.seed,
     rng: createRng(options.seed),
     room: {
+      design: options.room.design,
       phase: 'combat',
       kind: options.room.kind,
       bounds: options.room.bounds,

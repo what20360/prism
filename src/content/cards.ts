@@ -13,6 +13,7 @@ type Operation = 'add' | 'multiply' | 'divide' | 'set' | 'chance'
 type Modifier = readonly [key: AttrKey, operation: Operation, value: number, label: string, percent?: boolean]
 type Formula = (level: number) => readonly Modifier[]
 type Options = Partial<Pick<Card, 'priority' | 'resellable' | 'maxLevel' | 'requires' | 'tags' | 'unavailable'>> & {
+  readonly sniperConversion?: boolean
   readonly enabled?: (attrs: AttrSet) => boolean
   readonly describe?: (level: number, modifiers: readonly Modifier[], generated: string) => string
 }
@@ -23,9 +24,10 @@ function describeModifier([, operation, value, label, percent]: Modifier): strin
     operation === 'add' ? `${label} ${value >= 0 ? '+' : ''}${shown}` : `${label} ${operation === 'divide' ? '÷' : '×'}${shown}`
 }
 function formulaCard(id: string, name: string, category: Card['category'], cost: number, formula: Formula, options: Options = { priority: 100 }): Card {
-  const { describe, enabled, ...metadata } = options
+  const { describe, enabled, sniperConversion, ...metadata } = options
   return { id, name, category, priority: 100, priceFn: (level) => cardPrice(cost, level), ...metadata, resellable: true,
     effectFn: (level, attrs) => {
+      if (sniperConversion && attrs.maxProjectiles === 1) return { ...attrs, damage: attrs.damage * (1 + 0.1 * level) }
       const next = { ...attrs }
       if (enabled && !enabled(attrs)) return next
       for (const [key, operation, value] of formula(level)) {
@@ -59,7 +61,6 @@ function toggle(id: string, name: string, category: Card['category'], cost: numb
     priority, maxLevel: 1, resellable: true, requires, tags: ['机制', '可回收'], describe: detail,
   })
 }
-const noSniper = (attrs: AttrSet) => attrs.maxProjectiles === 1 ? '狙击手仅允许一颗子弹，此卡整卡暂停' : null
 export const CARDS: readonly Card[] = [
   attrCard('gun-damage', '弹头强化', 'gun', 10, 'damage', 2, '伤害', 10),
   attrCard('gun-firerate', '循环加速', 'gun', 12, 'fireRate', 0.2, '射速', 10),
@@ -86,14 +87,14 @@ export const CARDS: readonly Card[] = [
   ], { priority: 60, requires: [{ card: 'deflect', level: 1 }], describe: (_level, _modifiers, text) => `强化回击；${text}` }),
 ]
 export const BUILD_CARDS: readonly Card[] = [
-  toggle('auto-aim', '自动索敌', 'special', 12, 'autoAim', () => '启用全方向自动瞄准：优先手动锁定，否则优先攻击方向的可见目标；设置中可切回鼠标瞄准', undefined, 0),
-  toggle('auto-fire', '自动扳机', 'special', 12, 'autoFire', () => '启用自动射击；设置中可切回手动', undefined, 0),
+  toggle('auto-aim', '自动索敌', 'special', 50, 'autoAim', () => '启用全方向自动瞄准：优先手动锁定，否则优先攻击方向的可见目标；设置中可切回鼠标瞄准', undefined, 0),
+  toggle('auto-fire', '自动扳机', 'special', 50, 'autoFire', () => '启用自动射击；设置中可切回手动', undefined, 0),
   formulaCard('burst', '脉冲连发', 'gun', 26, (level) => [
     ['burstCount', 'add', level, '连发轮数'], ['damage', 'divide', 1 + 0.2 * level, '伤害'], ['range', 'divide', 1 + 0.1 * level, '射程'],
-  ], { priority: 110, unavailable: noSniper, enabled: (attrs) => attrs.maxProjectiles !== 1, tags: ['连发'], describe: (_level, _modifiers, text) => `${text}；实体弹同向间隔 ${fmt(WEAPON_RULES.burstGapTicks / TICK_RATE)} 秒；电弧增加传导，激光延长照射；与霰弹相乘；狙击手生效时整卡暂停（含代价）` }),
+  ], { priority: 110, sniperConversion: true, tags: ['连发'], describe: (_level, _modifiers, text) => `${text}；实体弹同向间隔 ${fmt(WEAPON_RULES.burstGapTicks / TICK_RATE)} 秒；电弧增加最深传递层数，激光延长照射；与霰弹相乘；狙击手生效时改为伤害 ×${fmt(1 + 0.1 * _level)}（弹数与代价均暂停）` }),
   formulaCard('scatter', '棱光霰弹', 'gun', 32, (level) => [
-    ['multishot', 'add', 2 * level, '每轮弹数'], ['bulletSpeed', 'divide', 1 + 0.12 * level, '弹速'], ['damage', 'divide', 1 + 0.14 * level, '伤害'],
-  ], { priority: 110, unavailable: noSniper, enabled: (attrs) => attrs.maxProjectiles !== 1, tags: ['霰弹'], describe: (_level, _modifiers, text) => `${text}；实体弹散射，电弧增加同时目标，激光增加射线；狙击手生效时整卡暂停（含代价）` }),
+    ['multishot', 'add', 2 * level, '每轮弹数'], ['bulletSpeed', 'divide', 1 + 0.12 * level, '弹速'], ['damage', 'divide', 1 + 0.4 * level, '伤害'],
+  ], { priority: 110, sniperConversion: true, tags: ['霰弹'], describe: (_level, _modifiers, text) => `${text}；实体弹散射，电弧增加同时目标，激光增加射线；狙击手生效时改为伤害 ×${fmt(1 + 0.1 * _level)}（弹数与代价均暂停）` }),
   toggle('ricochet', '镜面弹射', 'gun', 26, 'ricochet', () => '每次撞墙消耗 1 穿透；至少保留 1 穿透继续飞行', [{ card: 'gun-pierce', level: 1 }]),
   formulaCard('homing', '追踪弹芯', 'gun', 32, (level) => [['homing', 'add', level, '追踪等级'], ['range', 'divide', 1 + 0.2 * Math.sqrt(level), '射程']], {
     priority: 100, enabled: (a) => a.weapon === 0, tags: ['追踪', '飞剑'], describe: (level, _modifiers, text) => {
@@ -117,9 +118,9 @@ export const BUILD_CARDS: readonly Card[] = [
   numericCard('heavy-stance', '重炮手', 'gun', 28, [['speed', 'multiply', 0.85, '移速'], ['armor', 'add', 30, '护甲'], ['damage', 'multiply', 1.35, '伤害']], ['重炮', '可回收'], true),
   numericCard('glass-cannon', '玻璃大炮', 'gun', 30, [['damage', 'multiply', 1.4, '伤害'], ['fireRate', 'multiply', 1.3, '攻速'], ['maxHp', 'multiply', 0.7, '最终最大生命']], ['高风险', '可回收'], true, undefined, 1000),
   formulaCard('precision-stance', '狙击手', 'gun', 36, (level) => [
-    ['damage', 'multiply', 1 + 0.45 * level, '伤害'], ['range', 'multiply', 1 + 0.6 * level, '射程'], ['bulletSpeed', 'multiply', 1 + 2 * level, '弹速'],
+    ['damage', 'multiply', 2 ** level, '伤害'], ['range', 'multiply', 2 ** level, '射程'], ['bulletSpeed', 'multiply', 1 + 2 * level, '弹速'],
     ['maxProjectiles', 'set', 1, '自有子弹上限'],
-  ], { priority: 100, resellable: true, tags: ['精准', '可回收'], describe: (_level, _modifiers, text) => `${text}；高速弹转弯半径更大；连发与霰弹整卡暂停；破片也受一弹限制` }),
+  ], { priority: 100, resellable: true, tags: ['精准', '可回收'], describe: (_level, _modifiers, text) => `${text}；高速弹转弯半径更大；连发和霰弹各自改为伤害×(1+0.1×对应等级)；破片也受一弹限制` }),
   formulaCard('ascender', '广角棱镜', 'special', 12, (level) => [['vision', 'multiply', 1 + 0.12 * level, '可见世界范围']], { priority: 100, tags: ['视野'] }),
   numericCard('mine-power', '聚变雷芯', 'mine', 12, [['mineDamage', 'add', 8, '地雷伤害']], ['雷场']),
   numericCard('mine-radius', '扩域雷场', 'mine', 20, [['mineBlastRadius', 'add', 25, '爆炸半径'], ['mineTriggerRadius', 'add', 15, '侦测半径'], ['mineSlowRadius', 'add', 20, '减速半径']], ['雷场']),
@@ -146,7 +147,7 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('dash', '冲刺', 'skill', 18, (level) => [['dashLevel', 'add', level, '冲刺等级']], { priority: 50, tags: ['主动'], describe: (level) => describeDash(level) }),
   formulaCard('skill-cycle', '冷却回路', 'skill', 20, (level) => [['skillCooldownRate', 'multiply', 1.18 ** level, '所有技能冷却速度']], { priority: 100, tags: ['主动'], unavailable: (attrs) => attrs.deflectLevel > 0 || attrs.rageLevel > 0 || attrs.dashLevel > 0 ? null : '需要先拥有至少一种主动技能' }),
   formulaCard('weapon-electric', '电弧发生器', 'weapon', 32, () => [['weapon', 'set', 1, '主武器']], { priority: 90, maxLevel: 1, tags: ['电', '主武器'], unavailable: (a) => a.weapon === 2 ? '先出售激光发射器再切换武器' : null,
-    describe: () => '主武器切换为全方向电弧；锁定与瞄准方向优先，霰弹增加同时目标，连发增加传导；各链独立消耗穿透和记录命中，多余穿透强化传导或增伤；不穿墙' }),
+    describe: () => '主武器切换为全方向电弧；锁定与瞄准方向优先，霰弹增加同时目标，连发增加传递深度；每跳距离=最终射程×0.8，同链可分叉且不成环，每分叉消耗穿透；各链独立，按深度衰减；不穿墙' }),
   formulaCard('weapon-laser', '激光发射器', 'weapon', 36, () => [['weapon', 'set', 2, '主武器']], { priority: 91, maxLevel: 1, tags: ['热', '主武器'], unavailable: (a) => a.weapon === 1 ? '先出售电弧发生器再切换武器' : null,
     describe: () => `主武器切换为激光；射程 ×${fmt(ARSENAL_RULES.laserRange)}，每脉冲伤害 ×${fmt(ARSENAL_RULES.laserDamage)}，间隔 ${fmt(ARSENAL_RULES.laserGap / TICK_RATE)} 秒，基础照射 ${fmt(ARSENAL_RULES.laserTicks / TICK_RATE)} 秒；连发延长照射，霰弹增加射线，弹射启用墙面折射` }),
   formulaCard('arc-coil', '电容绕组', 'weapon', 18, (n) => [['arcEfficiency', 'add', n, '传导专精']], { priority: 120, requires: [{ card: 'weapon-electric', level: 1 }], enabled: (a) => a.weapon === 1,
@@ -161,7 +162,7 @@ export const BUILD_CARDS: readonly Card[] = [
 export const ALL_CARDS: readonly Card[] = [...BUILD_CARDS.slice(0, 2), ...CARDS, ...BUILD_CARDS.slice(2)].map((card) => ({ ...card, purpose: CARD_PURPOSES[card.id], unavailable: (attrs: AttrSet) => {
   const own = card.unavailable?.(attrs); if (own) return own
   if (attrs.weapon !== 0 && ['gun-bulletspeed', 'homing', 'suspension', 'pierce-drive', 'explosive'].includes(card.id)) return '此卡适用于实体弹；能量主武器不支持，切回实体弹后可购买'
-  if (attrs.weapon === 1 && card.id === 'burst' && Math.floor(attrs.pierce) <= Math.floor(attrs.burstCount)) return '电弧需要更多穿透层数才能增加传导目标'
+  if (attrs.weapon === 1 && attrs.maxProjectiles !== 1 && card.id === 'burst' && Math.floor(attrs.pierce) <= Math.floor(attrs.burstCount)) return '电弧需要更多穿透层数才能增加传导目标'
   if (attrs.weapon === 1 && card.id === 'gun-size') return '电弧不采用实体弹命中半径'
   if (attrs.weapon === 1 && ['ricochet', 'gun-inner'].includes(card.id)) return '电弧不采用墙面弹射或核心命中'
   return null

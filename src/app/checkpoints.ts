@@ -10,7 +10,7 @@ import { dungeonDifficulty, type DungeonDifficulty } from '../content/difficulti
 import { CURRENT_BALANCE_VERSION, migrateOrderedTargets, migrateWorldBuild, registryForSave } from './cardMigrations'
 export { CURRENT_BALANCE_VERSION } from './cardMigrations'
 export interface RunCheckpoint {
-  readonly balanceVersion?: 1 | 2 | 3 | typeof CURRENT_BALANCE_VERSION
+  readonly balanceVersion?: 1 | 2 | 3 | 4 | typeof CURRENT_BALANCE_VERSION
   readonly name?: string
   readonly difficulty?: DungeonDifficulty
   readonly format: 'prism-save'; readonly version: 1; readonly savedAt: string
@@ -30,7 +30,7 @@ export function readCheckpoint(text: string): RunCheckpoint {
   if (d.difficulty !== undefined) { dungeonDifficulty(d.difficulty); if (d.mode !== 'dungeon') throw new Error('难度模式无效') }
   if (typeof d.savedAt !== 'string' || d.savedAt.length > 40 || !Number.isFinite(Date.parse(d.savedAt))) throw new Error('存档时间无效')
   integer(d.initialSeed); integer(d.restarts); integer(d.roomIndex, 0, buildDungeon().length - 1)
-  if (d.balanceVersion !== CURRENT_BALANCE_VERSION) extendLegacyAttrs(d.world)
+  if (d.balanceVersion === undefined || Number(d.balanceVersion) <= 3) extendLegacyAttrs(d.world)
   let world = restoreWorld(d.world, registry, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
   if (world.participants || world.cardRestrictions) throw new Error('联网对局不能作为单人存档导入')
   const player = [...world.actors.values()].find((a) => a.team === 'player')!

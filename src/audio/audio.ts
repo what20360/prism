@@ -38,15 +38,25 @@ export function createAudioEngine() {
     oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect() }
   }
 
+  const hiss = (when: number, duration: number, frequency: number, end: number, volume: number) => {
+    if (!context || !effects) return
+    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate), data = buffer.getChannelData(0)
+    for (let i=0;i<data.length;i++) data[i] = Math.random()*2-1
+    const source = context.createBufferSource(), filter = context.createBiquadFilter(), envelope = context.createGain()
+    source.buffer=buffer; filter.type='bandpass'; filter.Q.value=0.7; filter.frequency.setValueAtTime(frequency,when); filter.frequency.exponentialRampToValueAtTime(end,when+duration)
+    envelope.gain.setValueAtTime(0.0001,when); envelope.gain.exponentialRampToValueAtTime(volume,when+0.008); envelope.gain.exponentialRampToValueAtTime(0.0001,when+duration)
+    source.connect(filter).connect(envelope).connect(effects); source.start(when); source.onended=()=>{source.disconnect();filter.disconnect();envelope.disconnect()}
+  }
+
   const notify = (sound: Sound) => {
     if (!context || !effects || context.state !== 'running' || settings?.sfx === false) return
     const now = context.currentTime
     const play = (f: number, d: number, v: number, wave: OscillatorType = 'sine', end = f, delay = 0) =>
       tone(f, d, v, wave, now + delay, effects!, end)
-    if (sound === 'shot') { if (now - lastShotTime < 0.045) return; lastShotTime = now; play(420, 0.08, 0.18, 'triangle', 100) }
-    else if (sound === 'electric') { if (now - lastShotTime < 0.07) return; lastShotTime = now; play(1400, 0.13, 0.09, 'sawtooth', 190); play(2500, 0.08, 0.04, 'triangle', 420) }
-    else if (sound === 'laser') { if (now - lastShotTime < 0.085) return; lastShotTime = now; play(520, 0.14, 0.08, 'sine', 300); play(1040, 0.12, 0.04, 'triangle', 620) }
-    else if (sound === 'hit') play(900, 0.06, 0.12, 'sine', 400)
+    if (sound === 'shot') { if (now - lastShotTime < 0.045) return; lastShotTime = now; play(180, 0.11, 0.24, 'triangle', 60); hiss(now,0.08,3000,900,0.18) }
+    else if (sound === 'electric') { if(now-lastShotTime<0.09)return;lastShotTime=now; for(let i=0;i<3;i++)hiss(now+i*0.035,0.13,5600,2500,0.24) }
+    else if (sound === 'laser') { if(now-lastShotTime<0.09)return;lastShotTime=now;play(3200,0.16,0.10,'sine',850);hiss(now,0.18,6500,1400,0.16) }
+    else if (sound === 'hit') play(1500,0.04,0.035,'sine',900)
     else if (sound === 'coreHit') { play(1200, 0.15, 0.16); play(1800, 0.1, 0.09, 'sine', 1800, 0.04) }
     else if (sound === 'explosion') { play(110, 0.32, 0.32, 'sawtooth', 24); play(47, 0.36, 0.3) }
     else if (sound === 'hurt') play(180, 0.24, 0.22, 'triangle', 45)

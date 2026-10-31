@@ -1,5 +1,6 @@
 import { ENEMIES } from '../../content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../content/player'
+import { silkDenRoom } from '../../content/levelSets'
 import { applyRoom, spawnPendingEnemies, type RoomSpec } from '../../core/dungeon'
 import { reapplyAttrs } from '../../core/progress'
 import { isFiniteBuild, resolveAttrs } from '../../core/cards'
@@ -9,7 +10,7 @@ export interface PracticeConfig {
   readonly block?: number
   readonly enemy?: string
   readonly scenario: 'targets' | 'combat'
-  readonly layout: 'open' | 'cover'
+  readonly layout: 'open' | 'cover' | 'silk-den'
   readonly count: number
   readonly hp: number
   readonly armor: number
@@ -28,7 +29,7 @@ export interface PracticeState {
 }
 export type PracticeAction =
   | { readonly type: 'configure'; readonly config: PracticeConfig }
-  | { readonly type: 'scene-reset' | 'meters-reset' | 'restore' | 'clear' }
+  | { readonly type: 'scene-reset' | 'meters-reset' | 'restore' | 'clear' | 'enter-core' }
   | { readonly type: 'card-level'; readonly id: string; readonly level: number }
 export interface PracticeMode {
   room(): RoomSpec
@@ -41,7 +42,7 @@ export interface PracticeMode {
 }
 function finite(value: number, fallback: number, min: number, max: number): number { return Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback }
 function configOf(value: PracticeConfig): PracticeConfig {
-  return { block: finite(value.block ?? 0, 0, 0, 10000), enemy: value.enemy && (Object.hasOwn(ENEMIES, value.enemy) || value.enemy === 'bark') ? value.enemy : 'mixed', scenario: value.scenario === 'combat' ? 'combat' : 'targets', layout: value.layout === 'cover' ? 'cover' : 'open',
+  return { block: finite(value.block ?? 0, 0, 0, 10000), enemy: value.enemy && (Object.hasOwn(ENEMIES, value.enemy) || value.enemy === 'bark') ? value.enemy : 'mixed', scenario: value.scenario === 'combat' ? 'combat' : 'targets', layout: value.layout === 'silk-den' ? 'silk-den' : value.layout === 'cover' ? 'cover' : 'open',
     count: finite(value.count, 3, 1, 12), hp: finite(value.hp, 10000, 1, 100000), armor: finite(value.armor, 0, 0, 1000),
     invincible: value.invincible === true, freeCards: value.freeCards === true }
 }
@@ -49,9 +50,10 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
   let config = configOf(initial), startTick = 0, damageBase = 0, killBase = 0, previousDamage = 0
   let samples: { tick: number; damage: number }[] = []
   const room = (): RoomSpec => {
+    const authored = config.layout === 'silk-den' ? silkDenRoom() : undefined
     const spawns: EnemySpawnSpec[] = []
     for (let i = 0; i < config.count; i++) {
-      const pos = { x: 1600 + [0, -1, 1, -2, 2][i % 5]! * 400, y: 820 - Math.floor(i / 5) * 240 }
+      const pos = authored ? config.enemy === 'weaver' ? authored.spawns[0]!.pos : authored.design!.patrol[(i + 2) % authored.design!.patrol.length]! : { x: 1600 + [0, -1, 1, -2, 2][i % 5]! * 400, y: 820 - Math.floor(i / 5) * 240 }
       if (config.scenario === 'targets') spawns.push({ pos, attrs: { ...PLAYER_BASE_ATTRS, maxHp: config.hp, armor: config.armor, block: config.block ?? 0,
         speed: 0, fireRate: 0, damage: 0, autoFire: 0 }, tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: i % 2 === 1, name: `${i % 2 ? '核心靶机' : '训练靶机'} ${i + 1}` })
       else {
@@ -60,6 +62,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
         spawns.push({ ...type, pos, name: config.enemy === 'bark' ? '树皮·游荡者' : type.name, traits: config.enemy === 'bark' ? ['bark'] : type.traits, attrs: { ...type.attrs, maxHp: config.hp, armor: config.armor, block: config.enemy === 'bark' ? Math.max(6, config.block ?? 0) : config.block ?? type.attrs.block } })
       }
     }
+    if (authored) return { ...authored, id: 'practice-silk', kind: 'combat', pickups: [], spawns }
     return { id: 'practice', kind: 'combat', pickups: [], bounds: { x: 0, y: 0, width: 3200, height: 1800 },
       entry: { x: 1600, y: 1280 }, walls: config.layout === 'cover' ? [{ x: 850, y: 950, width: 240, height: 160 }, { x: 2110, y: 950, width: 240, height: 160 }, { x: 1450, y: 420, width: 300, height: 130 }] : [], spawns }
   }
@@ -104,6 +107,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       else if (action.type === 'scene-reset') resetScene(world)
       else if (action.type === 'meters-reset') resetMeters(world)
       else if (action.type === 'restore') restore(world)
+      else if (action.type === 'enter-core' && world.room.design?.core) { const p = getPlayer(world), core = world.room.design.core; p.pos = { x: core.x + p.radius + 24, y: core.y + core.height * 0.75 }; p.iframesTicks = 120 }
       else if (action.type === 'clear') { world.projectiles = []; world.mines = []; world.traces = []; getPlayer(world).burstRemaining = 0; getPlayer(world).laserTicks = 0 }
       else if (action.type === 'card-level') {
         const card = world.registry.get(action.id)

@@ -40,7 +40,7 @@ describe('practice mode isolation and controls', () => {
     mode.action(world, { type: 'configure', config: { ...DEFAULT_PRACTICE, freeCards: false } })
     expect(world.shards).toBe(1000)
     buyCard(world, 'gun-damage'); mode.credit(world)
-    expect(world.shards).toBe(984)
+    expect(world.shards).toBe(985)
   })
   it('allows explicit test level editing without leaking changes into base attributes', () => {
     const { mode, world, player } = setup()

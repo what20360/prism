@@ -1,6 +1,7 @@
 import { weaponPalette } from './weaponPalette'
 import { TRAIT_NAMES } from '../../content/monsterTraits'
 import { ARSENAL_RULES } from '../../core/rules'
+import { WEAVER_RULES } from '../../core/weaverRules'
 import type { EnergyTrace } from '../../core/world'
 import type { PracticeState } from '../../app/modes/practice'
 import type { EndlessState } from '../../app/modes/endless'
@@ -63,6 +64,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.moveTo(camera.x, y); ctx.lineTo(camera.x + camera.width, y)
     }
     ctx.strokeStyle = 'rgba(118,162,210,0.055)'; ctx.lineWidth = 1.5; ctx.stroke()
+    if (s.design?.theme === 'silk' && s.design.core) {
+      const room = s.design.core, x = room.x + room.width / 2, y = room.y + room.height / 2
+      ctx.strokeStyle = 'rgba(211,166,255,0.12)'; ctx.lineWidth = 1.5
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 1500, y + Math.sin(a) * 1500); ctx.stroke() }
+      for (let r = 90; r < 1300; r += 110) ring(x, y, r, 'rgba(211,166,255,0.08)', 1)
+    }
     ctx.strokeStyle = '#243f5c'; ctx.lineWidth = 14
     ctx.strokeRect(s.bounds.x + 7, s.bounds.y + 7, s.bounds.width - 14, s.bounds.height - 14)
     ctx.strokeStyle = 'rgba(125,220,255,0.35)'; ctx.lineWidth = 2
@@ -126,6 +133,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const drawActor = (a: ActorView, tick: number) => {
     const player = a.team === 'player', r = a.radius
+    const silk = a.behavior === 'weaver' || Boolean(a.spider), worker = a.spider?.role === 'worker'
     if (player) drawAim(a)
     if (a.deflectFieldRadius > 0) {
       const glow = ctx.createRadialGradient(a.x, a.y, r, a.x, a.y, a.deflectFieldRadius)
@@ -133,13 +141,22 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(a.x, a.y, a.deflectFieldRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([12, 25]); ring(a.x, a.y, a.deflectFieldRadius, a.deflectActive ? '#b99bff' : 'rgba(155,208,255,0.16)', a.deflectActive ? 4 : 2); ctx.setLineDash([])
     }
-    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(player ? a.aimAngle : a.behavior === 'boss' ? tick * 0.003 : 0)
+    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'weaver' ? '#cea3ff' : worker ? GOLD : a.spider ? '#ff8ec7' : a.behavior === 'boss' ? PURPLE : RED
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(player || silk ? a.aimAngle : a.behavior === 'boss' ? tick * 0.003 : 0)
+    if (silk) {
+      ctx.strokeStyle = color; ctx.lineWidth = a.weaver ? 5 : 3
+      for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
+        const step = Math.sin(tick * 0.14 + i * 1.5) * (Math.hypot(a.moveX, a.moveY) > 0.1 ? 0.1 : 0.025)
+        const x = r * (0.65 - i * 0.42), knee = x + r * (i < 2 ? 0.5 : -0.5)
+        ctx.beginPath(); ctx.moveTo(x, side * r * 0.4); ctx.lineTo(knee, side * r * (0.9 + step)); ctx.lineTo(knee - r * 0.22, side * r * (1.35 + step)); ctx.stroke()
+      }
+    }
     ctx.beginPath()
     if (player) {
       ctx.moveTo(r, 0); ctx.lineTo(r * 0.1, r * 0.7); ctx.lineTo(-r * 0.65, r * 0.52)
       ctx.lineTo(-r * 0.4, 0); ctx.lineTo(-r * 0.65, -r * 0.52); ctx.lineTo(r * 0.1, -r * 0.7); ctx.closePath()
     } else {
-      const count = a.behavior === 'boss' ? 6 : a.behavior === 'bomber' ? 8 : a.behavior === 'skirmish' ? 5 : a.behavior === 'turret' || a.behavior === 'lancer' ? 3 : 4
+      const count = a.behavior === 'weaver' ? 10 : worker ? 6 : a.spider ? 8 : a.behavior === 'boss' ? 6 : a.behavior === 'bomber' ? 8 : a.behavior === 'skirmish' ? 5 : a.behavior === 'turret' || a.behavior === 'lancer' ? 3 : 4
       for (let i = 0; i < count; i++) {
         const angle = i * Math.PI * 2 / count - Math.PI / 2
         if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r)
@@ -147,9 +164,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.closePath()
     }
-    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'boss' ? PURPLE : RED
     ctx.shadowColor = color; ctx.shadowBlur = player ? 16 : 9
-    ctx.fillStyle = player ? '#18394b' : '#341c32'; ctx.fill()
+    ctx.fillStyle = player ? '#18394b' : worker ? '#3b2b20' : '#341c32'; ctx.fill()
     ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke(); ctx.shadowBlur = 0
     if (a.coreRadius > 0) {
       ctx.fillStyle = player ? 'rgba(207,248,255,0.15)' : 'rgba(255,197,213,0.15)'
@@ -157,7 +173,22 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ring(0, 0, a.coreRadius, player ? '#c9f6ff' : '#ffd1dc', 1.5)
       ctx.fillStyle = player ? '#effcff' : '#ffe0ea'; ctx.beginPath(); ctx.arc(0, 0, Math.min(6, a.coreRadius * 0.4), 0, Math.PI * 2); ctx.fill()
     } else { ctx.fillStyle = color; ctx.fillRect(-4, -4, 8, 8) }
+    if (silk) {
+      for (const side of [-1, 1]) { ctx.fillStyle = '#fff0ee'; ctx.beginPath(); ctx.arc(r * 0.58, r * 0.22 * side, a.weaver ? 6 : 3, 0, Math.PI * 2); ctx.fill() }
+      if (worker) ring(-r * 0.38, 0, r * 0.42, GOLD, 3)
+      if (a.spider && !worker) ring(-r * 0.2, 0, r * (0.32 + Math.sin(tick * 0.2) * 0.05), a.spider.dashUsed ? '#ffc0dd' : '#ffffff', 2)
+      if (a.weaver) {
+        ctx.fillStyle = '#ecd2ff'; ctx.beginPath(); ctx.moveTo(r + 27, 0); ctx.lineTo(r + 8, -12); ctx.lineTo(r + 8, 12); ctx.closePath(); ctx.fill()
+        for (let i = 0; i < 3; i++) { ctx.fillStyle = i < a.weaver.mineStock ? GOLD : '#433d4f'; ctx.fillRect(-22 + i * 18, -r - 26, 12, 10) }
+        for (let i = 0; i < 6; i++) { ctx.fillStyle = i < a.weaver.spiderStock ? '#ff8ec7' : '#433d4f'; ctx.beginPath(); ctx.arc(-35 + i * 14, r + 23, 4, 0, Math.PI * 2); ctx.fill() }
+      }
+    }
     ctx.restore()
+    if (a.weaver && (a.weaver.volley > 0 && a.weaver.windup <= WEAVER_RULES.volleyWindup || a.weaver.shotTicks > 0)) {
+      const span = 0.72
+      ctx.save(); ctx.strokeStyle = '#f3b4e9'; ctx.fillStyle = 'rgba(232,128,223,0.07)'; ctx.setLineDash([12, 10]); ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.arc(a.x, a.y, 500, a.aimAngle - span, a.aimAngle + span); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore()
+    }
     if (player || a.weapon > 0) {
       const tint = weaponPalette(a.team, a.damageType, 1, a.damage).color
       ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = 12
@@ -171,8 +202,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (a.shocked) ring(a.x, a.y, r + 15, '#a4bcff', 2)
     if (a.burning) ring(a.x, a.y, r + 19 + Math.sin(tick * 0.4) * 3, '#ffac72', 2)
     if (a.bombTicks !== null) {
-      ctx.fillStyle = `rgba(255,110,77,${0.04 + 0.05 * Math.sin(tick * 0.6) ** 2})`; ctx.beginPath(); ctx.arc(a.x, a.y, ARSENAL_RULES.bombRadius, 0, Math.PI * 2); ctx.fill()
-      ctx.setLineDash([12, 10]); ring(a.x, a.y, ARSENAL_RULES.bombRadius, '#ff916f', 3); ctx.setLineDash([])
+      const radius = a.spider ? WEAVER_RULES.spiderBlast : ARSENAL_RULES.bombRadius
+      ctx.fillStyle = `rgba(255,110,77,${0.04 + 0.05 * Math.sin(tick * 0.6) ** 2})`; ctx.beginPath(); ctx.arc(a.x, a.y, radius, 0, Math.PI * 2); ctx.fill()
+      ctx.setLineDash([12, 10]); ring(a.x, a.y, radius, '#ff916f', 3); ctx.setLineDash([])
       ctx.textAlign = 'center'; text(`${(a.bombTicks / 60).toFixed(1)}s`, a.x, a.y - r - 30, 22, '#ffd7ac'); ctx.textAlign = 'left'
     }
     if (a.windupTicks !== null) {
@@ -193,11 +225,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.stroke()
     }
-    if (!player && (a.hp < a.maxHp || a.damageFlashTicks > 0)) {
+    if (a.weaver) text(`雷 ${a.weaver.mineStock}/3 · 蛛 ${a.weaver.spiderStock}/6`, a.x - r, a.y + r + 55, 12, '#e4c3ed')
+    if (!player && (a.weaver || a.hp < a.maxHp || a.damageFlashTicks > 0)) {
       const ratio = clamp(a.hp / a.maxHp, 0, 1)
       ctx.fillStyle = '#09101b'; ctx.fillRect(a.x - r, a.y - r - 20, r * 2, 5)
       ctx.fillStyle = color; ctx.fillRect(a.x - r, a.y - r - 20, r * 2 * ratio, 5)
-      if (a.damageFlashTicks > 0) {
+      if (a.weaver || a.damageFlashTicks > 0) {
         ctx.textAlign = 'center'
         text(a.name ?? '敌人', a.x, a.y - r - 54, 18, '#e3c7d9')
         text(`${Math.ceil(a.hp)} / ${Math.round(a.maxHp)}  护甲 ${Math.round(a.armor)}  格挡 ${Number(a.block.toFixed(1))}`, a.x, a.y - r - 32, 14, '#aebed0')
@@ -228,6 +261,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
     text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
+    if (s.design) { ctx.textAlign = 'center'; text(s.design.title, width / 2, 30, 16, s.design.theme === 'silk' ? '#d6b0ed' : '#96bbc7'); ctx.textAlign = 'left' }
     text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
@@ -342,7 +376,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const mine of s.mines) {
       ctx.fillStyle = 'rgba(255,207,135,0.035)'; ctx.beginPath(); ctx.arc(mine.x, mine.y, mine.slowRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([10, 16]); ring(mine.x, mine.y, mine.blastRadius, 'rgba(251,209,142,0.18)', 2); ctx.setLineDash([])
-      ring(mine.x, mine.y, mine.bodyRadius, mine.child ? '#bda3ff' : mine.fuseTicks !== null ? RED : GOLD, 3)
+      ring(mine.x, mine.y, mine.bodyRadius, mine.nestRole === 'queen' ? '#ed99d0' : mine.child ? '#bda3ff' : mine.fuseTicks !== null ? RED : GOLD, 3)
+      if (mine.nestRole) { ctx.setLineDash([5, 7]); ring(mine.x, mine.y, mine.bodyRadius * 0.7, mine.nestRole === 'queen' ? '#d8a3ff' : GOLD, 2); ctx.setLineDash([]) }
       if (mine.pulseCount > 1) text(`${mine.pulsesRemaining}/${mine.pulseCount}`, mine.x + mine.bodyRadius + 6, mine.y + 5, 13, GOLD)
       ctx.fillStyle = mine.grenade ? '#b8c5a5' : GOLD
       ctx.beginPath(); ctx.arc(mine.x, mine.y, 12, 0, Math.PI * 2); ctx.fill()
@@ -359,7 +394,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const tier = Math.max(0, Math.min(4, Math.log(Math.max(1, pickup.value)) / Math.log(5))), size = 8 + tier * 2
       ctx.shadowBlur = 14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'
       ctx.fillStyle = pickup.kind === 'blood' ? '#f48da7' : '#8cf0dc'; ctx.beginPath()
-      if (pickup.kind === 'blood') ctx.arc(x, y, size, 0, Math.PI * 2)
+      if (tier > 0) { const sides = 3 + Math.round(tier); for (let i = 0; i < sides; i++) { const angle = i * Math.PI * 2 / sides - Math.PI / 2; if (i === 0) ctx.moveTo(x + Math.cos(angle) * (size + 3), y + Math.sin(angle) * (size + 3)); else ctx.lineTo(x + Math.cos(angle) * (size + 3), y + Math.sin(angle) * (size + 3)) }; ctx.closePath() }
+      else if (pickup.kind === 'blood') ctx.arc(x, y, size, 0, Math.PI * 2)
       else { ctx.moveTo(x, y - size - 3); ctx.lineTo(x + size * 0.75, y); ctx.lineTo(x, y + size + 3); ctx.lineTo(x - size * 0.75, y); ctx.closePath() }
       ctx.fill(); ctx.shadowBlur = 0
       if (pickup.kind === 'blood') { ctx.fillStyle = '#fff0f4'; ctx.fillRect(x - 6, y - 2, 12, 4); ctx.fillRect(x - 2, y - 6, 4, 12) }

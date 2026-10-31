@@ -1,6 +1,6 @@
 import { combatAttrs } from '../combat'
 import { distance, resolveSpawnPosition, circleIntersectsRect } from '../collision'
-import { firstWallHit } from '../navigation'
+import { firstWallHit, hasLineOfSight } from '../navigation'
 import { TICK_DT, TICK_RATE } from '../types'
 import { ARSENAL_RULES, MINE_RULES, mineSlowMultiplier, pulseProfile, broodProfile } from '../rules'
 import type { Actor, Mine, Projectile, World } from '../world'
@@ -8,6 +8,7 @@ import { allocateId } from '../world'
 import { applyDamage } from './damage'
 import { emitProjectile } from './weapons'
 import { enforceMineLimits, mineLimits } from '../mineLimits'
+import { WEAVER_RULES } from '../weaverRules'
 export const MINE_FUSE_TICKS = Math.round(0.08 * TICK_RATE)
 export const MINE_PLACE_COOLDOWN_TICKS = TICK_RATE * 2
 export const MAX_MINES_PER_TEAM = 3
@@ -42,6 +43,7 @@ export function tryPlaceMine(world: World, actor: Actor): void {
 export function updateMines(world: World): void {
   for (const mine of [...world.mines]) {
     if (!world.mines.includes(mine)) continue
+    if (mine.nestRole && !world.actors.get(mine.ownerId)?.alive) { removeMine(world, mine); continue }
     if (mine.hp <= 0 || (mine.expiresAt !== undefined && world.tick >= mine.expiresAt)) { removeMine(world, mine); continue }
     if (!mine.exploding && mine.velocity && (mine.travelLeft ?? 0) > 0) {
       const speed = Math.hypot(mine.velocity.x, mine.velocity.y), travel = Math.min(mine.travelLeft!, speed * TICK_DT)
@@ -68,9 +70,10 @@ function detonate(world: World, mine: Mine): void {
   world.effects.push({ kind: 'explosion', x: mine.pos.x, y: mine.pos.y, radius: mine.blastRadius, ttl: 14 })
   for (const actor of world.actors.values()) {
     if (!actor.alive || actor.team === mine.team || distance(actor.pos, mine.pos) > mine.blastRadius) continue
+    if (mine.nestRole && !hasLineOfSight(mine.pos, actor.pos, world.room.walls)) continue
     applyDamage(world, { targetId: actor.id, sourceId: mine.ownerId, sourceTeam: mine.team, raw: mine.damage, penetration: 0, isCore: false, kind: 'mine', damageType: 'heat', rewardMultiplier: mine.rewardMultiplier })
   }
-  world.projectiles = world.projectiles.filter((projectile) => projectile.team === mine.team || distance(projectile.pos, mine.pos) > mine.blastRadius)
+  world.projectiles = world.projectiles.filter((projectile) => projectile.team === mine.team || distance(projectile.pos, mine.pos) > mine.blastRadius || mine.nestRole && !hasLineOfSight(mine.pos, projectile.pos, world.room.walls))
 }
 function finishMine(world: World, mine: Mine): void {
   if (!mine.child && (mine.broodLevel ?? 0) > 0) spawnChildren(world, mine)
@@ -95,7 +98,13 @@ function spawnChildren(world: World, parent: Mine): void {
   }
 }
 
-export function removeMine(world: World, mine: Mine): void { world.mines = world.mines.filter((candidate) => candidate.id !== mine.id) }
+export function removeMine(world: World, mine: Mine): void {
+  if (mine.nestRole && world.mines.some((m) => m.id === mine.id)) {
+    const queen = world.actors.get(mine.ownerId)
+    if (queen?.alive && queen.weaver && queen.weaver.lostMines.length < WEAVER_RULES.mineLimit) queen.weaver.lostMines.push({ ...mine.pos })
+  }
+  world.mines = world.mines.filter((candidate) => candidate.id !== mine.id)
+}
 export function firstMineBodyHit(world: World, projectile: Projectile): Mine | undefined {
   return world.mines.find((mine) => !mine.ignoreBullets && !mine.exploding && mine.team !== projectile.team && distance(projectile.pos, mine.pos) <= projectile.radius + mine.bodyRadius)
 }

@@ -1,3 +1,4 @@
+import { ENEMIES } from '../../content/enemies'
 import { DEFAULT_PRACTICE, type PracticeAction, type PracticeConfig, type PracticeState } from '../../app/modes/practice'
 export function renderPracticeSection(state: PracticeState, onAction: (action: PracticeAction) => void, onRestart: () => void): HTMLElement {
   const root = document.createElement('section'); root.className = 'practice-page'
@@ -16,8 +17,8 @@ export function renderPracticeSection(state: PracticeState, onAction: (action: P
   }
   const number = (value: number, min: number, max: number): HTMLInputElement => { const input = document.createElement('input'); input.type = 'number'; input.min = String(min); input.max = String(max); input.step = '1'; input.value = String(value); input.required = true; return input }
   const scenario = select([['targets', '固定靶机'], ['combat', '敌人演练']], state.config.scenario); field('场景类型', scenario)
-  const layout = select([['open', '开阔场地'], ['cover', '掩体场地']], state.config.layout); field('场地布局', layout)
-  const enemy = select([['mixed', '混合敌群'], ['drifter', '游荡者'], ['turret', '哨戒炮台'], ['bark', '树皮游荡者'], ['bomber', '自爆体'], ['stalker', '游猎射手'], ['lancer', '灼线哨兵'], ['warden', '核心守卫'], ['boss', '棱镜之心']], state.config.enemy ?? 'mixed'); field('演练敌人', enemy)
+  const layout = select([['open', '开阔场地'], ['cover', '掩体场地'], ['silk-den', '盘丝洞']], state.config.layout); field('场地布局', layout)
+  const enemy = select([['mixed', '混合敌群'], ['drifter', '游荡者'], ['turret', '哨戒炮台'], ['bark', '树皮游荡者'], ['bomber', '自爆体'], ['stalker', '游猎射手'], ['lancer', '灼线哨兵'], ['warden', '核心守卫'], ['boss', '棱镜之心'], ['weaver', '盘丝母巢']], state.config.enemy ?? 'mixed'); field('演练敌人', enemy)
   const block = number(state.config.block ?? 0, 0, 10000); field('目标格挡', block)
   const count = number(state.config.count, 1, 12); field('目标数量', count)
   const hp = number(state.config.hp, 1, 100000); field('目标生命', hp)
@@ -27,6 +28,10 @@ export function renderPracticeSection(state: PracticeState, onAction: (action: P
   const apply = document.createElement('button'); apply.className = 'practice__primary'; apply.type = 'submit'; apply.textContent = '应用场景（保留构筑）'; form.append(apply)
   form.onsubmit = (event) => { event.preventDefault(); if (form.reportValidity()) onAction({ type: 'configure', config: { enemy: enemy.value, block: block.valueAsNumber, scenario: scenario.value as PracticeConfig['scenario'], layout: layout.value as PracticeConfig['layout'], count: count.valueAsNumber, hp: hp.valueAsNumber, armor: armor.valueAsNumber, invincible: invincible.checked, freeCards: freeCards.checked } }) }
   root.append(form)
+  const silk = document.createElement('button'); silk.className = 'practice__primary'; silk.textContent = '盘丝洞 Boss 演练'
+  silk.onclick = () => onAction({ type: 'configure', config: { ...state.config, scenario: 'combat', layout: 'silk-den', enemy: 'weaver', count: 1, hp: ENEMIES.weaver!.attrs.maxHp, armor: ENEMIES.weaver!.attrs.armor, block: ENEMIES.weaver!.attrs.block } }); root.append(silk)
+  if (state.config.layout === 'silk-den') { const enter = document.createElement('button'); enter.className = 'settings__option'; enter.textContent = '前往巢室'; enter.onclick = () => onAction({ type: 'enter-core' }); root.append(enter) }
+
   const actions = document.createElement('div'); actions.className = 'practice__actions'
   for (const [type, text] of [['scene-reset', '重置场景（保留构筑）'], ['meters-reset', '重置伤害统计'], ['restore', '恢复生命与技能冷却'], ['clear', '清除弹幕与地雷']] as const) {
     const button = document.createElement('button'); button.className = 'settings__option'; button.textContent = text; button.onclick = () => onAction({ type }); actions.append(button)

@@ -5,6 +5,7 @@ import { tryGetPlayer, spawnEnemy } from '../world'
 
 /** Exit sits at the top-centre of every non-boss room. */
 export const EXIT_RECT: Rect = { x: 1480, y: 60, width: 240, height: 140 }
+export function exitForRoom(world: World, skip = false): Rect { return (skip ? world.room.design?.skipExit : world.room.design?.exit) ?? EXIT_RECT }
 
 /** Step 11: room clear opens the exit; resources only spawn on room entry. */
 export function updateRoom(world: World): void {
@@ -34,7 +35,7 @@ export function updateRoom(world: World): void {
     return
   }
 
-  world.room.exit = EXIT_RECT
+  world.room.exit = exitForRoom(world)
 }
 
 /** Closest enemy distance (Infinity when none) - handy for tests and tools. */

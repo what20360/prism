@@ -25,6 +25,8 @@ export function applyRoom(world: World, room: RoomSpec): void {
   world.traces = []
 
   world.room.kind = room.kind
+  world.room.bounds = room.bounds
+  world.room.design = room.design
   world.room.walls = room.walls
   world.room.entry = room.entry
   world.room.phase = 'entered'

@@ -38,7 +38,7 @@ export const CARD_PURPOSES: Readonly<Record<string, string>> = {
   coward: '用生命换机动，适合保持距离。',
   'heavy-stance': '牺牲机动换火力和护甲，适合阵地作战。',
   'glass-cannon': '用生命换高火力，避免与敌人正面换血。',
-  'precision-stance': '高速重击但同时仅一弹；弹数卡整卡暂停。',
+  'precision-stance': '高速重击但同时仅一弹；连发与霰弹转换为伤害。',
   ascender: '扩大可见范围，提前判断弹幕与敌人位置。',
   'mine-power': '提高地雷爆发伤害。',
   'mine-radius': '同步扩大爆炸、侦测与减速范围。',

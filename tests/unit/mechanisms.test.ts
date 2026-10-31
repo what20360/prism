@@ -176,7 +176,7 @@ describe('mine divisor, upgrades and drops', () => {
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 50, penetration: 0, isCore: false, kind: 'bullet' })
     expect(w.pickups).toHaveLength(0)
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 50, penetration: 0, isCore: false, kind: 'mine' })
-    expect(w.pickups.map((d) => d.kind)).toEqual(['shard', 'blood'])
+    expect(w.pickups.map((d) => d.kind)).toEqual(['shard', 'shard', 'blood', 'blood'])
     const shards = w.shards; updatePickups(w)
     expect(p.hp).toBe(12); expect(w.shards).toBe(shards + 2); expect(w.pickups).toHaveLength(0)
     applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' })

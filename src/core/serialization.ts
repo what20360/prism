@@ -46,7 +46,7 @@ export function validateAttrs(value: unknown, keys: readonly string[]): AttrSet 
 function intent(value: unknown): void {
   const data = record(value); vector(data.move)
   if (data.aim !== undefined) vector(data.aim)
-  for (const key of ['fire', 'placeMine', 'autoAim', 'autoPickup']) if (data[key] !== undefined) bool(data[key])
+  for (const key of ['fire', 'placeMine', 'automaticFire', 'autoAim', 'autoPickup']) if (data[key] !== undefined) bool(data[key])
   if (data.lockTarget !== undefined && data.lockTarget !== null) integer(data.lockTarget, 1)
   if (data.skill !== undefined) integer(data.skill, 0, 1)
   if (data.skills !== undefined) for (const slot of array(data.skills, 8)) integer(slot, 0, 1)
@@ -64,7 +64,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   const numbers = (r: RecordData, names: string, min = 0) => { for (const key of names.split(' ')) finite(r[key], min) }
   const spawn = (value: unknown) => {
     const s = record(value); vector(s.pos); validateAttrs(s.attrs, attrKeys)
-    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer']);
+    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer', 'weaver', 'silk-worker', 'silk-bomber']);
     if (s.attackType !== undefined) oneOf(s.attackType, ['physical', 'electric', 'heat'])
     if (s.traits !== undefined) { const traits = array(s.traits, 6); for (const t of traits) oneOf(t, ['bark', 'swift', 'bulwark', 'storm', 'cinder', 'volatile']); if (new Set(traits).size !== traits.length) throw new Error('重复词条') } finite(s.contactDamage, 0); bool(s.hasCore)
     if (s.name !== undefined) text(s.name)
@@ -75,6 +75,13 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   integer(d.tick); integer(d.seed); integer(record(d.rng).state, 0, 0xffffffff)
   const room = record(d.room); oneOf(room.phase, ['idle', 'entered', 'combat', 'cleared', 'exited']); oneOf(room.kind, ['safe', 'combat', 'guard', 'boss'])
   rect(room.bounds); vector(room.entry); for (const wall of array(room.walls, 500)) rect(wall)
+  if (room.design !== undefined) {
+    const design = record(room.design); text(design.id, 80); text(design.title, 80); oneOf(design.theme, ['prism', 'silk'])
+    if (design.core !== undefined) rect(design.core)
+    if (design.corridorWidth !== undefined) finite(design.corridorWidth, 100, 2000)
+    const patrol = array(design.patrol, 64); if (!patrol.length) throw new Error('关卡巡游点为空')
+    patrol.forEach(vector); array(design.mineAnchors, 6).forEach(vector); rect(design.exit); if (design.skipExit !== undefined) rect(design.skipExit)
+  }
   if (room.exit !== null) rect(room.exit)
   validateAttrs(d.basePlayerAttrs, attrKeys)
   const actors = array(d.actors, 2000)
@@ -84,6 +91,18 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
+    if (a.weaver !== undefined) {
+      const s = record(a.weaver)
+      integer(s.mineStock, 0, 3); integer(s.spiderStock, 0, 6); integer(s.volley, 0, 3); bool(s.phaseBurst); vector(s.goal)
+      for (const key of ['mineRegen', 'spiderRegen', 'spawnTimer', 'volleyTimer', 'volleyCooldown', 'shotTicks', 'moveTimer']) integer(s[key], 0, 1000000)
+      array(s.lostMines, 6).forEach(vector)
+      if (a.behavior !== 'weaver') throw new Error('巢母状态归属错误')
+    }
+    if (a.spider !== undefined) {
+      const s = record(a.spider); integer(s.ownerId, 1); oneOf(s.role, ['worker', 'bomber']); vector(s.goal); finite(s.roamTimer, -1, 1000000)
+      for (const key of ['pursuing', 'dashUsed', 'task']) bool(s[key]); integer(s.expiresAt)
+      if (a.behavior !== (s.role === 'worker' ? 'silk-worker' : 'silk-bomber')) throw new Error('蜘蛛状态归属错误')
+    }
     for (const key of ['shockTicks', 'bombTicks', 'windupTicks', 'laserTicks', 'laserTimer']) if (a[key] !== undefined) integer(a[key], 0, 1000000)
     if (a.windupAngle !== undefined) finite(a.windupAngle)
     if (a.burn !== undefined) { const b = record(a.burn); integer(b.sourceId, 1); oneOf(b.sourceTeam, ['player', 'enemy', 'neutral']); finite(b.raw, 0); integer(b.remaining, 1, 3); integer(b.timer, 0, 20); if (b.rewardMultiplier !== undefined) finite(b.rewardMultiplier, 0, 1) }
@@ -115,6 +134,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   }
   for (const value of array(d.mines, 1000)) {
     const m = entity(value); oneOf(m.team, ['player', 'enemy', 'neutral']); integer(m.ownerId, 1); vector(m.pos)
+    if (m.nestRole !== undefined) oneOf(m.nestRole, ['queen', 'worker'])
     numbers(m, 'bodyRadius triggerRadius blastRadius slowRadius slowMultiplier damage hp')
     if (m.fuseTicks !== null) integer(m.fuseTicks)
     for (const key of ['rewardMultiplier', 'fuseTotalTicks', 'travelLeft', 'fragments']) if (m[key] !== undefined) finite(m[key], 0)

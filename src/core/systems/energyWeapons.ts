@@ -2,7 +2,7 @@ import { combatAttrs } from '../combat'
 import { distance, distanceToRay } from '../collision'
 import { circleEntry } from '../raycast'
 import { firstWallHit, hasLineOfSight } from '../navigation'
-import { arcProfile, ARSENAL_RULES, laserProfile, finitePower } from '../rules'
+import { arcProfile, arcHopRange, ARSENAL_RULES, laserProfile, finitePower } from '../rules'
 import type { Actor, EnergyTrace, World } from '../world'
 import type { Vec2 } from '../types'
 import { applyDamage } from './damage'
@@ -22,22 +22,32 @@ export function fireElectric(world: World, owner: Actor, angle: number): void {
   const roots = candidates.slice(0, Math.min(64, Math.floor(attrs.multishot))), profile = arcProfile(attrs.arcEfficiency)
   for (const root of roots) {
     if (!root.alive) continue
-    const budget = Math.max(1, Math.floor(attrs.pierce)), chain = [root], used = new Set([root.id]), distances = [distance(owner.pos, root.pos)]
-    while (chain.length < Math.min(64, Math.floor(attrs.burstCount), budget)) {
-      const previous = chain[chain.length - 1]!
-      const next = [...world.actors.values()].filter((a) => a.alive && a.team !== owner.team && !used.has(a.id) && distance(a.pos, previous.pos) <= Math.min(attrs.range, 220 + attrs.range * 0.2) && hasLineOfSight(previous.pos, a.pos, world.room.walls))
-        .sort((a, b) => distance(a.pos, previous.pos) - distance(b.pos, previous.pos) || a.id - b.id)[0]
-      if (!next) break
-      distances.push(distance(previous.pos, next.pos)); chain.push(next); used.add(next.id)
+    const budget = Math.max(1, Math.floor(attrs.pierce)), maxDepth = Math.max(1, Math.floor(attrs.burstCount))
+    const nodes = [{ target: root, parent: -1, depth: 1, distance: distance(owner.pos, root.pos) }], used = new Set([root.id])
+    for (let cursor = 0; cursor < nodes.length && nodes.length < Math.min(64, budget); cursor++) {
+      const parent = nodes[cursor]!
+      if (parent.depth >= maxDepth) continue
+      const reachable = [...world.actors.values()].filter((a) => a.alive && a.team !== owner.team && !used.has(a.id) && distance(a.pos, parent.target.pos) <= arcHopRange(attrs.range) && hasLineOfSight(parent.target.pos, a.pos, world.room.walls))
+        .sort((a, b) => distance(a.pos, parent.target.pos) - distance(b.pos, parent.target.pos) || a.id - b.id)
+      for (const target of reachable) {
+        if (nodes.length >= Math.min(64, budget)) break
+        nodes.push({ target, parent: cursor, depth: parent.depth + 1, distance: distance(parent.target.pos, target.pos) }); used.add(target.id)
+      }
     }
-    const enhanced = Math.min(chain.length - 1, budget - chain.length), surplus = budget - chain.length - enhanced
-    let raw = finitePower(attrs.damage * profile.damageMultiplier * (1 + surplus * profile.surplus)), previous = owner.pos
-    for (let i = 0; i < chain.length; i++) {
-      if (i > 0) raw *= i <= enhanced ? profile.boostedRetention : profile.retention
-      const target = chain[i]!
-      trace(world, owner, 'electric', previous, target.pos, 1 - distances[i]! / Math.max(1, attrs.range), raw)
-      applyDamage(world, { targetId: target.id, sourceId: owner.id, sourceTeam: owner.team, raw, penetration: attrs.penetration, isCore: false, kind: 'electric', damageType: owner.attackType ?? 'electric', rewardMultiplier: owner.rewardMultiplier })
-      previous = target.pos
+    let remaining = budget - nodes.length, reinforcedDepth = 1
+    const depth = Math.max(...nodes.map((node) => node.depth))
+    for (let level = 2; level <= depth; level++) {
+      const cost = nodes.filter((node) => node.depth === level).length
+      if (remaining < cost) break
+      remaining -= cost; reinforcedDepth = level
+    }
+    const base = finitePower(attrs.damage * profile.damageMultiplier * (1 + remaining * profile.surplus))
+    for (const node of nodes) {
+      const enhanced = Math.min(node.depth, reinforcedDepth) - 1
+      const raw = base * profile.boostedRetention ** enhanced * profile.retention ** (node.depth - 1 - enhanced)
+      const previous = node.parent < 0 ? owner.pos : nodes[node.parent]!.target.pos
+      trace(world, owner, 'electric', previous, node.target.pos, 1 - node.distance / Math.max(1, node.parent < 0 ? attrs.range : arcHopRange(attrs.range)), raw)
+      applyDamage(world, { targetId: node.target.id, sourceId: owner.id, sourceTeam: owner.team, raw, penetration: attrs.penetration, isCore: false, kind: 'electric', damageType: owner.attackType ?? 'electric', rewardMultiplier: owner.rewardMultiplier })
     }
   }
   if (!roots.length) trace(world, owner, 'electric', owner.pos, { x: owner.pos.x + direction.x * Math.min(140, attrs.range), y: owner.pos.y + direction.y * Math.min(140, attrs.range) }, 0.3, attrs.damage)

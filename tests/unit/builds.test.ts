@@ -32,9 +32,9 @@ describe('builds and card recycling', () => {
   it('refunds 60% of the actual purchase and never creates a buy/sell profit', () => {
     const w = world(), start = w.shards
     buyCard(w, 'auto-fire')
-    expect(saleValue(w, 'auto-fire')).toBe(7)
+    expect(saleValue(w, 'auto-fire')).toBe(30)
     sellCard(w, 'auto-fire')
-    expect(w.shards).toBe(start - 5)
+    expect(w.shards).toBe(start - 20)
     expect(sellCard(w, 'auto-fire')).toBe(false)
     buyCard(w, 'gun-damage')
     expect(sellCard(w, 'gun-damage')).toBe(true)

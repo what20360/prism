@@ -77,4 +77,9 @@ export function separateActors(world: World): void {
     if (pushA) moveActor(world, a, -dx * amount, -dy * amount)
     if (pushB) moveActor(world, b, dx * amount, dy * amount)
   }
+  const area = world.room.design?.core
+  if (area) for (const actor of actors) if (actor.behavior === 'weaver') actor.pos = {
+    x: clamp(actor.pos.x, area.x + actor.radius, area.x + area.width - actor.radius),
+    y: clamp(actor.pos.y, area.y + actor.radius, area.y + area.height - actor.radius),
+  }
 }

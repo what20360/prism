@@ -6,6 +6,7 @@ import { ARSENAL_RULES, KILL_LOOT_RULES } from '../rules'
 import { killDropProbability, rollLootAmount, spawnLoot } from '../loot'
 import { hasLineOfSight } from '../navigation'
 import { releaseDeathBurst } from './hostileBursts'
+import { WEAVER_RULES } from '../weaverRules'
 import type { DamageType, EffectKind, Actor, FloaterKind, World } from '../world'
 import { tryGetPlayer, progressOf } from '../world'
 import type { Team } from '../types'
@@ -148,6 +149,10 @@ function killActor(world: World, target: Actor, player: Actor | undefined): void
 
   target.alive = false
   target.burn = undefined
+  if (target.spider?.role === 'worker' && target.spider.task) {
+    const queen = world.actors.get(target.spider.ownerId)
+    if (queen?.alive && queen.weaver && queen.weaver.lostMines.length < WEAVER_RULES.mineLimit) queen.weaver.lostMines.push({ ...target.spider.goal })
+  }
   releaseDeathBurst(world, target)
   pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
   if (!world.participants && player) registerKill(world, player)
@@ -171,11 +176,12 @@ function dropKillLoot(world: World, target: Actor, killer: Actor, overkill: numb
 export function selfDestruct(world: World, actor: Actor): void {
   if (!actor.alive) return
   actor.hp = 0; actor.alive = false; actor.burn = undefined
+  const radius = actor.behavior === 'silk-bomber' ? WEAVER_RULES.spiderBlast : ARSENAL_RULES.bombRadius
   releaseDeathBurst(world, actor)
-  pushEffect(world, 'explosion', actor.pos.x, actor.pos.y, ARSENAL_RULES.bombRadius)
+  pushEffect(world, 'explosion', actor.pos.x, actor.pos.y, radius)
   for (const target of world.actors.values()) {
-    if (!target.alive || target.team === actor.team || !(world.participants ? world.participants[target.id] : target.team === 'player') || distance(actor.pos, target.pos) > ARSENAL_RULES.bombRadius + target.radius || !hasLineOfSight(actor.pos, target.pos, world.room.walls)) continue
-    applyDamage(world, { targetId: target.id, sourceId: actor.id, sourceTeam: actor.team, raw: actor.attrs.damage * ARSENAL_RULES.bombDamage,
+    if (!target.alive || target.team === actor.team || !(world.participants ? world.participants[target.id] : target.team === 'player') || distance(actor.pos, target.pos) > radius + target.radius || !hasLineOfSight(actor.pos, target.pos, world.room.walls)) continue
+    applyDamage(world, { targetId: target.id, sourceId: actor.id, sourceTeam: actor.team, raw: actor.attrs.damage * (actor.behavior === 'silk-bomber' ? WEAVER_RULES.spiderDamage : ARSENAL_RULES.bombDamage),
       penetration: actor.attrs.penetration, isCore: false, kind: 'contact', damageType: actor.attackType ?? 'heat', rewardMultiplier: actor.rewardMultiplier })
   }
 }

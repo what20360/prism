@@ -14,6 +14,7 @@ export interface Intent {
   readonly skills?: readonly number[]
   /** undefined preserves manual lock, null clears it. */
   readonly lockTarget?: number | null
+  readonly automaticFire?: boolean
   readonly autoAim?: boolean
   readonly autoPickup?: boolean
   /**

@@ -24,8 +24,9 @@ export function packLoot(amount: number): LootStack[] {
   }
   return stacks
 }
-export function spawnLoot(world: World, kind: Pickup['kind'], pos: Vec2, amount: number, ttl: number, limit = world.participants ? 24 : 100): void {
-  const stacks = packLoot(amount)
+export function looseLoot(amount: number): LootStack[] { return packLoot(Math.min(625, amount)).flatMap((s) => Array.from({ length: s.quantity }, () => ({ value: s.value, quantity: 1 }))) }
+export function spawnLoot(world: World, kind: Pickup['kind'], pos: Vec2, amount: number, ttl: number, limit = world.participants ? 192 : 384): void {
+  const stacks = looseLoot(amount)
   if (!stacks.length || world.pickups.filter((p) => p.ttl > 0).length < Math.max(0, world.pickups.length + stacks.length - limit)) return
   // Reserve the complete pack before spawning, so new large pieces are not evicted by its small pieces.
   while (world.pickups.length + stacks.length > limit) {
@@ -34,5 +35,5 @@ export function spawnLoot(world: World, kind: Pickup['kind'], pos: Vec2, amount:
     world.pickups.splice(index, 1)
   }
   stacks.forEach((stack, index) => world.pickups.push({ ...stack, id: allocateId(world), kind, ttl,
-    pos: resolveSpawnPosition({ x: pos.x + (index - (stacks.length - 1) / 2) * 27, y: pos.y }, 18, world.room.walls, world.room.bounds) }))
+    pos: resolveSpawnPosition({ x: pos.x + (index % 4 - (Math.min(4, stacks.length) - 1) / 2) * 18, y: pos.y + (Math.floor(index / 4) - (Math.ceil(stacks.length / 4) - 1) / 2) * 18 }, 18, world.room.walls, world.room.bounds) }))
 }

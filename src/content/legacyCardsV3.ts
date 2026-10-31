@@ -1,7 +1,7 @@
 import { createCardRegistry } from '../core/cards'
 import type { AttrKey, AttrSet } from '../core/attrs'
 import type { Card, Requirement } from '../core/cards'
-import { CARD_ECONOMY, DEFLECT_RULES, DROP_RULES, MINE_RULES, WEAPON_RULES, homingProfile, penetrationProfile } from '../core/rules'
+import { DEFLECT_RULES, DROP_RULES, MINE_RULES, WEAPON_RULES, homingProfile, penetrationProfile } from '../core/rules'
 import { TICK_RATE } from '../core/types'
 import { formatRuleNumber as fmt } from './format'
 import { describeRage, describeDash } from './skills'
@@ -16,7 +16,7 @@ type Options = Partial<Pick<Card, 'priority' | 'resellable' | 'maxLevel' | 'requ
   readonly enabled?: (attrs: AttrSet) => boolean
   readonly describe?: (level: number, modifiers: readonly Modifier[], generated: string) => string
 }
-export function cardPrice(base: number, level: number): number { return Math.round(base * CARD_ECONOMY.growth ** (level - 1)) }
+export function cardPrice(base: number, level: number): number { return Math.round(base * 1.6 ** (level - 1)) }
 function describeModifier([, operation, value, label, percent]: Modifier): string {
   const shown = percent ? `${fmt(value * 100)}%` : fmt(value)
   return operation === 'chance' ? `${label} ${shown}` : operation === 'set' ? `${label} ${shown}` :

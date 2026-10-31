@@ -21,7 +21,7 @@ import { tryPlaceMine, updateMines } from '../../src/core/systems/mines'
 import { restoreWorld, serializeWorld } from '../../src/core/serialization'
 import { hashWorld } from '../../src/core/hash'
 import { step } from '../../src/core/simulation'
-import { readCheckpoint } from '../../src/app/checkpoints'
+import { readCheckpoint, CURRENT_BALANCE_VERSION } from '../../src/app/checkpoints'
 import { createDuelMatch } from '../../src/app/modes/duel'
 import { encodePacket, decodePacket } from '../../src/net/protocol'
 import { toSnapshot } from '../../src/core/snapshot'
@@ -106,7 +106,7 @@ describe('electric and laser weapon contracts', () => {
   it('spends pierce on targets and enhanced conduction, with leftover converted to damage', () => {
     const w = arena({ range: 1000, damage: 10, burstCount: 3, pierce: 6 }), targets = [300, 500, 700].map((x) => enemy(w, x))
     fireElectric(w, getPlayer(w), 0)
-    expect(targets[0]!.hp).toBeCloseTo(1000 - 11.5); expect(targets[1]!.hp).toBeCloseTo(1000 - 11.5 * 0.85); expect(targets[2]!.hp).toBeCloseTo(1000 - 11.5 * 0.85 ** 2)
+    expect(targets[0]!.hp).toBeCloseTo(1000 - 11.5); expect(targets[1]!.hp).toBeCloseTo(1000 - 11.5 * 0.85); expect(targets[2]!.hp).toBeCloseTo(1000 - 11.5 * 0.85)
     expect(w.traces).toHaveLength(3)
   })
   it('selects unique scatter roots with independent chains and respects walls and hop range', () => {
@@ -129,13 +129,13 @@ describe('electric and laser weapon contracts', () => {
   it('hits the laser line instantly, while walls stop the remaining line', () => {
     const w = arena({ range: 1000, damage: 20, pierce: 3 }), near = enemy(w, 300), far = enemy(w, 700)
     w.room.walls = [{ x: 500, y: 0, width: 20, height: 1500 }]; fireLaserPulse(w, getPlayer(w), 0)
-    expect(near.hp).toBe(986); expect(far.hp).toBe(1000); expect(w.projectiles).toHaveLength(0); expect(w.traces?.[0]?.to.x).toBe(500)
+    expect(near.hp).toBe(994); expect(far.hp).toBe(1000); expect(w.projectiles).toHaveLength(0); expect(w.traces?.[0]?.to.x).toBe(500)
   })
   it('reflects off a wall only when ricochet and enough pierce remain', () => {
     for (const pierce of [1, 3]) {
       const w = arena({ range: 1000, damage: 20, pierce, ricochet: 1 }), p = getPlayer(w); p.pos = { x: 100, y: 100 }
       const e = enemy(w, 400, 800); w.room.walls = [{ x: 600, y: 0, width: 20, height: 1500 }]
-      fireLaserPulse(w, p, Math.PI / 4); expect(e.hp).toBe(pierce === 1 ? 1000 : 986)
+      fireLaserPulse(w, p, Math.PI / 4); expect(e.hp).toBe(pierce === 1 ? 1000 : 994)
     }
   })
   it('uses burst as longer laser duration with discrete pulses and no projectile queue', () => {
@@ -143,7 +143,7 @@ describe('electric and laser weapon contracts', () => {
       const w = arena({ weapon: 2, damage: 20, range: 1000, burstCount }), p = getPlayer(w), e = enemy(w, 600)
       p.intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: true }
       for (let i = 0; i < ARSENAL_RULES.laserTicks * burstCount; i++) updateWeapons(w)
-      expect(e.hp).toBe(1000 - 28 * burstCount); expect(p.laserTicks).toBe(0); expect(p.burstRemaining).toBe(0); expect(w.projectiles).toHaveLength(0)
+      expect(e.hp).toBe(1000 - 12 * burstCount); expect(p.laserTicks).toBe(0); expect(p.burstRemaining).toBe(0); expect(w.projectiles).toHaveLength(0)
     }
   })
   it('enforces weapon exclusivity, specialization dependencies and clean switching', () => {
@@ -208,7 +208,7 @@ describe('arsenal persistence and network', () => {
     w.pickups.push({ id: w.nextEntityId++, kind: 'shard', pos: { x: 500, y: 500 }, value: 5, ttl: 600 })
     const world = serializeWorld(w); for (const attrs of [world.basePlayerAttrs, ...world.actors.map((a) => a.attrs)]) for (const key of Object.keys(ARSENAL_DEFAULTS)) delete (attrs as unknown as Record<string, number>)[key]
     const loaded = readCheckpoint(JSON.stringify({ format: 'prism-save', version: 1, balanceVersion: 3, name: '原构筑', savedAt: '2026-10-31T12:00:00Z', mode: 'dungeon', initialSeed: 90, restarts: 0, roomIndex: 0, world }))
-    expect(loaded.balanceVersion).toBe(4); expect(loaded.name).toBe('原构筑'); expect(loaded.world.actors[0]!.hp).toBe(31)
+    expect(loaded.balanceVersion).toBe(CURRENT_BALANCE_VERSION); expect(loaded.name).toBe('原构筑'); expect(loaded.world.actors[0]!.hp).toBe(31)
     expect(loaded.world.actors[0]!.attrs.mineShardChance).toBe(1); expect(loaded.world.actors[0]!.attrs.bloodOrbChance).toBe(1)
     expect(loaded.world.purchases).toEqual(w.purchases); expect(loaded.world.pickups[0]!.gainApplied).toBeUndefined(); expect(loaded.world.pickups[0]!.value).toBe(5)
     expect(readCheckpoint(JSON.stringify(loaded))).toEqual(loaded)
