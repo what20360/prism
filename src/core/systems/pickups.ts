@@ -18,7 +18,8 @@ export function updatePickups(world: World): void {
       pickup.pos = { x: pickup.pos.x + (player.pos.x - pickup.pos.x) / d * travel, y: pickup.pos.y + (player.pos.y - pickup.pos.y) / d * travel }
     }
     if (distance(pickup.pos, player.pos) > player.radius + 16) return true
-    const amount = pickup.kind === 'blood' ? Math.min(player.attrs.maxHp - player.hp, pickup.value) : pickup.value * (pickup.gainApplied ? 1 : player.attrs.shardGain)
+    const value = pickup.value * (pickup.quantity ?? 1)
+    const amount = pickup.kind === 'blood' ? Math.min(player.attrs.maxHp - player.hp, value) : value * (pickup.gainApplied ? 1 : player.attrs.shardGain)
     if (pickup.kind === 'blood') player.hp += amount
     else progressOf(world, world.participants ? player.id : undefined).shards += amount
     world.floaters.push({ kind: pickup.kind === 'blood' ? 'heal' : 'shard', value: amount, x: player.pos.x, y: player.pos.y - 50, ttl: 46, driftX: 0 })

@@ -1,9 +1,9 @@
 import { combatAttrs } from '../combat'
-import { allocateId } from '../world'
 import { resolveDamage, shieldCap } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
-import { ARSENAL_RULES, killLootBoost, killLootBase } from '../rules'
+import { ARSENAL_RULES, KILL_LOOT_RULES } from '../rules'
+import { killDropProbability, rollLootAmount, spawnLoot } from '../loot'
 import { hasLineOfSight } from '../navigation'
 import { releaseDeathBurst } from './hostileBursts'
 import type { DamageType, EffectKind, Actor, FloaterKind, World } from '../world'
@@ -150,25 +150,21 @@ function killActor(world: World, target: Actor, player: Actor | undefined): void
   target.burn = undefined
   releaseDeathBurst(world, target)
   pushEffect(world, 'death', target.pos.x, target.pos.y, target.radius * 2)
-  if (world.participants) {
-    if (world.monsterShardDrop && world.pickups.length < 24) world.pickups.push({ id: allocateId(world), kind: 'shard', pos: { ...target.pos }, value: world.monsterShardDrop, ttl: 30 * TICK_RATE })
-  } else if (player) registerKill(world, player)
+  if (!world.participants && player) registerKill(world, player)
 }
 
-/** Guaranteed base loot per true kill; overkill is post-block/armor/resistance. */
+/** Roll only on a true kill; overkill is post-block/armor/resistance/shield. */
 function dropKillLoot(world: World, target: Actor, killer: Actor, overkill: number): void {
   if (world.participants ? !world.resourceDrops || !world.participants[killer.id] : killer.team !== 'player') return
-  const boost = killLootBoost(overkill, target.attrs.maxHp), reward = target.rewardMultiplier ?? 1
   const drops = [
-    { kind: 'shard' as const, level: killer.attrs.mineShardChance, base: killLootBase(1, killer.attrs.maxHp).shard * reward },
-    { kind: 'blood' as const, level: killer.attrs.bloodOrbChance, base: killLootBase(1, killer.attrs.maxHp).blood },
+    { kind: 'shard' as const, level: killer.attrs.mineShardChance, multiplier: target.rewardMultiplier ?? 1 },
+    { kind: 'blood' as const, level: killer.attrs.bloodOrbChance, multiplier: 1 },
   ]
   for (const drop of drops) {
-    if (drop.level <= 0 || drop.base <= 0) continue
-    const limit = world.participants ? 24 : 100
-    if (world.pickups.length >= limit) { const index = world.pickups.findIndex((p) => p.ttl > 0); if (index < 0) continue; world.pickups.splice(index, 1) }
-    world.pickups.push({ id: allocateId(world), kind: drop.kind, pos: { x: target.pos.x + (drop.kind === 'shard' ? -16 : 16), y: target.pos.y },
-      value: Math.min(Number.MAX_VALUE / 1e6, drop.base * drop.level * boost), ttl: 30 * TICK_RATE })
+    const probability = killDropProbability(drop.level, overkill, target.attrs.maxHp) * drop.multiplier
+    const base = drop.kind === 'shard' && world.participants ? world.monsterShardDrop ?? 0 : 0
+    const amount = Math.min(KILL_LOOT_RULES.limit, base + rollLootAmount(world.rng, probability))
+    if (amount > 0) spawnLoot(world, drop.kind, { x: target.pos.x, y: target.pos.y + (drop.kind === 'shard' ? -20 : 20) }, amount, 30 * TICK_RATE)
   }
 }
 /** Self destruction is not a player kill and cannot pay kill-card rewards. */

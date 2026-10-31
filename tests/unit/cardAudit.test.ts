@@ -73,13 +73,13 @@ describe('complete card audit', () => {
     expect(w.mines[0]!.hp).toBe(hp - enemy.attrs.damage)
   })
   it('applies shard gain once on pickup and preserves already-valued legacy resources', () => {
-    const w = arena(), p = getPlayer(w); p.attrs = { ...p.attrs, mineShardChance: 1, shardGain: 1.5 }
-    const target = createActor(w, { ...ENEMIES.turret!, attrs: { ...ENEMIES.turret!.attrs, maxHp: 20, armor: 0, block: 0 }, team: 'enemy', rewardMultiplier: 0.4, pos: { x: 500, y: 300 } })
-    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
+    const w = arena(), p = getPlayer(w); p.attrs = { ...p.attrs, mineShardChance: 40, shardGain: 1.5 }
+    const target = createActor(w, { ...ENEMIES.turret!, attrs: { ...ENEMIES.turret!.attrs, maxHp: 1000, armor: 0, block: 0 }, team: 'enemy', rewardMultiplier: 0.4, pos: { x: 500, y: 300 } })
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 500, penetration: 0, isCore: false, kind: 'mine' })
     expect(w.pickups).toHaveLength(0)
-    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
-    const drop = w.pickups[0]!; expect(drop.value).toBeCloseTo(0.8); p.pos = { ...drop.pos }
-    const before = w.shards; updatePickups(w); expect(w.shards - before).toBeCloseTo(1.2)
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 500, penetration: 0, isCore: false, kind: 'mine' })
+    const drop = w.pickups.find((p) => p.kind === 'shard')!; expect(drop.value).toBe(1); expect(drop.quantity).toBe(2); p.pos = { ...drop.pos }
+    const before = w.shards; updatePickups(w); expect(w.shards - before).toBeCloseTo(3)
     w.pickups.push({ id: allocateId(w), kind: 'shard', pos: { ...p.pos }, value: 6, ttl: 600, gainApplied: true }); const old = w.shards
     updatePickups(w); expect(w.shards - old).toBe(6)
   })

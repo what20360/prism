@@ -146,6 +146,7 @@ export interface Pickup {
   readonly kind: 'blood' | 'shard'
   pos: Vec2
   readonly value: number
+  readonly quantity?: number
   ttl: number
 }
 
@@ -256,7 +257,7 @@ export interface RoomTemplate {
   readonly waves?: readonly (readonly EnemySpawnSpec[])[]
 }
 
-export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number }
+export interface PickupSpawnSpec { readonly kind: Pickup['kind']; readonly pos: Vec2; readonly value: number; readonly quantity?: number }
 
 export interface EnemySpawnSpec extends EnemyMechanics {
   readonly damageIframesTicks?: number

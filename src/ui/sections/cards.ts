@@ -22,6 +22,7 @@ export interface CardsSectionHandlers {
 }
 
 const CATEGORY_ORDER: readonly string[] = [
+  'weapon',
   'gun',
   'mine',
   'defense',
@@ -32,6 +33,7 @@ const CATEGORY_ORDER: readonly string[] = [
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
+  weapon: '武器与专精',
   gun: '枪械与弹道',
   mine: '地雷',
   defense: '防御',

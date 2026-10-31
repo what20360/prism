@@ -125,7 +125,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (m.ignoreBullets !== undefined) bool(m.ignoreBullets)
     if (m.velocity !== undefined) vector(m.velocity)
   }
-  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied) }
+  for (const value of array(d.pickups, 1000)) { const p = entity(value); oneOf(p.kind, ['blood', 'shard']); vector(p.pos); finite(p.value, 0); finite(p.ttl, -1); if (p.gainApplied !== undefined) bool(p.gainApplied); if (p.quantity !== undefined) integer(p.quantity, 1, Number.MAX_SAFE_INTEGER) }
   for (const value of array(d.effects, 1000)) { const e = record(value); oneOf(e.kind, ['hit', 'coreHit', 'explosion', 'death', 'deflect', 'reflect', 'revive', 'rage', 'dash', 'pickup', 'block']); finite(e.x); finite(e.y); finite(e.radius, 0); finite(e.ttl, 0) }
   if (d.traces !== undefined) for (const value of array(d.traces, 256)) {
     const t = record(value); if (t.damageType !== undefined) oneOf(t.damageType, ['physical', 'electric', 'heat']); integer(t.ownerId, 1); oneOf(t.team, ['player', 'enemy', 'neutral']); oneOf(t.kind, ['electric', 'laser']); vector(t.from); vector(t.to); finite(t.rangeRatio, 0, 1); finite(t.power, 0); finite(t.width, 0); integer(t.ttl, 0, 10)

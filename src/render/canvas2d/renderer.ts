@@ -356,12 +356,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const beam of s.traces ?? []) drawEnergy(beam, s.tick)
     for (const pickup of s.pickups) {
       const { x, y } = pickup.pos
+      const tier = Math.max(0, Math.min(4, Math.log(Math.max(1, pickup.value)) / Math.log(5))), size = 8 + tier * 2
       ctx.shadowBlur = 14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'
       ctx.fillStyle = pickup.kind === 'blood' ? '#f48da7' : '#8cf0dc'; ctx.beginPath()
-      if (pickup.kind === 'blood') ctx.arc(x, y, 12, 0, Math.PI * 2)
-      else { ctx.moveTo(x, y - 15); ctx.lineTo(x + 10, y); ctx.lineTo(x, y + 15); ctx.lineTo(x - 10, y); ctx.closePath() }
+      if (pickup.kind === 'blood') ctx.arc(x, y, size, 0, Math.PI * 2)
+      else { ctx.moveTo(x, y - size - 3); ctx.lineTo(x + size * 0.75, y); ctx.lineTo(x, y + size + 3); ctx.lineTo(x - size * 0.75, y); ctx.closePath() }
       ctx.fill(); ctx.shadowBlur = 0
       if (pickup.kind === 'blood') { ctx.fillStyle = '#fff0f4'; ctx.fillRect(x - 6, y - 2, 12, 4); ctx.fillRect(x - 2, y - 6, 4, 12) }
+      text(`${pickup.value}${(pickup.quantity ?? 1) > 1 ? '×' + pickup.quantity : ''}`, x - 10, y + size + 18, 12, pickup.kind === 'blood' ? '#ffd8e4' : '#bcfff0')
     }
     for (const a of s.actors) if (a.alive) drawActor(a, s.tick)
     for (const effect of s.effects) drawEffect(effect)

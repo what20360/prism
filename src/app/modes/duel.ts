@@ -3,7 +3,8 @@ export { DUEL_RULES, DUEL_ATTRS, type DuelState } from '../../content/duel'
 import { CARD_REGISTRY } from '../../content/cards'
 import { ENEMIES } from '../../content/enemies'
 import type { Intent } from '../../core/controller'
-import { allocateId, createActor, createWorld, type World } from '../../core/world'
+import { createActor, createWorld, type World } from '../../core/world'
+import { spawnLoot } from '../../core/loot'
 import { purchaseLevel } from '../../core/cards'
 import { buyCard, listCardStates, sellCard } from '../../core/progress'
 import { equipSkill } from '../../core/systems/skills'
@@ -65,7 +66,7 @@ export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMat
     if (elapsed >= resourceAt) {
       resourceAt = elapsed + nextInt(world.rng, DUEL_RULES.resourceMinTicks, DUEL_RULES.resourceMaxTicks + 1)
       const pos = world.pickups.length < DUEL_RULES.pickupLimit ? spawnPosition(16) : null
-      if (pos) { const kind = nextInt(world.rng, 0, 4) === 0 ? 'blood' : 'shard'; world.pickups.push({ id: allocateId(world), kind, pos, value: kind === 'blood' ? 12 : nextInt(world.rng, 8, 15), ttl: 30 * 60 }) }
+      if (pos) { const kind = nextInt(world.rng, 0, 4) === 0 ? 'blood' : 'shard'; spawnLoot(world, kind, pos, kind === 'blood' ? 12 : nextInt(world.rng, 8, 15), 30 * 60) }
     }
     if (elapsed >= monsterAt) {
       monsterAt = elapsed + nextInt(world.rng, DUEL_RULES.monsterMinTicks, DUEL_RULES.monsterMaxTicks + 1)

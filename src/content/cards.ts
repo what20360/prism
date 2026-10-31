@@ -1,7 +1,7 @@
 import { createCardRegistry } from '../core/cards'
 import type { AttrKey, AttrSet } from '../core/attrs'
 import type { Card, Requirement } from '../core/cards'
-import { KILL_LOOT_RULES, killLootBase, ARSENAL_RULES, arcProfile, broodProfile, pulseProfile, CARD_ECONOMY, DEFLECT_RULES, MINE_RULES, WEAPON_RULES, homingProfile, penetrationProfile } from '../core/rules'
+import { KILL_LOOT_RULES, laserProfile, ARSENAL_RULES, arcProfile, broodProfile, pulseProfile, CARD_ECONOMY, DEFLECT_RULES, MINE_RULES, WEAPON_RULES, homingProfile, penetrationProfile } from '../core/rules'
 import { TICK_RATE } from '../core/types'
 import { formatRuleNumber as fmt } from './format'
 import { describeRage, describeDash } from './skills'
@@ -86,7 +86,7 @@ export const CARDS: readonly Card[] = [
   ], { priority: 60, requires: [{ card: 'deflect', level: 1 }], describe: (_level, _modifiers, text) => `强化回击；${text}` }),
 ]
 export const BUILD_CARDS: readonly Card[] = [
-  toggle('auto-aim', '自动索敌', 'special', 12, 'autoAim', () => '启用自动瞄准：优先手动锁定，否则沿攻击方向选目标', undefined, 0),
+  toggle('auto-aim', '自动索敌', 'special', 12, 'autoAim', () => '启用全方向自动瞄准：优先手动锁定，否则优先攻击方向的可见目标；设置中可切回鼠标瞄准', undefined, 0),
   toggle('auto-fire', '自动扳机', 'special', 12, 'autoFire', () => '启用自动射击；设置中可切回手动', undefined, 0),
   formulaCard('burst', '脉冲连发', 'gun', 26, (level) => [
     ['burstCount', 'add', level, '连发轮数'], ['damage', 'divide', 1 + 0.2 * level, '伤害'], ['range', 'divide', 1 + 0.1 * level, '射程'],
@@ -128,13 +128,13 @@ export const BUILD_CARDS: readonly Card[] = [
   numericCard('mine-slow', '蛛网', 'mine', 14, [['mineSlowMultiplier', 'add', 0.5, '减速倍率']], ['雷场']),
   toggle('mine-ignore', '绝缘雷壳', 'mine', 12, 'mineIgnoreBullets', () => `子弹不会触发或击毁地雷；减速倍率高于 1 的部分只保留 ${fmt(MINE_RULES.ignoreSlowFactor * 100)}%`),
   formulaCard('miner', '掘金者', 'special', 26, (level) => [['mineShardChance', 'add', level, '击杀晶片等级']], {
-    priority: 100, tags: ['经济', '击杀'], describe: (level) => `每次击杀掉落晶片，基础 ${fmt(killLootBase(level, 50).shard)} 棱晶；价值 ×[1+${fmt(KILL_LOOT_RULES.overkillFactor)}log₂(1+溢出/目标最大生命)]；受敌人奖励倍率与拾取者收益影响`,
+    priority: 100, tags: ['经济', '击杀'], describe: (level) => `击杀掉片期望=${fmt(level * KILL_LOOT_RULES.levelChance)}+溢出×${fmt(KILL_LOOT_RULES.overkillChance)}+怪物最大生命/${fmt(KILL_LOOT_RULES.hpDivisor)}；整数必掉，余数抽奖，最多${fmt(KILL_LOOT_RULES.limit)}点；大规格优先；受敌人奖励倍率与拾取收益影响`,
   }),
   toggle('grenade', '手榴弹', 'mine', 20, 'grenade', () => `沿释放时移动方向以 ${fmt(MINE_RULES.grenadeSpeed)}/秒前进 ${fmt(MINE_RULES.grenadeTravel)} 距离后引爆；静止时沿枪口`),
   numericCard('sluggish', '延时引信', 'mine', 12, [['mineHp', 'add', 16, '本体生命'], ['mineFuseSeconds', 'add', 0.25, '引爆延迟/秒']], ['手雷'], false, [{ card: 'grenade', level: 1 }]),
   numericCard('shrapnel', '破片', 'mine', 28, [['mineFragments', 'add', 4, '爆炸碎片弹数']], ['手雷', '弹道']),
   formulaCard('gourmet', '美食家', 'recovery', 24, (level) => [['bloodOrbChance', 'add', level, '击杀血球等级']], {
-    priority: 100, tags: ['击杀', '续航'], describe: (level) => `每次击杀掉落血球，基础回复 ${fmt(level)}×max(${fmt(KILL_LOOT_RULES.bloodMinimum)},最大生命×${fmt(KILL_LOOT_RULES.bloodFraction * 100)}%)；价值 ×[1+${fmt(KILL_LOOT_RULES.overkillFactor)}log₂(1+溢出/目标最大生命)]`,
+    priority: 100, tags: ['击杀', '续航'], describe: (level) => `击杀掉血球期望=${fmt(level * KILL_LOOT_RULES.levelChance)}+溢出×${fmt(KILL_LOOT_RULES.overkillChance)}+怪物最大生命/${fmt(KILL_LOOT_RULES.hpDivisor)}；整数必掉，余数抽奖，最多${fmt(KILL_LOOT_RULES.limit)}点；大规格优先`,
   }),
   formulaCard('magnet', '磁吸核心', 'special', 12, (level) => [['pickupRadius', 'add', 100 + 80 * level, '自动吸取半径']], {
     priority: 100, tags: ['拾取'], describe: (_level, _modifiers, text) => `${text}；设置中可开关，靠近仍可手动拾取`,
@@ -145,14 +145,14 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('rage', '狂暴', 'skill', 32, (level) => [['rageLevel', 'add', level, '狂暴等级']], { priority: 50, tags: ['主动'], describe: (level) => describeRage(level) }),
   formulaCard('dash', '冲刺', 'skill', 18, (level) => [['dashLevel', 'add', level, '冲刺等级']], { priority: 50, tags: ['主动'], describe: (level) => describeDash(level) }),
   formulaCard('skill-cycle', '冷却回路', 'skill', 20, (level) => [['skillCooldownRate', 'multiply', 1.18 ** level, '所有技能冷却速度']], { priority: 100, tags: ['主动'], unavailable: (attrs) => attrs.deflectLevel > 0 || attrs.rageLevel > 0 || attrs.dashLevel > 0 ? null : '需要先拥有至少一种主动技能' }),
-  formulaCard('weapon-electric', '电弧发生器', 'gun', 32, () => [['weapon', 'set', 1, '主武器']], { priority: 90, maxLevel: 1, tags: ['电', '主武器'], unavailable: (a) => a.weapon === 2 ? '先出售激光发射器再切换武器' : null,
-    describe: () => '主武器切换为电弧；霰弹增加同时目标，连发增加传导；每次命中耗1穿透，多余穿透强化传导或增伤；不穿墙' }),
-  formulaCard('weapon-laser', '激光发射器', 'gun', 36, () => [['weapon', 'set', 2, '主武器']], { priority: 91, maxLevel: 1, tags: ['热', '主武器'], unavailable: (a) => a.weapon === 1 ? '先出售电弧发生器再切换武器' : null,
+  formulaCard('weapon-electric', '电弧发生器', 'weapon', 32, () => [['weapon', 'set', 1, '主武器']], { priority: 90, maxLevel: 1, tags: ['电', '主武器'], unavailable: (a) => a.weapon === 2 ? '先出售激光发射器再切换武器' : null,
+    describe: () => '主武器切换为全方向电弧；锁定与瞄准方向优先，霰弹增加同时目标，连发增加传导；各链独立消耗穿透和记录命中，多余穿透强化传导或增伤；不穿墙' }),
+  formulaCard('weapon-laser', '激光发射器', 'weapon', 36, () => [['weapon', 'set', 2, '主武器']], { priority: 91, maxLevel: 1, tags: ['热', '主武器'], unavailable: (a) => a.weapon === 1 ? '先出售电弧发生器再切换武器' : null,
     describe: () => `主武器切换为激光；射程 ×${fmt(ARSENAL_RULES.laserRange)}，每脉冲伤害 ×${fmt(ARSENAL_RULES.laserDamage)}，间隔 ${fmt(ARSENAL_RULES.laserGap / TICK_RATE)} 秒，基础照射 ${fmt(ARSENAL_RULES.laserTicks / TICK_RATE)} 秒；连发延长照射，霰弹增加射线，弹射启用墙面折射` }),
-  formulaCard('arc-coil', '电容绕组', 'gun', 18, (n) => [['arcEfficiency', 'add', n, '传导专精']], { priority: 120, requires: [{ card: 'weapon-electric', level: 1 }], enabled: (a) => a.weapon === 1,
+  formulaCard('arc-coil', '电容绕组', 'weapon', 18, (n) => [['arcEfficiency', 'add', n, '传导专精']], { priority: 120, requires: [{ card: 'weapon-electric', level: 1 }], enabled: (a) => a.weapon === 1,
     describe: (n) => { const p = arcProfile(n); return `电弧基础伤害 ×${fmt(p.damageMultiplier)}；跨跳伤害保留 ${fmt(p.retention * 100)}%，额外消耗穿透时保留 ${fmt(p.boostedRetention * 100)}%；每份剩余穿透增伤 ${fmt(p.surplus * 100)}%` } }),
-  formulaCard('laser-focus', '聚焦透镜', 'gun', 18, (n) => [['laserPower', 'add', n, '激光专精']], { priority: 120, requires: [{ card: 'weapon-laser', level: 1 }], enabled: (a) => a.weapon === 2,
-    describe: (n) => `激光每脉冲伤害 ×${fmt(1 + 0.2 * n)}；在通用伤害之后结算` }),
+  formulaCard('laser-focus', '聚焦透镜', 'weapon', 18, (n) => [['laserPower', 'add', n, '激光专精']], { priority: 120, requires: [{ card: 'weapon-laser', level: 1 }], enabled: (a) => a.weapon === 2,
+    describe: (n) => { const p = laserProfile(n); return `激光每脉冲伤害 ×${fmt(p.damageMultiplier)}；散射角间距 ${fmt(p.spreadStep * 180 / Math.PI)}°（÷${fmt(1 + 0.2 * n)}）；在通用伤害之后结算` } }),
   formulaCard('mine-echo', '震荡雷芯', 'mine', 24, (n) => [['minePulseLevel', 'add', n, '多段等级']], { priority: 120,
     describe: (n) => { const p = pulseProfile(n); return `地雷爆炸 ${fmt(p.count)} 段，每段伤害 ÷${fmt(p.divisor)}，间隔 ${fmt(ARSENAL_RULES.pulseGap / TICK_RATE)} 秒；末段释放一次破片与子雷，每段分别受格挡` } }),
   formulaCard('mine-brood', '蜂巢雷芯', 'mine', 32, (n) => [['mineBroodLevel', 'add', n, '子雷等级']], { priority: 130,

@@ -170,12 +170,12 @@ describe('mine divisor, upgrades and drops', () => {
     expect(w.projectiles).toHaveLength(4)
     expect(w.projectiles.every((b) => b.damage === 12 && b.ricochet && b.homingTurn! > 0)).toBe(true)
   })
-  it('only true kills create guaranteed pickups, which heal/pay once on contact', () => {
-    const w = world({ bloodOrbChance: 1, mineShardChance: 1 }), p = getPlayer(w), target = enemy(w, 140, 400, { maxHp: 20 })
+  it('only true kills roll resources, with integer expected units healing/paying once on contact', () => {
+    const w = world({ bloodOrbChance: 19, mineShardChance: 19 }), p = getPlayer(w), target = enemy(w, 140, 400, { maxHp: 100 })
     p.hp = 10
-    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'bullet' })
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 50, penetration: 0, isCore: false, kind: 'bullet' })
     expect(w.pickups).toHaveLength(0)
-    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 10, penetration: 0, isCore: false, kind: 'mine' })
+    applyDamage(w, { targetId: target.id, sourceId: p.id, sourceTeam: 'player', raw: 50, penetration: 0, isCore: false, kind: 'mine' })
     expect(w.pickups.map((d) => d.kind)).toEqual(['shard', 'blood'])
     const shards = w.shards; updatePickups(w)
     expect(p.hp).toBe(12); expect(w.shards).toBe(shards + 2); expect(w.pickups).toHaveLength(0)

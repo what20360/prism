@@ -1,5 +1,6 @@
 import { distance } from '../collision'
 import { hasLineOfSight } from '../navigation'
+import { ARSENAL_RULES } from '../rules'
 import type { Actor, World } from '../world'
 import type { EntityId } from '../types'
 export function nearestOpponent(world: World, actor: Actor, maxRange: number): Actor | undefined {
@@ -22,7 +23,7 @@ export function updateTargetLocks(world: World): void {
     const candidates = opponentsOf(world, actor.team).map((target) => {
       const offset = Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x) - angle
       return { target, difference: Math.abs(Math.atan2(Math.sin(offset), Math.cos(offset))), distance: distance(target.pos, actor.pos) }
-    }).filter((entry) => entry.difference <= Math.PI / 3 && entry.distance <= Math.max(actor.attrs.range, 900) && hasLineOfSight(actor.pos, entry.target.pos, world.room.walls))
+    }).filter((entry) => (actor.intent.autoAim || entry.difference <= Math.PI / 3) && entry.distance <= Math.max(actor.attrs.range * (actor.attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1), 900) && hasLineOfSight(actor.pos, entry.target.pos, world.room.walls))
     candidates.sort((a, b) => (a.difference - (a.target.id === actor.lockTargetId ? 0.08 : 0)) - (b.difference - (b.target.id === actor.lockTargetId ? 0.08 : 0)) || a.distance - b.distance || a.target.id - b.target.id)
     actor.lockTargetId = candidates[0]?.target.id ?? null
   }

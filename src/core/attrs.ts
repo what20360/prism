@@ -48,9 +48,9 @@ export interface AttrSet {
   mineIgnoreBullets: number
   grenade: number
   mineFragments: number
-  /** Historical storage key: guaranteed crystal-loot level per kill. */
+  /** Historical storage key: crystal-loot probability upgrade level. */
   mineShardChance: number
-  /** Historical storage key: guaranteed blood-orb level per kill. */
+  /** Historical storage key: blood-orb probability upgrade level. */
   bloodOrbChance: number
   pickupRadius: number
   burstCount: number

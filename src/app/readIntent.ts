@@ -21,6 +21,6 @@ export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer:
     const pos = selection ? renderer.viewToWorld(selection.x, selection.y, focus) : null
     lockTarget = pos ? snapshot.actors.find((a) => a.team !== 'player' && a.alive && Math.hypot(a.x - pos.x, a.y - pos.y) <= a.radius + 16)?.id ?? null : null
   }
-  return { move, aim, fire: Boolean(actor.autoFire || pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
-    autoAim: actor.autoAim, autoPickup: settings.autoPickup !== false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
+  return { move, aim, fire: Boolean(actor.autoFire && settings.fireMode === 'auto' || pointer.firing() || fingers.fire), placeMine: keys.placeMine || fingers.placeMine,
+    autoAim: actor.autoAim && settings.aimMode === 'auto', autoPickup: settings.autoPickup !== false, lockTarget, skills: [...new Set([...(keys.skills ?? []), ...(fingers.skills ?? []), ...(keys.skill === undefined ? [] : [keys.skill])])] }
 }

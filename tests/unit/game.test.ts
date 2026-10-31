@@ -8,6 +8,7 @@ import { createPracticeMode, DEFAULT_PRACTICE } from '../../src/app/modes/practi
 import { createEndlessMode } from '../../src/app/modes/endless'
 import type { RoomSpec } from '../../src/core/dungeon'
 import { readCheckpoint } from '../../src/app/checkpoints'
+import type { Snapshot } from '../../src/core/snapshot'
 
 describe('game lifecycle', () => {
   let frames: Map<number, FrameRequestCallback>
@@ -176,6 +177,21 @@ describe('game lifecycle', () => {
     const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' } })
     game.start(); advance(1000); advance(1200)
     expect(game.debug().projectiles).toBe(0)
+    game.dispose()
+  })
+
+  it('applies desktop automatic aim and fire switches immediately without reopening a page', () => {
+    let snapshot: Snapshot | undefined
+    const { game } = idleGame({ practice: createPracticeMode(), pointer: { position: () => ({ x: -5000, y: 5000 }), firing: () => false, reset() {}, dispose() {} },
+      renderer: { draw: (s) => { snapshot = s }, viewToWorld: (x, y) => ({ x, y }), dispose() {} } })
+    game.setUiMode('menu')
+    for (const id of ['auto-aim', 'auto-fire']) expect(game.practiceAction({ type: 'card-level', id, level: 1 })).toBe(true)
+    game.setUiMode('play'); game.start(); advance(1000); advance(1200)
+    expect(snapshot!.actors.find((a) => a.id === 1)!.aimAngle).toBeLessThan(0)
+    expect(snapshot!.projectiles[0]!.vy).toBeLessThan(0)
+    game.setSetting('aimMode', 'manual'); game.setSetting('fireMode', 'manual'); advance(1400)
+    expect(game.panelState().settings).toMatchObject({ aimMode: 'manual', fireMode: 'manual' })
+    expect(snapshot!.actors.find((a) => a.id === 1)!.aimAngle).toBeGreaterThan(Math.PI / 2)
     game.dispose()
   })
 

@@ -7,7 +7,7 @@ import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { withMonsterTraits } from '../../src/content/monsterTraits'
 import { ARSENAL_DEFAULTS, type AttrSet } from '../../src/core/attrs'
 import { createActor, createWorld, getPlayer, type DamageType, type World } from '../../src/core/world'
-import { ARSENAL_RULES, broodProfile, killLootBoost } from '../../src/core/rules'
+import { ARSENAL_RULES, broodProfile } from '../../src/core/rules'
 import { combatAttrs } from '../../src/core/combat'
 import { createRng } from '../../src/core/rng'
 import { buyCard, sellCard, listCardStates } from '../../src/core/progress'
@@ -45,13 +45,13 @@ describe('block, elemental damage and kill economy', () => {
     expect(e.hp).toBe(995); expect(e.shockTicks).toBe(0); expect(w.shards).toBe(before); expect(w.pickups).toHaveLength(0); expect(p.hp).toBe(15)
     expect(w.effects.at(-1)?.kind).toBe('block')
   })
-  it('drops only once on death, guarantees a base and scales with actual overkill', () => {
-    const w = arena({ mineShardChance: 1, bloodOrbChance: 1 }), e = enemy(w, 400, 500, { maxHp: 20 })
+  it('rolls only once on death and uses mitigated overkill for both resources', () => {
+    const w = arena({ mineShardChance: 10, bloodOrbChance: 10 }), e = enemy(w, 400, 500, { maxHp: 20 })
     for (let i = 0; i < 19; i++) damage(w, e.id, 1)
     expect(w.pickups).toHaveLength(0); damage(w, e.id, 1)
-    expect(w.pickups.map((p) => p.value)).toEqual([2, 2]); damage(w, e.id, 5000); expect(w.pickups).toHaveLength(2)
+    expect(w.pickups.map((p) => p.value)).toEqual([1, 1]); damage(w, e.id, 5000); expect(w.pickups).toHaveLength(2)
     const heavy = enemy(w, 800, 500, { maxHp: 10, shield: 5, block: 10, armor: 100 }); damage(w, heavy.id, 50)
-    expect(w.pickups.slice(2).map((p) => p.value)).toEqual([2 * killLootBoost(5, 10), 2 * killLootBoost(5, 10)])
+    expect(w.pickups.slice(2).every((p) => p.value === 1 && p.quantity! >= 1 && p.quantity! <= 2)).toBe(true)
   })
   it('expires electric slowing and applies three non-recursive burn ticks through block', () => {
     const w = arena(), shock = enemy(w, 400, 500, { speed: 100 }), heat = enemy(w, 700, 500, { block: 1 })
@@ -109,15 +109,15 @@ describe('electric and laser weapon contracts', () => {
     expect(targets[0]!.hp).toBeCloseTo(1000 - 11.5); expect(targets[1]!.hp).toBeCloseTo(1000 - 11.5 * 0.85); expect(targets[2]!.hp).toBeCloseTo(1000 - 11.5 * 0.85 ** 2)
     expect(w.traces).toHaveLength(3)
   })
-  it('selects disjoint scatter roots and respects both walls and path-distance budgets', () => {
+  it('selects unique scatter roots with independent chains and respects walls and hop range', () => {
     const w = arena({ range: 1000, multishot: 3, burstCount: 4, pierce: 4 })
     const targets = [400, 500, 600].map((y) => enemy(w, 400, y)); fireElectric(w, getPlayer(w), 0)
-    expect(targets.every((e) => e.hp < 1000)).toBe(true); expect(w.traces).toHaveLength(3)
+    expect(targets.every((e) => e.hp < 1000)).toBe(true); expect(w.traces).toHaveLength(9)
     const blocked = arena({ range: 1000, burstCount: 3, pierce: 4 }), near = enemy(blocked, 300), far = enemy(blocked, 600)
     blocked.room.walls = [{ x: 450, y: 0, width: 20, height: 1500 }]; fireElectric(blocked, getPlayer(blocked), 0)
     expect(near.hp).toBeLessThan(1000); expect(far.hp).toBe(1000)
     const short = arena({ range: 300, burstCount: 3, pierce: 4 }), first = enemy(short, 350), beyond = enemy(short, 450)
-    fireElectric(short, getPlayer(short), 0); expect(first.hp).toBeLessThan(1000); expect(beyond.hp).toBe(1000)
+    fireElectric(short, getPlayer(short), 0); expect(first.hp).toBeLessThan(1000); expect(beyond.hp).toBeLessThan(1000)
   })
   it('does not chain without pierce and the coil increases subsequent damage retention', () => {
     const w = arena({ range: 1000, burstCount: 3, pierce: 1 }), a = enemy(w, 300), b = enemy(w, 500)

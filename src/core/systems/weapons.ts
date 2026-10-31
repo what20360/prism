@@ -53,8 +53,9 @@ function updateLaser(world: World, actor: Actor): void {
 function resolveAimAngle(world: World, actor: Actor): number | undefined {
   if (actor.behavior === 'boss') return undefined
   if (actor.intent.autoAim) {
-    const target = actor.lockTargetId === null ? undefined : world.actors.get(actor.lockTargetId)
+    const target = (actor.lockTargetId === null ? undefined : world.actors.get(actor.lockTargetId)) ?? nearestOpponent(world, actor, Math.max(actor.attrs.range * (actor.attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1), 900))
     if (target?.alive && target.team !== actor.team) return Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x)
+    return actor.aimAngle
   }
   const aim = actor.intent.aim
   if (aim && (aim.x !== 0 || aim.y !== 0)) return Math.atan2(aim.y, aim.x)

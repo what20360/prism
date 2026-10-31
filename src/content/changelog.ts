@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  { version: '1.19', date: '2026-10-31', title: '全方向电弧与概率掉落', items: [
+    '武器解锁和专精卡独立分类；设置切换立即刷新，桌面自动索敌可选择身后目标，1v1遵守手动和自动偏好。',
+    '电弧锁定和方向仅作为优先级，霰弹可选择全方向目标；每条链独立记录命中、消耗穿透，每跳独立检查距离和墙体。',
+    '聚焦透镜在提高脉冲伤害的同时，随等级收窄激光散射角。',
+    '美食家和掘金者按等级、减伤后溢出与怪物生命计算概率；整数必掉、余数抽奖，每类每击杀最多625点，大规格优先掉落并显示面值及堆叠数量。',
+    '增加三种武器与组合的确定性回放、传导、聚焦、控制切换和掉落回归测试；已有存档与旧资源继续兼容，联机协议更新为6。',
+  ] },
   { version: '1.18', date: '2026-10-31', title: '武器分化与词条敌人', items: [
     '掘金者和美食家改为击杀保底掉落，溢出重击提高资源价值；非致命命中不再逐次刷资源。',
     '伤害先扣固定格挡，再结算护甲与物理、电、热抗性；电伤短暂减速，热伤附带燃烧。',
