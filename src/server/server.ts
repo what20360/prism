@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { resolve, sep, extname } from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
-import { decodeClient, SERVER_PROTOCOL, type ServerCommand, type ServerInfo, type RoomInfo, type ClientPacket } from '../net/serverProtocol'
+import { decodeClient, shortText, SERVER_PROTOCOL, type ServerCommand, type ServerInfo, type RoomInfo, type ClientPacket } from '../net/serverProtocol'
 import { createRemoteInput } from '../net/control'
 import { createSyncEncoder } from '../net/sync'
 import { readCoopSave, createCoopMatch } from '../app/modes/coop'
@@ -16,7 +16,7 @@ export async function startPrismServer(options:ServerOptions) {
  const policy=options.createPolicy??'key',creationKey=options.createKey??store.data.createKey,origins=new Set(options.allowedOrigins??['https://what20360.github.io'])
  const localNames=new Set(['localhost','127.0.0.1','[::1]',...localAddresses(1).map(address=>new URL(address).hostname)]);if(options.publicUrl)localNames.add(new URL(options.publicUrl).hostname)
  let closing=false,port=0,lastBroadcast=0,lastPersist=0,accumulator=0,lastTick=performance.now(),persistError=''
- for(const item of store.data.rooms){const room=restoreRoom(item);rooms.set(room.id,room)}
+ for(const item of store.data.rooms){const room=restoreRoom(item);rooms.set(room.id,room);for(const member of room.members)droppedAt.set(member.userId,Date.now())}
  const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.23'})
  const validHost=(req:IncomingMessage)=>{try{return localNames.has(new URL('http://'+req.headers.host).hostname)}catch{return false}}
  const validOrigin=(req:IncomingMessage)=>{const origin=req.headers.origin;if(!origin)return true;return origins.has(origin)||origin===`http://${req.headers.host}`||origin===`https://${req.headers.host}`}
@@ -67,10 +67,10 @@ export async function startPrismServer(options:ServerOptions) {
   if(cmd.kind==='import'){
    if(!room.coop||room.coop.started()&&!room.coop.world().paused)throw new Error('请先暂停合作房间')
    if(room.members.length!==1||Date.now()-c.lastImport<10000)throw new Error('导入时房间只能有创建者，且请勿频繁导入')
-   const save=readCoopSave(JSON.stringify(cmd.save));const restored=createCoopMatch(save.config,save)
+   const save=readCoopSave(JSON.stringify(cmd.save)),name=shortText(save.name);const restored=createCoopMatch(save.config,save)
    // Imports never grant arbitrary old ID bindings. Owner explicitly controls the imported host seat.
    if(save.world.coop!.members.length>1&&!room.password)throw new Error('导入多人存档前，请创建带密码的房间以保护待认领角色')
-   const host=restored.hostId();room.coop=restored;room.options={...room.options,mode:save.config.mode,coop:save.config};room.members=restored.world().coop!.members.map(m=>m.id===host?{...member,actorId:host,ready:true}:{userId:'unclaimed:'+m.id,name:m.name,actorId:m.id,role:'player',connected:false,ready:false})
+   const host=restored.hostId();room.coop=restored;room.options={...room.options,name,mode:save.config.mode,coop:save.config};room.members=restored.world().coop!.members.map(m=>m.id===host?{...member,actorId:host,ready:true}:{userId:'unclaimed:'+m.id,name:m.name,actorId:m.id,role:'player',connected:false,ready:false})
    room.roomIndex=restored.roomIndex();room.epoch++;c.lastImport=Date.now();changed(room);void persist();return
   }
   if(cmd.kind==='rename'){room.options.name=cmd.name;room.coop?.rename(cmd.name)}

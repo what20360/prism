@@ -90,13 +90,15 @@ describe('authoritative server rooms over real WebSockets',()=>{
   const returned=await client(`http://127.0.0.1:${next.port}`,clients[4]!.identity),restored=(await returned.wait(p=>p.type==='room'&&Boolean(p.room))).room as RoomInfo
   expect(returned.identity.userId).toBe(clients[4]!.identity.userId);expect(restored.members.filter(m=>m.connected)).toHaveLength(1);expect(restored.members).toHaveLength(5)
   expect(next.rooms.get(room.id)!.coop!.world().participants![actorId]!.purchases[0]!.level).toBe(1);expect(next.rooms.get(room.id)!.coop!.world().paused).toBe(true);expect(restored.epoch).not.toBe(room.epoch)
+  next.tick(Date.now()+61000);expect(next.rooms.get(room.id)!.ownerId).toBe(returned.identity.userId)
  })
  it('imports old party slots without granting old IDs authority and protects unclaimed builds with a password',async()=>{
   const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a,options({password:'private'})),old=createCoopMatch();const id=old.join('旧队友');old.action(id,{kind:'buy',id:'gun-damage'})
-  expect((await a.command({kind:'import',roomId:room.id,epoch:room.epoch,save:old.save()})).ok).toBe(true)
-  const restored=s.rooms.get(room.id)!;expect(restored.members.some(m=>m.userId==='unclaimed:'+id)).toBe(true)
+  old.rename('重聚的远征');expect((await a.command({kind:'import',roomId:room.id,epoch:room.epoch,save:old.save()})).ok).toBe(true)
+  const restored=s.rooms.get(room.id)!;expect(restored.options.name).toBe('重聚的远征');expect(restored.coop!.save().name).toBe('重聚的远征');expect(restored.members.some(m=>m.userId==='unclaimed:'+id)).toBe(true)
+  await a.command({kind:'leave',roomId:room.id,epoch:restored.epoch})
   expect((await b.command({kind:'join',roomId:room.id,password:'private',seat:id})).ok).toBe(true)
-  expect(restored.members.find(m=>m.actorId===id)!.userId).toBe(b.identity.userId);expect(restored.coop!.world().participants![id]!.purchases[0]!.level).toBe(1)
+  expect(restored.ownerId).toBe(b.identity.userId);expect(restored.members.find(m=>m.actorId===id)!.userId).toBe(b.identity.userId);expect(restored.coop!.world().participants![id]!.purchases[0]!.level).toBe(1)
  })
  it('runs all three duel modes on the server and does not send the opponent’s purchase plan',async()=>{
   for(const duelMode of ['fixed','budget','resource'] as const){const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a,options({mode:'duel',duelMode}))

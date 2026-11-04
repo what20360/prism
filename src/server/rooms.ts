@@ -31,7 +31,7 @@ export function joinRoom(room:Room,user:Identity,password:string,reconnect=false
  if(reconnect)throw new Error('没有可恢复的房间席位')
  if(!passwordVerified&&room.password&&!passwordMatches(password,room.password))throw new Error('房间密码不正确')
  const inherited=room.members.find(m=>m.userId.startsWith('unclaimed:')&&(seat===undefined||m.actorId===seat))
- if(inherited&&room.coop){room.coop.join(user.name,inherited.actorId);inherited.userId=user.id;inherited.name=user.name;inherited.connected=true;inherited.ready=false;return}
+ if(inherited&&room.coop){room.coop.join(user.name,inherited.actorId);if(room.ownerId===inherited.userId)room.ownerId=user.id;inherited.userId=user.id;inherited.name=user.name;inherited.connected=true;inherited.ready=false;room.lastActive=Date.now();return}
  if(seat!==undefined)throw new Error('该存档角色没有可认领的席位')
  if(room.members.length>=roomSummary(room).capacity)throw new Error('房间已满（含保留的离线席位）')
  const actorId=room.coop?room.coop.join(user.name):room.members.some(m=>m.actorId===1)?2:1
