@@ -38,8 +38,10 @@ export function readCoopSave(text:string,allowEnded=false):CoopSave {
  extendLegacyCombatAttrs(s.world,s.balanceVersion)
  let w=restoreWorld(s.world,registryForSave(s.balanceVersion),DEFAULT_ECONOMY,Object.keys(PLAYER_BASE_ATTRS));if(!w.coop||!w.participants||!allowEnded&&(w.gameOver||w.victory))throw new Error('合作进度已经结束或数据不完整')
  const legacyOwned=new Map<number,readonly import('../../core/cards').Purchase[]>()
- for(const member of w.coop.members){const migrated=migrateWorldBuild(w,s.balanceVersion,member.id);w=migrated.world;legacyOwned.set(member.id,migrated.owned)}
- s.world=serializeWorld(w,true)
+ if(s.balanceVersion!==CURRENT_BALANCE_VERSION){
+  for(const member of w.coop.members){const migrated=migrateWorldBuild(w,s.balanceVersion,member.id);w=migrated.world;legacyOwned.set(member.id,migrated.owned)}
+  s.world=serializeWorld(w,true)
+ }
  const cfg=s.config as CoopConfig;if(w.seed!==cfg.seed||w.coop!.maxPlayers!==cfg.maxPlayers||w.coop!.resourceMode!==cfg.resourceMode||w.coop!.baseShare!==cfg.baseShare||w.coop!.pauseOnDisconnect!==cfg.pauseOnDisconnect)throw new Error('房间配置与进度不一致')
  for(const [key,value]of Object.entries(PLAYER_BASE_ATTRS))if(w.basePlayerAttrs[key as keyof typeof PLAYER_BASE_ATTRS]!==value)throw new Error('合作初始属性无效')
  const ids=w.coop!.members.map(m=>m.id);if(ids.some(id=>!w.participants?.[id]||!w.coop!.members.find(m=>m.id===id)!.connected&&w.coop!.members.find(m=>m.id===id)!.offlineHp>w.actors.get(id)!.attrs.maxHp))throw new Error('合作席位状态无效');if(ids.length>cfg.maxPlayers||Object.keys(w.participants!).length!==ids.length||!ids.includes(integer(s.hostId,1)))throw new Error('队伍席位无效')
