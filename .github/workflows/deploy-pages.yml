@@ -28,8 +28,10 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
-      - name: Build for the repository path
-        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Build website and downloadable server
+        run: npm run server:package
         env:
           VITE_BASE_PATH: /prism/
       - name: Upload website artifact

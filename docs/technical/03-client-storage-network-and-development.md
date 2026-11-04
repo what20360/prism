@@ -1,8 +1,8 @@
-# PRISM 技术手册 3/3：客户端、存储、联机与维护
+# PRISM 技术手册（三）：客户端、存储、联机与维护
 
 依据 **2026-11-04 核对的代码基线 `828c4a9e`**。架构、World 与 tick 顺序见 [第一篇](01-architecture-and-simulation.md)，武器与模式机制见 [第二篇](02-combat-content-and-modes.md)。本篇重点解释外层如何驱动核心，以及文件/网络数据如何安全地变成运行时对象。
 
-**当前规则：已同步 v1.22（2026-11-04）；新增状态、字段与迁移说明见[第四篇](04-sniper-combat-and-presentation.md)。原始架构基线链接用于追溯，当前实现以本分支源码与第四篇为准。**
+**当前规则：v1.23（2026-11-04）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 浏览器启动与会话生命周期
 
@@ -23,7 +23,7 @@
 
 Game 的 `UiMode` 只有 play/menu/home。`setUiMode` 会清输入、清累积步长、重置购卡提示，再决定 world.paused。新 UI mode 通知 main 更新 DOM 可见性；结算则由 onRunEnd 单独打开 resultPanel。
 
-进入联网时，`openDuel`/`openCoop` 保存并停止原 Game 的循环，创建一个独立网络 Session；离开时 dispose 对应 Session、重置输入、恢复主页和原 Game。这不是把所有模式都塞进一个永远运行的循环。
+进入联网时，`openServer`/`createServerSession` 保存并停止原 Game 的循环，创建一个独立网络 Session；离开时 dispose 对应 Session、重置输入、恢复主页和原 Game。这不是把所有模式都塞进一个永远运行的循环。
 
 ### 1.2 start、stop、dispose、restart 的区别
 
@@ -111,8 +111,8 @@ cameraFor 根据角色位置、vision、屏幕纵横比计算可见世界范围�
 | 卡片浏览 | [sections/cards.ts](../../src/ui/sections/cards.ts) | CardState、收藏、购买/出售/预购 |
 | 属性/主动技能/设置/按键 | [sections](../../src/ui/sections/) 中对应模块 | 从状态生成 DOM，回调改变应用/核心 |
 | 结算 | [resultPanel.ts](../../src/ui/resultPanel.ts) | RunSummary、重开/返回主页 |
-| 对战大厅与面板 | [duelPanel.ts](../../src/ui/duelPanel.ts) | DuelState、当前 seat、网络提示 |
-| 合作大厅 | [coopSession.ts](../../src/app/coopSession.ts) | 当前代码把 DOM、Peer 管理和循环放在同一装配模块 |
+| 对战大厅与面板 | [serverSession.ts](../../src/app/serverSession.ts) | 服务器统一大厅、RoomInfo、当前身份与角色、网络提示 |
+| 服务器大厅 | [serverSession.ts](../../src/app/serverSession.ts) | DOM、WS连接、身份、管理与显示循环；权威模拟在Node服务器 |
 | 边缘购买 | [quickBuy.ts](../../src/ui/quickBuy.ts) | 当前会话 active、卡片/提示和购买回调 |
 
 菜单创建一次，open 切页/显示，close 隐藏，dispose 删除自己的 overlay。refresh 只在显示时重建内容并保留 scrollTop；表单聚焦期间合作刷新会尽量避免打断输入。DOM 重建不是 React 的虚拟树 diff。
@@ -178,8 +178,8 @@ moveTarget 交换步骤时保留同卡等级的递增集合；removeTarget 撤�
 | 商店筛选 | sessionStorage `prism.cardFilter` | 字符串枚举 | sections/cards.ts |
 | 收藏与命名预设集合 | `prism.builds.v2`，兼容 v1 | 导出 prism-build v2，导入支持 v1/v2 | planManager.ts、upgradePlans.ts |
 | 单人自动/手动槽 | `prism.save.v1.auto / slot-1 / slot-2 / slot-3` | prism-save v1；balanceVersion 6 | saveStore.ts、checkpoints.ts |
-| 合作自动槽 | `prism.coop.auto` | prism-coop-save v1；balanceVersion 6 | coopSession.ts、modes/coop.ts |
-| 实时对战 | 不提供比赛进度槽 | 网络协议另计版本 | duelSession.ts、protocol.ts |
+| 合作服务端存档 | `.prism-server/server.json` 与导出JSON | prism-coop-save v1；balanceVersion 6；附带身份绑定 | server/store.ts、server/rooms.ts、modes/coop.ts |
+| 实时对战 | 不提供比赛进度槽 | prism-server-1；仅进程内支持重连 | serverSession.ts、serverProtocol.ts、server/rooms.ts |
 
 配置版本、存档封套版本、数值版本和联机协议版本互不等同。增加一个新属性、改旧卡公式、换传输协议，可能需要更新不同的版本/迁移入口。
 
@@ -262,166 +262,25 @@ createCoopMatch(saved) 恢复时：原在线角色先取实际生命；只把 ho
 
 合作接受 balanceVersion=5 或当前6，逐队员核验旧构筑并迁移，保留缺席席位；不接受合作V1–V4。自动槽也只有合作独立的一槽，没有普通 SaveManager 的三个手动槽；文件备份承担多份合作进度保存。
 
-## 9. 网络传输：信令、通道与分片
+## 9. 当前网络入口
 
-### 9.1 没有独立后端比赛服务器
+[app/serverSession.ts](../../src/app/serverSession.ts)统一提供服务器地址、房间列表、合作与1v1、身份备份、管理和个人菜单。浏览器不运行联机World、不接收CoopSave作为实时快照；只提交操作并解码显示差量。
 
-[net/peer.ts](../../src/net/peer.ts) 创建浏览器 RTCPeerConnection，只配置 `stun:stun.l.google.com:19302`，没有 TURN、中继服务、账号、房间目录或自动匹配。
+## 10. 当前同步与重连
 
-合作采用房主中心结构：最多四条房主—客机连接，客机之间不交换游戏世界。每个客机只向房主上传自己的意图/动作，接收由房主生成、带自己 viewerId 的完整状态。1v1 是其中只有一条连接的独立会话。
+[net/control.ts](../../src/net/control.ts)清洗输入和购买动作，并累积一次性技能/锁定请求；[net/sync.ts](../../src/net/sync.ts)负责字段字典、差量基线、关键帧、插值与尾迹；[net/serverProtocol.ts](../../src/net/serverProtocol.ts)校验客户端消息、服务器地址与协议版本。
 
-这个结构降低同步规则复杂度，但房主承担所有模拟和向多人发送数据的开销。网络结构不能由同机纯逻辑测试证明真实设备全部可连通；受限网络无法得到候选地址时，程序明确报错。
+## 11. 服务器、权限与持久化
 
-### 9.2 邀请/回应是完整 SDP，不是短房号
+实现详解见[第五篇](05-server-and-replication.md)，使用步骤见[服务器指南](../server-guide.md)。建房需授权，所有管理操作按身份和当前房间角色检查；合作存档与ID席位绑定由服务器持久化，浏览器身份备份不含服务器管理权。
 
-`offer → answer → accept` 流程：房主创建有序 DataChannel 和 offer，等待候选收集完成或约 8 秒；另一端粘贴邀请设置 remote description、生成 answer；房主核对会话 ID 再接受回应。
+## 12. 当前边界
 
-```mermaid
-sequenceDiagram
-  participant H as 房主
-  participant U as 人工交换代码
-  participant G as 客机
-  H->>H: offer、候选收集
-  H->>U: PRISM1 邀请
-  U->>G: 粘贴邀请
-  G->>G: answer、候选收集
-  G->>U: PRISM1 回应
-  U->>H: 粘贴回应
-  H->>G: DataChannel 建立后状态同步
-  G->>H: 输入与动作
-```
-
-PRISM1 后面是 JSON 的 UTF-8/base64，包含 format、version=1、id、type、sdp。base64 是编码，不是密码或访问权限体系。合作与对战的 format 分别为 prism-coop/prism-duel；通道 label 为 prism-coop-v1/prism-1v1-v1，不可混用。每位合作成员必须单独生成一份 offer。
-
-decodeSignal 限代码长度 96000、SDP 64000，核对前缀、版本、会话 ID 字形、offer/answer 类型；缺少 candidate 时拒绝输出看似成功但不可连接的代码。
-
-### 9.3 大世界如何通过数据通道发送
-
-[framing.ts](../../src/net/framing.ts) 使用最多 12000 字符的片段。大消息包装为 `{prismChunk:2,id,index,total,data}`，按序到达后重组；重组只保留一条当前消息，核对 ID、顺序、总片数、总体积，超过 5 秒丢弃。
-
-peer.send 仅在通道 open 且 bufferedAmount 不高于 256 KiB 时发送，失败返回 false；它没有无上限的应用重试队列。缓冲检查在发送整包前执行，不能理解为整个包发完后始终不超过 256 KiB。
-
-`MAX_WIRE_MESSAGE=2×1024×1024` 的 framing 检查使用字符串 length；对战 `MAX_PACKET_BYTES=512×1024` 也使用字符串 length，尽管常量名有 bytes。合作解码/存档另用 TextEncoder 检查实际 UTF-8 字节数。中文等非 ASCII 消息下，这些边界不完全相同。
-
-当前发的是 JSON 完整状态，不是二进制压缩、增量补丁或每条实体更新。分片保证小消息传输和有界重组，不会自动降低总带宽。
-
-### 9.4 执行预算与导入预算不能混同
-
-| 对象/操作 | 普通运行主要预算 | restoreWorld 通用上界 | 1v1 进一步约束 |
-|---|---|---|---|
-| 角色 | 由模式生成器决定；没有统一 Actor 池上限 | 2000 个 | 两参战者加至多6只怪 |
-| 实体弹 | 2048，超出时发射器回收最早弹 | 4000 个 | 256 个 |
-| 雷 | 世界256，另有每人母/子雷限额 | 1000 个 | 64 个 |
-| 掉落 | spawnLoot 默认单人384、participants 场景192 | 1000 个 Pickup | 协议检查24个 |
-| 能量轨迹 | 256 | 256 | 仍受状态包预算 |
-| 电弧/激光展开 | 每树/射线数64，激光每射线最多128段 | 不是按展开树存档 | 同一算法 |
-
-导入上界更宽可兼容已有世界或不同模式；它不意味着运行中允许无限分配。某种生成方法若可能越过模式专用上界，必须同时检查发送端与接收端，而不能只放宽通用序列化器。
-
-## 10. 1v1 会话与协议
-
-实现：[app/duelSession.ts](../../src/app/duelSession.ts)、[net/protocol.ts](../../src/net/protocol.ts)、[ui/duelPanel.ts](../../src/ui/duelPanel.ts)。
-
-### 10.1 频率与角色
-
-| 项 | 当前实现 |
-|---|---|
-| 房主逻辑 | accumulator 固定 60Hz，最长帧差截为 0.25 秒 |
-| 房主完整状态发送 | 至少相隔 50ms，即名义上限约 20Hz，不是 10Hz |
-| 客机输入发送 | 名义约 30Hz |
-| ping | 约每秒一次，用 pong 估算 RTT |
-| 输入过期 | 300ms 后返回 IDLE_INPUT |
-| 失联 | 超过 10 秒未收到合法包，结束本次连接 |
-| 连接尝试 | accept 后约 20 秒连接超时提示 |
-| 包限流 | 每秒最多 120 条已重组的协议消息 |
-
-客机不调用 step 做预测，收到较新 serial 后 restoreWorld 替换显示状态。输入包带 round 与 sequence，动作另有自己的序号；房主拒绝旧回合/旧序号。prepare/fighting 等阶段变更还清本地输入，避免上回合按键残留。
-
-### 10.2 协议内容
-
-`DUEL_PROTOCOL=8`。输入有 intent、sequence、round、offers；动作有 buy/sell/equip/plan/queue/auto/quick-mode/move/remove；其余有 ready、forfeit、ping/pong、state。state 包含 DuelState 与 WorldData。
-
-decodePacket 除结构校验外，还检查模式、初始属性、阵营/钱包成员、角色/弹丸/雷/资源预算、经济卡限制、购买与角色属性吻合、双方 damageIframesTicks=0。固定装备没有购买，非资源模式不能凭空出现资源怪。
-
-`createRemoteInput` 不是简单只存最后一包：它累积尚未消费的技能和锁定边沿事件，read 后清掉这些一次性事件，持续 move/fire 保留到过期。这一点避免一帧里收到多包时丢掉短点击。
-
-连接重试有 generation/token，异步 offer 结束后只有当前代次才更新 UI；旧 Peer 也会关闭并取消候选等待。DataChannel 已建立不意味着模式校验一定通过，双方仍需使用同版协议。
-
-## 11. 合作会话与协议
-
-实现：[app/coopSession.ts](../../src/app/coopSession.ts)、[app/modes/coop.ts](../../src/app/modes/coop.ts)、[net/coopProtocol.ts](../../src/net/coopProtocol.ts)。
-
-### 11.1 席位由连接绑定
-
-Connection 保存 peer、id、connected/closed、最近消息时间、sequence、最近 intent/inputAt、offers 和速率窗口。新连接成功由房主 match.join 分配 Actor ID；重新邀请则由房主指定离线席位 ID。客机不能在 action 包里自行选择使用哪个钱包。
-
-接收方先检查 disposed/closed，再解码，防止被替换的连接回调继续写入世界。当前合作用独立 Connection 对象/closed 标志处理失效；不像 1v1 那样显式维护同名 generation 字段。
-
-### 11.2 包和刷新节奏
-
-协议字符串为 `prism-coop-2`，不是数值 8。包有 hello(name)、input(sequence,intent,offers)、action、ready、ping/pong、state(serial,viewerId,save,notice)。复用了 cleanIntent/cleanAction，但独立核对 CoopSave 和成员。
-
-| 项 | 当前值/行为 |
-|---|---|
-| 房主模拟 | 固定 60Hz |
-| 客机输入 | >33ms，名义约 30Hz |
-| 广播世界 | >100ms，名义约 10Hz |
-| 世界快照缓存 | 100ms，避免每绘制帧重新 JSON 化 |
-| 断线判定 | 15 秒没收到合法消息 |
-| 输入超时 | 300ms，之后使用空输入 |
-| 速率上限 | 每连接每秒 120 条重组后消息 |
-| 消息/文件边界 | UTF-8 2 MiB，另受 framing 限制 |
-
-合作保存/广播时去掉弹丸 trail/segments，effects/floaters 各裁到 80；保留持续武器、实体、资源归属与模式数据。给每位客机发送的 viewerId/hostId 视角不同，世界本体相同。客机还会在解码后恢复 World、生成本机 Snapshot，这比只传渲染坐标更容易复用存档，但 CPU 和带宽成本也更高。
-
-合作 input/action/ready 共用每连接一个递增 sequence；state 用房主 serial，客机丢弃旧 serial。合作没有对战那套 round 字段，也没有复用 createRemoteInput 的一次性事件累积器，当前是最近一份意图持续到过期。
-
-### 11.3 暂停、菜单、掉线与恢复
-
-房主暂停停止所有世界 tick 和复活读秒，但继续维持会话/状态发送。个人菜单和队伍页面使本机使用空输入，世界可以继续；客机不能直接暂停全队。房主 document.hidden 会自动 pause，页面离开尝试保存。
-
-close 一位队员会从活连接集合移除并调用 match.disconnect，席位保留；房主可生成专用重连邀请，或 remove 后让新人加入。房主离开不做自动转移，其他成员只有最后收到的权威快照，可以导出并新建房间。
-
-### 11.4 安全边界
-
-房主处理移动和伤害，因此客机不能直接通过一个位置包瞬移；文件/包的结构和构筑也有一致性检查。但**房主本身仍是可信权威**，并非对抗恶意房主的服务器反作弊系统。没有身份账号绑定、持久成员凭证、比赛签名或服务端存档。合作输入的能力授权还存在第 12 节列出的缺口。
-
-## 12. 实现审阅：当前边界与已复现不一致
-
-本节是源码审阅结果，下面区分当前已覆盖边界与仍存在的不一致；单测通过不等同于完整联机验收。
-
-### 12.1 合作最终房间边界
-
-当前 readCoopSave 从 `buildDungeon().length−1` 推导上界，接受最终盘丝洞索引25、拒绝26。实时状态继续复用同一解析器。测试覆盖最终房间导入与旧合作存档迁移；不将引擎测试等同于五设备联机验收。
-
-### 12.2 合作隐藏提示未阻止自动购买（已复现）
-
-`CoopMatch.showOffers(id,false)` 只记录 offers；tick 最后仍调用 `q.update(..., offers[id]!==false)`。第 5 参数实际是 retainTargets，所以 false 不会暂停计时，只会改变已完成目标保留方式。
-
-最小复核：单人合作 start 前排入 gun-damage，启用 auto，showOffers(1,false)，保持空输入推进约 190 tick；钱包从 200 降到 190，purchases 出现 Lv1。说明“个人菜单会暂停本人的自动购买”的帮助文字与该调用不一致。
-
-后续应参照 1v1 的显式 offersVisible 分支停止队列推进/清提示，并分别测试打开个人菜单、队伍面板、断线和全队暂停，而不是仅测试 showOffers 保存了 false。
-
-### 12.3 合作自动瞄准的能力授权缺口（源码路径确认）
-
-readDuelIntent 在正常 UI 中检查 autoAim 属性；1v1 的 match.tick 又对输入做一次拥有属性检查。合作 tick 对已连接意图直接交给 step，cleanIntent 仅清洗布尔和方向，没有证明成员拥有对应卡片。核心 resolveAimAngle 会服从 intent.autoAim。
-
-因此当前合作不能宣称“房主对所有自动操作都完成能力授权”；恶意客机可能绕过正常 UI 的自动瞄准条件。修复应放在房主引擎输入授权层，不能只在设置页隐藏按钮。本次未进行真实网络攻击或五设备验证。
-
-### 12.4 其他明确边界
-
-| 边界 | 现状与维护含义 |
-|---|---|
-| 网络平滑 | 没有预测、回滚或快照插值；不同网络下的手感需要真机测量 |
-| 全量状态开销 | 多人高层弹幕的 JSON、校验、分片与广播成本未靠增量压缩消除 |
-| 随机/哈希覆盖 | World hash 不含所有模式闭包；必须联合比较模式 checkpoint |
-| 世界/地图数量文字 | 部分历史文档写“25 房”；实际是 25+1，所有上界应从内容生成器推导 |
-| 原型数量 | ENEMIES 有 8 键含保留 Boss，不宜沿用早期“七种”当精确代码计数 |
-| 墙体遮挡 | 实体溅射、普通雷与巢母雷的视线检查不同，见第二篇 |
-| 函数命名/旧注释 | mineShardChance 已代表击杀晶片等级；packLoot 压缩不代表最终合并实体；读代码时跟随实际调用链 |
-| 普通/合作存档 | 普通支持冻结历史数值迁移，合作支持V5至V6逐席位迁移；不保证互通 |
-| UI 与权限 | disabled/隐藏/正常客户端检查不是房主端授权的替代 |
-| 真实直连 | 现有纯逻辑测试不证明跨运营商、校园网、移动端五设备可用；没有 TURN 兜底 |
+- 合作最终房间索引25已接受，个人菜单不推进自动购买，自动瞄准须拥有卡片。
+- 浏览器没有通用局域网广播枚举；发现依赖本机或已知服务器入口。真实多播与HTTPS到局域网的权限行为需要目标网络/浏览器测试。
+- 服务器模拟、显示差量、压缩与插值已实现；客户端没有位置预测、回滚或延迟补偿。
+- 免注册凭证适合私人房间，不等同于公开竞技账号或强实名封禁。1v1回合不跨服务器进程重启恢复。
+- 实际容量仍受敌人数、弹幕量、CPU和线路限制，数据量基准与本机多连接集成测试不替代五台设备跨网络验收。
 
 ## 13. 测试体系：什么证据能支持什么结论
 
@@ -437,7 +296,7 @@ readDuelIntent 在正常 UI 中检查 autoAim 属性；1v1 的 match.tick 又对
 | 客户端协调 | game、keyboard、pointer、readIntent、config | 重开/暂停、输入去粘连、控制偏好与本机意图 |
 | 架构/回放 | core-isolation、determinism | 依赖倒流、同输入状态分歧 |
 
-核对基线包含 **34 个测试文件、384 项测试**。数量只反映现有覆盖；第 12 节的复现说明仍有漏测。尤其 Node 测试不能替代浏览器 WebRTC 协商、手机双指操作、后台节流、音频解锁或多人长局带宽验收。
+当前包含 **36 个测试文件、418 项测试**。数量只反映现有覆盖；Node真实WebSocket测试和本机UDP协议测试不能替代五台实机、跨网段发现、手机双指操作、后台节流、音频解锁或多人长局带宽验收。
 
 推荐验证顺序：先跑改动相关单测 → typecheck/lint/build → 必要时完整 suite → 对 UI/网络改动做浏览器行为检查。文档修改还应验证链接、引用符号、流程顺序；只让 tsc 通过不会发现一句错误的技术说明。
 
@@ -466,7 +325,7 @@ Vite target ES2022，默认生成 `dist/index.html`、带哈希的 JS/CSS、sour
 
 [build-offline.mjs](../../scripts/build-offline.mjs) 使用 Vite 独立 lib 配置，把同一 app/main.ts 打成单个 IIFE：内联动态 import、CSS 不拆分、关闭模块预加载和 sourcemap；验证只有一块脚本与样式、没有外部 CSS URL；用 Node vm.Script 做语法检查，然后写 `dist-offline/PRISM_offline.html`。
 
-HTML 内有代码、样式和程序合成音频，可直接打开单人游戏。代码自包含不代表联机不需要网络/浏览器许可；连接仍要走 WebRTC，存储和下载在 file:// 下也受浏览器实现影响。当前 GitHub Pages workflow 只调用 build，不自动产出或发布离线 HTML。
+HTML 内有代码、样式和程序合成音频，可直接打开单人游戏。代码自包含不代表联机不需要网络/浏览器许可；连接仍需HTTP/WS服务器，存储和下载在file://下也受浏览器实现影响。GitHub Pages workflow调用server:package发布游戏和服务器ZIP，不自动发布离线HTML。
 
 ### 14.4 GitHub 是当前交付路径
 
@@ -500,7 +359,7 @@ workflow **没有单独运行 lint**，所以 lint 仍应在提交前执行。Gi
 - **没有刷怪/不开门**：查 room.phase、入口激活距离、pendingSpawns、活敌人、waves.remaining/countdown，再查 app 的切房时机。
 - **怪物卡墙**：查实际圆半径与墙角间距、navPath 第一/后续航点、navTimer、目标移动是否触发重算。
 - **读档失败**：从封套/大小 → balanceVersion → WorldData 结构 → 构筑匹配 → 模式额外约束逐层定位，先保留原文件。
-- **联机一连就断**：区分候选/通道失败与 decodePacket/decodeCoop 拒绝；检查同版本、格式、包预算、房间索引和构筑，不把所有失败统称网络不好。
+- **联机一连就断**：区分HTTP连接、浏览器局域网权限、WS来源拒绝、身份凭证与协议解码失败；检查服务器终端、/health、版本、地址、房间代次和消息预算。
 - **本地检查通过但线上旧版**：看 Actions 的测试/构建/部署结论与线上 version.json，不仅比较页面视觉。
 
 ## 16. 阅读索引与维护约定
@@ -510,7 +369,7 @@ workflow **没有单独运行 lint**，所以 lint 仍应在提交前执行。Gi
 1. **启动和一帧**：main.ts → game.ts → simulation.ts → snapshot.ts → renderer.ts。
 2. **买卡后射击**：ui/sections/cards.ts → core/progress.ts → core/cards.ts → content/cards.ts → systems/weapons.ts → projectiles/hits.ts → damage.ts。
 3. **存档恢复**：saveManager.ts → checkpoints.ts → serialization.ts → cardMigrations.ts → main.launch → game 构造。
-4. **合作输入**：coopSession.receive → decodeCoop/cleanIntent → 连接 id → CoopMatch.tick → step → save/广播 → 客机 restoreWorld/toSnapshot。
+4. **合作输入**：serverSession输入 → decodeClient/cleanIntent → 凭证绑定席位 → tickRoom/CoopMatch.tick → step → playState/差量编码 → 客户端解码/插值。
 5. **无尽新层**：createEndlessMode.afterStep → advance/enter → pickLevelSet/rollEndlessEnemy → applyRoom → updateRoomEntry。
 
 技术说明应写清基线、真实调用层级、数据拥有者和重要边界。改字段时同步创建/校验/迁移/显示/测试；改行为时以需求和数值文档确认意图，再更新技术手册。代码和帮助/历史说明冲突时，不应通过复制旧说明制造第二个“事实来源”。
@@ -521,8 +380,6 @@ workflow **没有单独运行 lint**，所以 lint 仍应在提交前执行。Gi
 
 | 符号 | 源码声明 |
 |---|---|
-| `createCoopSession` | [src/app/coopSession.ts:29](../../src/app/coopSession.ts#L29) |
-| `createDuelSession` | [src/app/duelSession.ts:24](../../src/app/duelSession.ts#L24) |
 | `createKeyboardInput` | [src/input/keyboard.ts:16](../../src/input/keyboard.ts#L16) |
 | `createTouchControls` | [src/input/touch.ts:15](../../src/input/touch.ts#L15) |
 | `createCanvasRenderer` | [src/render/canvas2d/renderer.ts:20](../../src/render/canvas2d/renderer.ts#L20) |
@@ -536,10 +393,5 @@ workflow **没有单独运行 lint**，所以 lint 仍应在提交前执行。Gi
 | `readCheckpoint` | [src/app/checkpoints.ts:21](../../src/app/checkpoints.ts#L21) |
 | `migrateWorldBuild` | [src/app/cardMigrations.ts:64](../../src/app/cardMigrations.ts#L64) |
 | `readCoopSave` | [src/app/modes/coop.ts:34](../../src/app/modes/coop.ts#L34) |
-| `createDuelPeer` | [src/net/peer.ts:16](../../src/net/peer.ts#L16) |
-| `createMessageAssembler` | [src/net/framing.ts:10](../../src/net/framing.ts#L10) |
-| `createRemoteInput` | [src/net/protocol.ts:10](../../src/net/protocol.ts#L10) |
-| `decodePacket` | [src/net/protocol.ts:52](../../src/net/protocol.ts#L52) |
-| `decodeCoop` | [src/net/coopProtocol.ts:10](../../src/net/coopProtocol.ts#L10) |
 
 上一篇：[战斗、内容与模式](02-combat-content-and-modes.md)；总入口：[架构、数据结构与模拟](01-architecture-and-simulation.md)。

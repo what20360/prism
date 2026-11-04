@@ -1,8 +1,8 @@
-# PRISM 技术手册 1/3：架构、数据结构与模拟流程
+# PRISM 技术手册（一）：架构、数据结构与模拟流程
 
 本手册依据 **2026-11-04 核对的源码**编写，代码基线为 [`828c4a9eed139ee7a54b1f7786c536680a07306f`](https://github.com/what20360/prism/tree/828c4a9eed139ee7a54b1f7786c536680a07306f)。它描述该版本**实际如何运行**；后续改代码时，需要同步维护相应章节。文中的源码链接相对于本目录，可在 GitHub 直接打开；函数名、类型名是进一步搜索的入口。
 
-**当前规则：已同步 v1.22（2026-11-04）；新增状态、字段与迁移说明见[第四篇](04-sniper-combat-and-presentation.md)。原始架构基线链接用于追溯，当前实现以本分支源码与第四篇为准。**
+**当前规则：v1.23（2026-11-04）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 | 分册 | 内容 |
 |---|---|
@@ -14,7 +14,7 @@
 
 ## 1. 技术路线与整体结构
 
-PRISM 是 **TypeScript + Vite + Canvas2D + 原生 DOM + WebAudio + WebRTC** 的浏览器游戏，没有 React、物理引擎或运行时第三方依赖。TypeScript、Vite、Vitest、ESLint 均属于开发依赖；生产游戏使用浏览器 API。TypeScript 严格选项见 [tsconfig.json](../../tsconfig.json)，构建与测试入口见 [package.json](../../package.json)。
+PRISM 的浏览器端使用 **TypeScript + Vite + Canvas2D + 原生DOM + WebAudio + WebSocket**，没有React、物理引擎或前端运行依赖。独立Node服务器使用ws作为运行依赖，复用同一纯模拟核心。TypeScript、Vite、Vitest、ESLint、esbuild和fflate用于开发、检查及打包。TypeScript 严格选项见 [tsconfig.json](../../tsconfig.json)，构建与测试入口见 [package.json](../../package.json)。
 
 它采用“可变世界数据 + 按顺序执行的系统函数”。`Actor` 是统一结构，玩家、一般敌人、对战玩家和蜘蛛通过阵营、行为与状态字段区分。这不是带有组件注册表、查询器、调度器的通用 ECS，也不是以继承树组织的角色类系统。
 
@@ -45,7 +45,8 @@ flowchart TD
 | `src/render/canvas2d/` | Canvas 场景、镜头、HUD、武器配色 | [renderer.ts](../../src/render/canvas2d/renderer.ts) |
 | `src/ui/` | DOM 页面、菜单、卡片浏览、结算、边缘购买提示 | [menu.ts](../../src/ui/menu.ts)、[homeMenu.ts](../../src/ui/homeMenu.ts) |
 | `src/audio/` | 根据视图变化合成音效和背景音乐 | [audio.ts](../../src/audio/audio.ts) |
-| `src/net/` | 信令、数据通道分片、输入与世界包校验 | [peer.ts](../../src/net/peer.ts)、[protocol.ts](../../src/net/protocol.ts) |
+| `src/net/` | 操作清洗、服务器协议、显示差量与插值 | [control.ts](../../src/net/control.ts)、[serverProtocol.ts](../../src/net/serverProtocol.ts)、[sync.ts](../../src/net/sync.ts) |
+| `src/server/` | Node权威模拟、身份与权限、持久化、UDP发现 | [server.ts](../../src/server/server.ts)、[rooms.ts](../../src/server/rooms.ts) |
 | `src/storage/` | 浏览器配置与槽位的低层读写 | [config.ts](../../src/storage/config.ts)、[saveStore.ts](../../src/storage/saveStore.ts) |
 | `tests/unit/` | Node 环境下的规则、回放、存档与模式测试 | [determinism.test.ts](../../tests/unit/determinism.test.ts) |
 | `scripts/`、`.github/` | 单文件导出、构建版本信息、GitHub Pages 流程 | [build-offline.mjs](../../scripts/build-offline.mjs)、[deploy-pages.yml](../../.github/workflows/deploy-pages.yml) |
@@ -56,7 +57,7 @@ flowchart TD
 
 [eslint.config.js](../../eslint.config.js) 的 `no-restricted-imports` 限制 core 导入 app/ui/render/input/net/storage/content；[core-isolation.test.ts](../../tests/unit/core-isolation.test.ts) 另用源码扫描校验同一边界。它们验证的是 import 方向，不等于自动证明无任意副作用、无所有形式的间接 IO。
 
-外层之间尚未划成严格单向依赖。例如合作引擎复用 `net/protocol.cleanAction`，合作协议复用 `app/modes/coop.readCoopSave`。分析或重构时，应区分“core 隔离已执行”和“整个项目都是严格分层”这两个命题。
+外层之间尚未划成严格单向依赖。例如合作引擎复用 `net/control.cleanAction`，服务器房间层复用 `app/modes/coop.readCoopSave`。分析或重构时，应区分“core 隔离已执行”和“整个项目都是严格分层”这两个命题。
 
 ## 2. 状态归属：哪些东西在哪里保存
 
@@ -244,12 +245,11 @@ accumulator += elapsed
 | 场景 | 谁推进 step | 菜单对时间的影响 |
 |---|---|---|
 | 单人闯关/无尽/测试 | `game.frame` | home/menu 设置 `world.paused`，不补步 |
-| 1v1 房主 | `duelSession.loop → match.tick` | 个人菜单发送/使用空输入，不暂停对手；比赛倒计时仍走 |
-| 1v1 客机 | 不推进权威世界 | 上传意图，收到包后替换本地显示世界 |
-| 合作房主 | `coopSession.loop → match.tick` | 房主可暂停全队；个人菜单只停本人的输入 |
-| 合作客机 | 不推进权威世界 | 接收房主世界；全队暂停状态也由房主决定 |
+| 1v1服务器 | `server.tick → tickRoom → match.tick` | 个人菜单空输入，不暂停对手；选手失联暂停并保留重连宽限 |
+| 合作服务器 | `server.tick → tickRoom → match.tick` | 房主/管理员可暂停全队，个人菜单仅停止本人输入与自动购买 |
+| 所有联网客户端 | 不推进权威世界 | 上传意图、接收显示差量并插值，房主也不承担模拟 |
 
-固定步长是一种模拟调度方式；当前联机是房主权威状态同步，**不是所有客户端交换输入并锁步运行**。
+固定步长是一种模拟调度方式；当前联机是服务器权威状态同步，**不是所有客户端交换输入并锁步运行**。
 
 ## 7. 一次 step 的准确执行顺序
 

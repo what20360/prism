@@ -2,14 +2,14 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | v1.22 |
+| 版本 | v1.23 |
 | 状态 | M1–M4 已实现，主菜单、测试场与无尽模式已接入 |
 | 依赖 | 玩法与规则见 [requirements.md](./requirements.md)，数值见 [balance.md](./balance.md) |
 | 技术选型依据 | [adr/0001-tech-stack.md](./adr/0001-tech-stack.md) |
 
 > 本文只描述**怎么实现**。玩法争议回到 requirements.md，数值争议回到 balance.md。
 
-> 当前源码的逐模块实现详解见 [技术手册（1/3）](technical/01-architecture-and-simulation.md)、[战斗与模式（2/3）](technical/02-combat-content-and-modes.md)、[客户端、存储与联机（3/3）](technical/03-client-storage-network-and-development.md)。该手册以核对的代码基线为准，并单列历史设计与现实现的不一致；本文保留既有架构设计和演进说明。
+> 当前源码的逐模块实现详解见 [技术手册（一）](technical/01-architecture-and-simulation.md)、[战斗与模式（二）](technical/02-combat-content-and-modes.md)、[客户端、存储与联机（三）](technical/03-client-storage-network-and-development.md)。该手册以核对的代码基线为准，并单列历史设计与现实现的不一致；本文保留既有架构设计和演进说明。
 
 ---
 
@@ -21,7 +21,7 @@
 | 2 | 模块可替换 | 换渲染器/输入/网络/存储时不改 `core/` |
 | 3 | 确定性 | 同种子 + 同输入序列 → 同状态哈希 |
 | 4 | 内容数据化 | 加敌人/武器/卡片/关卡不改 `core/` 逻辑 |
-| 5 | 零运行时依赖 | 产物不引入第三方运行时库 |
+| 5 | 零前端运行时依赖 | 浏览器产物不引入第三方运行时库；后端使用ws |
 | 6 | 可测试 | 核心规则可纯函数式单测，无需启动浏览器 |
 
 **术语**
@@ -44,7 +44,7 @@
 │  ui/       升级面板、HUD、结算面板（DOM，只读 Snapshot）                   │
 │  render/   Canvas2D 绘制（只读 Snapshot）                                  │
 │  input/    键盘 / 手柄 / 触屏 / 回放 → Intent                              │
-│  net/      传输接口（首发空实现）                                          │
+│  net/      控制协议、显示差量与插值                                          │
 │  storage/  本地配置持久化                                                  │
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     │ 只向内依赖
@@ -478,9 +478,7 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 - `storage/saveStore.ts` 使用独立槽位键 `prism.save.v1.*`，写失败保留旧槽。`app/saveManager.ts` 管理自动保存、文件校验、导入/导出与可读摘要；直接导出当前进度不依赖 localStorage。配置、单人进度与预设使用不同格式和存储键。
 - `app/upgradePlans.ts` 校验可移植目标和快捷栏，`Game` 在非暂停单人帧末依次处理最多四项预购，继续复用真实购买入口。预设不伪造免费购买记录；队列、开关与已购等级独立。`planManager` 负责命名集合与文件，快捷购买只在单人 play 状态接收 1–5。
 - `content/duel.ts` 定义标准装备与规则；`app/modes/duel.ts` 维护双方准备、倒计时、回合、比分、交换侧和超时结果，复用同一核心模拟。敌方 Actor 收到外部 Intent 时不再由 AI 覆盖；受伤无敌时长可按 Actor 注入，双方保持一致。
-- `net/peer.ts` 只封装浏览器 WebRTC 与邀请/回应，取消连接时关闭通道并清理计时器；`net/protocol.ts` 对消息、标准装备和远端输入进行校验，序号与回合防止旧输入重放。失联输入归零、技能/锁定动作消费一次，通道积压不继续堆积状态。
-- `duelSession.ts` 由房主模拟 60 Hz、下发状态 20 Hz，客机只发送 Intent 30 Hz，客机不执行第二份战斗判定。双方依据自己的 viewerId 生成视角，自己的单位始终显示为玩家色；核心不引用网络或 UI。对战期间单人 Game 冻结，退出恢复主菜单。
-- 当前传输没有 TURN 中继、发现服务、断线重连或房主迁移；不宣称能穿透所有 NAT。版本协议需要随不兼容战斗修改提升，网络会话不作为局内存档恢复。
+> 上述为v1.13设计背景。当前1v1已由独立Node服务器模拟，连接与同步见[第五篇](technical/05-server-and-replication.md)；手工信令和浏览器房主传输代码已移除。
 
 
 ## v1.14 多参与者与有序购买
@@ -548,10 +546,14 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 
 `app/modes/coop.ts` 组合种子闯关/无尽与独立参战钱包；`core/coop.ts` 处理复活与资源分配，不依赖浏览器。合作和1v1共享通用模拟接口，但合作显式使用同阵营与 `World.coop`，没有伪装成敌对玩家。
 
-`app/coopSession.ts` 使用房主为中心的最多4条 WebRTC 数据通道，房主固定60Hz推进，客机约30Hz上传操作，约10Hz接收权威快照。连接绑定席位，输入过期300ms归零，15秒失联标记离线，动作序号/速率和2MiB消息边界校验；连接使用独立的合作标识，1v1不能混用。世界快照缓存100ms且精简纯视觉拖尾/飘字。全体角色仍以确定性规则模拟，菜单仅影响本人的输入与预购。
+服务器通过 `server/rooms.ts` 装配合作模式，统一以60Hz模拟、10Hz发送显示差量；浏览器上传操作并插值显示。用户ID与角色席位绑定由服务端维护，管理权不承担模拟。
 
-`prism-coop-save` 包含所有席位、独立构筑/预购、房间人数快照、资源归属/贡献、复活计时和无尽随机状态。恢复时导出视角的成员成为房主，其他席位离线，世界暂停等待邀请；客户端也可导出最后快照。自动槽 `prism.coop.auto` 与单人槽隔离。没有在线匹配、TURN中继或无缝房主迁移，连接失败时保留存档并可重新配对。
+`prism-coop-save`包含所有席位、独立构筑/预购、资源贡献、复活计时和无尽状态。服务器持久化另保存身份绑定、权限与密码哈希；重启全部离线暂停，原身份连接恢复。旧JSON导入后其他席位在密码房中认领。详见[服务器与同步](technical/05-server-and-replication.md)。
 
 ### v1.22 战斗状态、武器与迁移
 
 详见[战斗状态与狙击武器](technical/04-sniper-combat-and-presentation.md)：damageScale追踪伤害乘区，sniperPower记录专精，Actor.shieldDisabledTicks记录禁盾，弹丸按实际路径恢复追踪速度。单人V1–V5、合作V5均核验旧卡表后迁移至V6；联网协议为duel 8 / prism-coop-2。
+
+### v1.23 服务器与显示同步
+
+当前联网实现以[第五篇技术手册](technical/05-server-and-replication.md)为准。src/server负责Node.js网络、ID与权限、持久化、房间调度和UDP发现；浏览器只使用src/app/serverSession与src/net/sync，不再恢复远程World或承担房主模拟。此前关于手工信令、RTC通道及房主权威的段落仅为历史设计。

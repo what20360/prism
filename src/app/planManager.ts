@@ -1,3 +1,4 @@
+import { clientId } from '../storage/clientId'
 import { CARD_REGISTRY } from '../content/cards'
 import type { Game } from './game'
 import { DEFAULT_FAVORITES, orderPreset, moveTarget, removeTarget, readPreset, validateFavorites, validateQuickMode, validateTargets, type BuildPreset, type UpgradeTarget, type QuickMode } from './upgradePlans'
@@ -46,7 +47,7 @@ export function createPlanManager(options: { game: () => PlanSession | undefined
       try {
         const preset = readPreset(JSON.stringify({ ...current, favorites: store.favorites, quickMode: store.quickMode }))
         if (!editing && store.presets.length >= 16) throw new Error('最多保存 16 个预设，可编辑已有预设')
-        const id = editing ?? crypto.randomUUID(), value = { ...preset, id }
+        const id = editing ?? clientId(), value = { ...preset, id }
         store.presets = [...store.presets.filter((p) => p.id !== id), value]; editing = id; current = preset
         message = `已保存“${preset.name}”。`; persist(); update()
       } catch (error) { update(error instanceof Error ? error.message : '无法保存预设') }
@@ -64,7 +65,7 @@ export function createPlanManager(options: { game: () => PlanSession | undefined
       const link = document.createElement('a'); link.href = url; link.download = `PRISM_build_${preset.id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); update(`已导出“${preset.name}”。`)
     },
     import: async (file) => {
-      try { if (file.size > 128 * 1024) throw new Error('预设文件不能超过 128 KiB'); const preset = readPreset(await file.text()); if (store.presets.length >= 16) throw new Error('已有 16 个预设，请编辑现有预设'); store.presets.push({ ...preset, id: crypto.randomUUID() }); message = `已导入“${preset.name}”，尚未购买卡片。`; persist(); update() }
+      try { if (file.size > 128 * 1024) throw new Error('预设文件不能超过 128 KiB'); const preset = readPreset(await file.text()); if (store.presets.length >= 16) throw new Error('已有 16 个预设，请编辑现有预设'); store.presets.push({ ...preset, id: clientId() }); message = `已导入“${preset.name}”，尚未购买卡片。`; persist(); update() }
       catch (error) { update(`${error instanceof Error ? error.message : '导入失败'}。已有预设未改变。`) }
     },
     toggle: (enabled) => { options.game()?.setAutoBuy(enabled); planChanged() },

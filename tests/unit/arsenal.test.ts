@@ -23,7 +23,7 @@ import { hashWorld } from '../../src/core/hash'
 import { step } from '../../src/core/simulation'
 import { readCheckpoint, CURRENT_BALANCE_VERSION } from '../../src/app/checkpoints'
 import { createDuelMatch } from '../../src/app/modes/duel'
-import { encodePacket, decodePacket } from '../../src/net/protocol'
+import { createSyncEncoder, createSyncDecoder } from '../../src/net/sync'
 import { toSnapshot } from '../../src/core/snapshot'
 function arena(attrs: Partial<AttrSet> = {}, registry = CARD_REGISTRY) {
   const w = createWorld({ seed: 90, registry, economy: DEFAULT_ECONOMY, playerAttrs: { ...PLAYER_BASE_ATTRS, ...attrs },
@@ -216,7 +216,8 @@ describe('arsenal persistence and network', () => {
   it('syncs energy traces, typed hits and neutral volatile traits for both seats', () => {
     const match = createDuelMatch(90, 'resource'); match.action(0, { kind: 'buy', id: 'weapon-laser' }); const w = match.world()
     createActor(w, { ...ENEMIES.bomber!, team: 'neutral', pos: { x: 1000, y: 300 } }); fireLaserPulse(w, w.actors.get(1)!, 0)
-    const packet = decodePacket(encodePacket({ type: 'state', serial: 1, state: match.state(), world: serializeWorld(w, true) }))
-    expect(packet.type).toBe('state'); expect(toSnapshot(w, 2).traces?.[0]?.team).toBe('enemy')
+    const view={snapshot:toSnapshot(w,2),attrs:w.actors.get(2)!.attrs,purchases:[],plan:{enabled:false,targets:[]},notice:null,knownSkills:[],paused:false,label:'test',mode:'duel' as const}
+    const packet=createSyncDecoder().apply(JSON.parse(JSON.stringify(createSyncEncoder().encode(view,0))))!
+    expect(packet.snapshot.traces?.[0]?.damageType).toBe('heat');expect(packet.snapshot.traces?.[0]?.rangeRatio).toBeCloseTo(view.snapshot.traces![0]!.rangeRatio,3); expect(toSnapshot(w, 2).traces?.[0]?.team).toBe('enemy')
   })
 })

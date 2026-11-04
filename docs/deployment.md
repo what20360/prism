@@ -35,10 +35,12 @@
 
 站点的 `/prism/version.json` 中 `commit_sha` 对应该次 GitHub Actions 的 `GITHUB_SHA`。本地普通构建保留 `/` 资源路径；可自行用 `VITE_BASE_PATH=/prism/ npm run build` 检查 Pages 输出。
 
-设置与进度存档保存在访问者自己的浏览器中，可导出 JSON 手动转移设备；Pages 不提供账号云同步或后端服务。真人 1v1 用浏览器数据通道和手动代码配对，STUN 辅助直连，不包含 TURN 中继服务。源码保留 `npm run dev` 和 `npm run build:offline`，供用户自行运行；助手不再自动维护本地预览或离线发行文件。
+单人设置与进度保存在浏览器，可导出JSON。多人通过独立Node.js服务器连接，GitHub Pages仅托管游戏与服务器下载包；合作进度、ID映射与权限由服务器持久化。运行与公网/局域网部署步骤见[服务器指南](server-guide.md)。旧Site和旧本地预览不再维护。
 
 ## 历史站点
 
 原私有测试地址为 https://prism-what20360.what20360.chatgpt.site ，现有版本保留，不保证与 GitHub 最新源码一致。保留 `.openai/hosting.json` 中的既有身份与访问范围，不自动同步、不删除、不改为公开。
 
 `.openai/source.json` 仅为历史 Sites 工作区的来源记录，不提交到 GitHub。构建脚本优先使用 Actions 提供的提交 SHA；普通 GitHub 克隆在无来源记录时使用本地 Git 提交。
+
+当前workflow执行测试、lint、前端构建、服务端构建与服务器ZIP打包，再发布dist。ZIP包含锁定依赖声明、已编译后端、同版前端和启动脚本，不含运行数据或私有凭证。后端进程须由使用者在自己的电脑/主机运行；Pages部署不会自动启动后端。

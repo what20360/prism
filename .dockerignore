@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-server
+dist-offline
+.git
+.openai
+.prism-server
+coverage

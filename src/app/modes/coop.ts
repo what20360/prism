@@ -16,7 +16,7 @@ import { resolveAttrs } from '../../core/cards'
 import { equipSkill } from '../../core/systems/skills'
 import { serializeWorld, restoreWorld, record, integer, finite, array, type WorldData } from '../../core/serialization'
 import { createEndlessMode, type EndlessCheckpoint } from './endless'
-import { cleanAction } from '../../net/protocol'
+import { cleanAction } from '../../net/control'
 import type { DuelAction } from '../../content/duel'
 import { validateTargets, validateQuickMode, moveTarget, removeTarget, type PurchasePlan } from '../upgradePlans'
 import { purchaseLevel } from '../../core/cards'
@@ -57,7 +57,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
  config=validateCoopConfig(config)
  const rooms=buildDungeon({seed:config.seed,difficulty:config.difficulty}), endless=config.mode==='endless'?createEndlessMode():undefined
  let world:World=saved?restoreWorld(saved.world,CARD_REGISTRY,DEFAULT_ECONOMY,Object.keys(PLAYER_BASE_ATTRS)):createWorld({seed:config.seed,registry:CARD_REGISTRY,economy:DEFAULT_ECONOMY,playerAttrs:PLAYER_BASE_ATTRS,room:endless?endless.room():rooms[0]!})
- const hostId=saved?.hostId??1
+ let hostId=saved?.hostId??1
  let roomIndex=saved?.roomIndex??0,started=saved?.started??false
  const plans:Record<number,PurchasePlan>=structuredClone(saved?.plans??{}),queues=new Map<number,ReturnType<typeof createPurchaseQueue>>()
  const notices:Record<number,PurchaseNotice|null>={},offers:Record<number,boolean>={}
@@ -83,7 +83,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
    world.participants![a.id]={shards:DUNGEON_START_SHARDS,purchases:[],revivesUsed:0};world.coop!.members.push({id:a.id,name:memberName.trim().slice(0,24)||'队员',connected:true,ready:false,reviveTicks:0,offlineHp:a.hp,offlineAlive:true});return a.id
   },
   disconnect:(id:number)=>{const m=world.coop!.members.find(m=>m.id===id);if(!m?.connected)return;const a=world.actors.get(id)!;m.offlineHp=a.hp;m.offlineAlive=a.alive;m.connected=false;m.ready=false;a.alive=false;a.hp=0;a.shield=0;a.intent={move:{x:0,y:0},fire:false};if(config.pauseOnDisconnect)world.paused=true;const online=world.coop!.members.filter(m=>m.connected);if(started&&online.length&&online.every(m=>!world.actors.get(m.id)?.alive))world.gameOver=true},
-  remove:(id:number)=>{if(id===hostId)return false;world.coop!.members=world.coop!.members.filter(m=>m.id!==id);world.actors.delete(id);delete world.participants![id];delete plans[id];return true},
+  remove:(id:number)=>{if(id===hostId){const next=world.coop!.members.find(m=>m.id!==id);if(!next)return false;hostId=next.id}world.coop!.members=world.coop!.members.filter(m=>m.id!==id);world.actors.delete(id);delete world.participants![id];delete plans[id];return true},
   ready:(id:number,ready=true)=>{const m=world.coop!.members.find(m=>m.id===id&&m.connected);if(m)m.ready=ready},
   start:()=>{const online=world.coop!.members.filter(m=>m.connected);if(world.gameOver||world.victory||!online.length||!online.some(m=>world.actors.get(m.id)?.alive)||!started&&online.some(m=>!m.ready))return false;if(!started){if(endless)endless.initialize(world);else applyRoom(world,scaleRoom(roomIndex));rally()}started=true;world.paused=false;return true},
   pause:()=>{world.paused=true},
@@ -99,10 +99,10 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
    if(a.kind==='remove'){p.targets=removeTarget(p.targets,a.index,k=>purchaseLevel(world.participants![id]!.purchases,k));return true}
    if(a.kind==='queue'){const level=a.level??Math.max(purchaseLevel(world.participants![id]!.purchases,a.id),...p.targets.filter(t=>t.id===a.id).map(t=>t.level))+1;p.targets=validateTargets([...p.targets,{id:a.id,level}]);return true}return false
   },
-  tick:(inputs:ReadonlyMap<number,Intent>)=>{if(!started||world.paused)return;const clean=new Map<number,Intent>();for(const m of world.coop!.members)if(m.connected)clean.set(m.id,inputs.get(m.id)??{move:{x:0,y:0},fire:false});step(world,clean);if(world.gameOver||world.victory)return
+  tick:(inputs:ReadonlyMap<number,Intent>)=>{if(!started||world.paused)return;const clean=new Map<number,Intent>();for(const m of world.coop!.members)if(m.connected){const input=inputs.get(m.id)??{move:{x:0,y:0},fire:false};clean.set(m.id,{...input,autoAim:input.autoAim===true&&world.actors.get(m.id)!.attrs.autoAim>0})};step(world,clean);if(world.gameOver||world.victory)return
    if(endless){const before=endless.state(world).floor;endless.afterStep(world);if(before!==endless.state(world).floor)rally()}
    else if(world.exitReached&&roomIndex+1<rooms.length){applyRoom(world,scaleRoom(++roomIndex));rally()}
-   for(const m of world.coop!.members)if(m.connected){const q=queues.get(m.id)??createPurchaseQueue();queues.set(m.id,q);notices[m.id]=q.update(plan(m.id),listCardStates(world,m.id),1,k=>buyCard(world,k,m.id).ok,offers[m.id]!==false)}
+   for(const m of world.coop!.members)if(m.connected){const q=queues.get(m.id)??createPurchaseQueue();queues.set(m.id,q);if(offers[m.id]!==false)notices[m.id]=q.update(plan(m.id),listCardStates(world,m.id),1,k=>buyCard(world,k,m.id).ok,true);else{q.reset();notices[m.id]=null}}
   },
  }
 }

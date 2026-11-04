@@ -6,11 +6,11 @@ import { updatePickups } from '../../src/core/systems/pickups'
 import { separateActors } from '../../src/core/systems/movement'
 import { describe, expect, it } from 'vitest'
 import { createDuelMatch, DUEL_RULES, DUEL_ATTRS } from '../../src/app/modes/duel'
-import { cleanIntent, createRemoteInput, decodePacket, encodePacket, IDLE_INPUT, DUEL_PROTOCOL } from '../../src/net/protocol'
+import { cleanIntent, cleanAction, createRemoteInput, IDLE_INPUT } from '../../src/net/control'
+import { decodeClient, SERVER_PROTOCOL } from '../../src/net/serverProtocol'
 import { serializeWorld } from '../../src/core/serialization'
 import { toSnapshot } from '../../src/core/snapshot'
 import { applyDamage } from '../../src/core/systems/damage'
-import { decodeSignal } from '../../src/net/peer'
 function fighting() { const match = createDuelMatch(111); match.ready(0); match.ready(1); for (let i = 0; i < DUEL_RULES.countdown; i++) match.tick(IDLE_INPUT, IDLE_INPUT); return match }
 describe('authoritative 1v1', () => {
   it('requires both ready, counts down, gives equal gear and honors remote movement instead of AI', () => {
@@ -58,20 +58,19 @@ describe('duel protocol validation', () => {
     expect(remote.accept(packet, 1, 101)).toBe(false)
     expect(remote.accept({ ...packet, sequence: 2, round: 0 }, 1, 102)).toBe(false)
     expect(remote.read(110).skills).toEqual([0]); expect(remote.read(120).skills).toEqual([]); expect(remote.read(120).fire).toBe(true)
-    expect(remote.read(401).fire).toBe(false); expect(remote.read(401).move).toEqual({ x: 0, y: 0 })
+    expect(remote.read(451).fire).toBe(false); expect(remote.read(451).move).toEqual({ x: 0, y: 0 })
   })
   it('accepts state packets and strips attempts to author health, speed or positions through input', () => {
-    const match = fighting(), packet = decodePacket(encodePacket({ type: 'state', serial: 1, state: match.state(), world: serializeWorld(match.world(), true) }))
-    expect(packet.type).toBe('state')
+    const packet = decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:IDLE_INPUT,offers:true}))
+    expect(packet.type).toBe('input')
     const intent = cleanIntent({ move: { x: 1, y: 1 }, aim: { x: 0, y: 1 }, fire: true, hp: 9999, attrs: { damage: 9999 }, skills: [0, 0, 1, 8] })
     expect(Math.hypot(intent.move.x, intent.move.y)).toBeCloseTo(1); expect(intent.skills).toEqual([0, 1]); expect(intent).not.toHaveProperty('hp')
     expect(() => cleanIntent({ move: { x: Infinity, y: 0 } })).toThrow()
-    expect(() => decodePacket('{"protocol":9,"type":"ready"}')).toThrow()
+    expect(() => decodeClient('{"protocol":9,"type":"ready"}')).toThrow()
   })
-  it('rejects corrupt signaling and packets with altered standard equipment', () => {
-    expect(() => decodeSignal('not-a-code', 'offer')).toThrow()
-    const match = fighting(); match.world().actors.get(2)!.attrs.damage = 1000
-    expect(() => decodePacket(encodePacket({ type: 'state', serial: 2, state: match.state(), world: serializeWorld(match.world()) }))).toThrow()
+  it('rejects client-authored world state and unknown purchase actions', () => {
+    expect(() => decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'state',world:{hp:1000}}))).toThrow()
+    expect(() => cleanAction({kind:'buy',id:'missing'})).toThrow()
   })
 })
 
@@ -103,7 +102,7 @@ describe('economic duel modes', () => {
     expect(serializeWorld(a.world())).toEqual(serializeWorld(b.world()))
     expect(a.world().participants![1]!.shards).toBe(615); expect(a.world().participants![2]!.shards).toBe(615)
     expect(a.world().actors.size).toBeGreaterThan(2); expect(a.world().pickups.length).toBeGreaterThan(0)
-    expect(() => decodePacket(encodePacket({ type: 'state', serial: 10, state: a.state(), world: serializeWorld(a.world(), true) }))).not.toThrow()
+    expect(() => decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId:'test',command:{kind:'game',roomId:'ABC123',epoch:1,action:{kind:'buy',id:'gun-damage'}}}))).not.toThrow()
   })
   it('resets both builds and balances between rounds while preserving ordered plans', () => {
     const m = start('budget')
@@ -152,12 +151,10 @@ describe('economic duel modes', () => {
     expect(m.world().participants![1]!.purchases).toEqual([]); expect(m.state().notices[0]).toBeNull()
     m.showOffers(0, true); m.tick(IDLE_INPUT, IDLE_INPUT); expect(m.state().notices[0]?.remainingTicks).toBe(180)
   })
-  it('validates both wallets and rejects forged economic requests', () => {
+  it('keeps private wallets separate and strips forged purchase result fields', () => {
     const m = start('budget'); m.action(1, { kind: 'buy', id: 'gun-damage' })
-    expect(() => decodePacket(encodePacket({ type: 'state', serial: 2, state: m.state(), world: serializeWorld(m.world()) }))).not.toThrow()
-    m.world().actors.get(2)!.attrs.damage++
-    expect(() => decodePacket(encodePacket({ type: 'state', serial: 3, state: m.state(), world: serializeWorld(m.world()) }))).toThrow()
-    const request = decodePacket(JSON.stringify({ protocol: DUEL_PROTOCOL, type: 'action', sequence: 1, round: 1, action: { kind: 'buy', id: 'gun-damage', shards: 999999, attrs: { damage: 999 } } }))
-    expect(request.type === 'action' && request.action).toEqual({ kind: 'buy', id: 'gun-damage', level: undefined })
+    expect(m.world().participants![1]!.shards).toBe(600)
+    expect(m.world().participants![2]!.shards).toBe(590)
+    expect(cleanAction({kind:'buy',id:'gun-damage',shards:999999,attrs:{damage:999}})).toEqual({kind:'buy',id:'gun-damage',level:undefined})
   })
 })

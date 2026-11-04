@@ -1,7 +1,7 @@
 import { reconcileSkills } from './systems/skills'
 import { shieldCap, type AttrSet } from './attrs'
 import { enforceMineLimits } from './mineLimits'
-import type { BuyResult, Requirement } from './cards'
+import type { BuyResult, Requirement, CardRegistry, Purchase } from './cards'
 import { isFiniteBuild, meetsRequirements, purchaseLevel, resolveAttrs } from './cards'
 import { CARD_ECONOMY } from './rules'
 import type { Actor, World } from './world'
@@ -33,12 +33,16 @@ export function listCardStates(world: World, actorId?: number): CardState[] {
   const player = actorId === undefined ? getPlayer(world) : world.actors.get(actorId)!
   const progress = progressOf(world, actorId)
 
-  return world.registry.all().map((card) => {
+  return listBuildCards(world.registry, player.attrs, progress, world.cardRestrictions)
+}
+
+export function listBuildCards(registry: CardRegistry, attrs: AttrSet, progress: { shards: number; purchases: readonly Purchase[] }, restrictions?: Record<string, string>): CardState[] {
+  return registry.all().map((card) => {
     const level = purchaseLevel(progress.purchases, card.id)
     const price = card.priceFn(level + 1)
     const maxed = card.maxLevel !== undefined && level >= card.maxLevel
-    const unlocked = meetsRequirements(player.attrs, progress.purchases, card.requires)
-    const blockedReason = world.cardRestrictions?.[card.id] ?? card.unavailable?.(player.attrs) ?? null
+    const unlocked = meetsRequirements(attrs, progress.purchases, card.requires)
+    const blockedReason = restrictions?.[card.id] ?? card.unavailable?.(attrs) ?? null
 
     let availability: CardAvailability = 'ok'
     if (maxed) availability = 'max-level'
@@ -54,7 +58,7 @@ export function listCardStates(world: World, actorId?: number): CardState[] {
       availability,
       summary: card.summary ? card.summary(maxed ? level : level + 1) : null,
       requires: card.requires ?? [],
-      refund: card.resellable && level > 0 ? saleValue(world, card.id, actorId) : null,
+      refund: card.resellable && level > 0 ? buildSaleValue(registry, progress.purchases, card.id) : null,
       tags: card.tags ?? [],
       priority: card.priority,
       saleBlocked: null,
@@ -98,8 +102,11 @@ export function buyCard(world: World, cardId: string, actorId?: number): BuyResu
 }
 
 export function saleValue(world: World, cardId: string, actorId?: number): number {
-  const purchase = progressOf(world, actorId).purchases.find((item) => item.id === cardId)
-  const card = world.registry.get(cardId)
+  return buildSaleValue(world.registry, progressOf(world, actorId).purchases, cardId)
+}
+function buildSaleValue(registry: CardRegistry, purchases: readonly Purchase[], cardId: string): number {
+  const purchase = purchases.find((item) => item.id === cardId)
+  const card = registry.get(cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return 0
   const paid = purchase.paid?.[purchase.level - 1] ?? card.priceFn(purchase.level)
   return Number.isFinite(paid) ? Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0

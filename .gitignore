@@ -4,3 +4,6 @@ coverage/
 *.local
 .DS_Store
 dist-offline/
+
+dist-server/
+.prism-server/

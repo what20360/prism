@@ -5,7 +5,7 @@ import {createActor} from '../../src/core/world'
 import {PLAYER_BASE_ATTRS} from '../../src/content/player'
 import {resourceWeights,grantCoopShards} from '../../src/core/coop'
 import {updatePickups} from '../../src/core/systems/pickups'
-import {encodeCoop,decodeCoop} from '../../src/net/coopProtocol'
+import {decodeClient,SERVER_PROTOCOL} from '../../src/net/serverProtocol'
 import {toSnapshot} from '../../src/core/snapshot'
 import {hashWorld} from '../../src/core/hash'
 function party(count=2){const m=createCoopMatch({...DEFAULT_COOP,pauseOnDisconnect:false});const ids=[m.hostId()];for(let i=1;i<count;i++)ids.push(m.join('队员'+i));ids.forEach(id=>m.ready(id));expect(m.start()).toBe(true);return {m,w:m.world(),ids}}
@@ -92,10 +92,10 @@ describe('cooperative campaign and endless authority',()=>{
   for(const id of a.ids){a.w.actors.get(id)!.iframesTicks=120;b.world().actors.get(id)!.iframesTicks=120;a.w.coop!.members.find(m=>m.id===id)!.ready=b.world().coop!.members.find(m=>m.id===id)!.ready}
   for(let i=0;i<30;i++){const inputs=new Map(a.ids.map((id,n)=>[id,{move:{x:n%2?1:0,y:0},fire:false}]));a.m.tick(inputs);b.tick(inputs)}
   expect(hashWorld(a.w)).toBe(hashWorld(b.world()))
-  const packet=decodeCoop(encodeCoop({type:'state',serial:1,viewerId:a.ids[4]!,save:a.m.save(a.ids[4])}));expect(packet.type).toBe('state')
+  expect(readCoopSave(JSON.stringify(a.m.save(a.ids[4]))).hostId).toBe(a.ids[4])
  })
  it('validates packet boundaries, unknown actions and corrupt imported party states',()=>{
-  expect(()=>decodeCoop('{"protocol":"wrong"}')).toThrow();expect(()=>decodeCoop(encodeCoop({type:'action',sequence:1,action:{kind:'buy',id:'missing'}}))).toThrow()
+  expect(()=>decodeClient('{"protocol":"wrong"}')).toThrow();expect(()=>decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId:'test',command:{kind:'game',roomId:'ABC123',epoch:1,action:{kind:'buy',id:'missing'}}}))).toThrow()
   const {m}=party();const save=m.save();save.world.coop!.members[1]!.id=save.hostId;expect(()=>readCoopSave(JSON.stringify(save))).toThrow()
  })
  it('restarts the whole party with stable seats and fresh wallets, requiring readiness again',()=>{

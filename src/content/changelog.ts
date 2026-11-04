@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.23',date:'2026-11-04',title:'服务器大厅与差量同步',items:[
+    '移除手工连接代码及WebRTC直连，统一使用服务器地址、房间列表与房间ID；服务器同时支持1–5人合作闯关、无尽及三种1v1规则。',
+    '服务器保持60Hz模拟，以10Hz发送显示差量和压缩数据，不再广播完整存档；客户端插值并重建子弹尾迹，背压与关键帧控制同步队列。',
+    '加入免注册固定玩家ID、身份备份、自动重连、建房授权码、房间密码和房主/管理员/玩家权限；房主可交接，战斗不依赖其浏览器运行。',
+    '提供Node.js服务器包、Windows/Linux启动脚本、Docker配置和使用说明；局域网通过服务器发现入口与UDP多播搜索，保留手动IP连接。',
+    '合作进度及ID席位映射保存在服务器，支持进程重启恢复与文件导入导出；1v1支持60秒短线重连。修复个人菜单期间的自动购买与合作自动瞄准授权。',
+  ]},
   {version:'1.22',date:'2026-11-04',title:'狙击武器与能量表现',items:[
     '脱战时收枪；子弹使用凝实弹头和锥形轨迹尾焰，剩余射程越少越浅、越透明。升级分类改为侧边目录，窄屏显示在上方；按键绑定逐行排列。',
     '狙击手成为单次购买的独立武器，与电弧、激光互斥。动能狙击专精每级伤害×2、攻速×0.5、战斗移速×0.7，并将每100命中弹速折算为每级1点可获倍率的基础伤害。狙击脱战取消专精移速惩罚，再×1.1。',

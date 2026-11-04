@@ -27,6 +27,7 @@ export interface MenuState extends CardsSectionState, SkillsState {
 }
 
 export interface MenuHandlers {
+  readonly hideSections?: readonly MenuSection[]
   readonly homeLabel?: string
   readonly favorites?: () => readonly string[]
   readonly onFavorite?: (id: string) => void
@@ -148,7 +149,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, onQueue: handlers.onQueue, onPractice: handlers.onPractice, favorites: handlers.favorites?.(), onFavorite: handlers.onFavorite }))
 
     for (const [id, button] of buttons) {
-      button.hidden = (id === 'practice' && !state.practice) || (id === 'endless' && !state.endless) || (id === 'dungeon' && !state.dungeon)
+      button.hidden = Boolean(handlers.hideSections?.includes(id)) || (id === 'practice' && !state.practice) || (id === 'endless' && !state.endless) || (id === 'dungeon' && !state.dungeon)
       button.classList.toggle('menu__tab--active', id === active)
       button.setAttribute('aria-current', id === active ? 'page' : 'false')
     }
