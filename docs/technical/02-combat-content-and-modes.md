@@ -45,7 +45,9 @@
 
 每一级价格：
 
-$$P(n)=\operatorname{round}(C\cdot 1.5^{n-1}).$$
+$$
+P(n)=\operatorname{round}(C\cdot 1.5^{n-1}).
+$$
 
 `C` 是首价，增长率来自 `CARD_ECONOMY.growth`。例如弹头强化首价 10，其累计属性是伤害 `+2n`；解析 Lv3 时是从基础上加 6，不是先加 2、再加 4、再加 6。
 
@@ -83,7 +85,9 @@ $$P(n)=\operatorname{round}(C\cdot 1.5^{n-1}).$$
 
 卖出逐次撤回最高一级，取 paid 的末项计算退款：
 
-$$R=\max\left(0,\min\left(P_{\rm paid}-1,\lfloor0.6P_{\rm paid}\rfloor\right)\right).$$
+$$
+R=\max\left(0,\min\left(P_{\rm paid}-1,\lfloor0.6P_{\rm paid}\rfloor\right)\right).
+$$
 
 之后删除末级账目、等级归零则移除记录，再重新解析。前置主要限制购买，卖掉前置不递归删除已购买的专精；专精是否暂停由 enabled/当前属性判断。旧账目缺失时使用迁移器补齐冻结历史价格，不能用新价格回算过去支出。
 
@@ -125,7 +129,9 @@ $$R=\max\left(0,\min\left(P_{\rm paid}-1,\lfloor0.6P_{\rm paid}\rfloor\right)\ri
 
 追踪等级 n>0 时，初速是最终 bulletSpeed 的 0.2，最高是 1.0，按 250 单位/秒² 加速，最大角速度：
 
-$$\omega(n)=1+0.6\sqrt n\quad\text{rad/s}.$$
+$$
+\omega(n)=1+0.6\sqrt n\quad\text{rad/s}.
+$$
 
 每一步把 desired−current 的差归一到 $[-\pi,\pi]$，再夹到 $\pm\omega\Delta t$。owner 仍活着时弹丸跟随 owner 当前 lockTargetId；owner 不在时可继续使用弹丸保存的目标 ID。
 
@@ -135,7 +141,9 @@ $$\omega(n)=1+0.6\sqrt n\quad\text{rad/s}.$$
 
 每步预计移动量：
 
-$$s=\min\left(\text{travelLeft},\frac{\lVert vel\rVert}{\text{slowDivisor}}\Delta t\right).$$
+$$
+s=\min\left(\text{travelLeft},\frac{\lVert vel\rVert}{\text{slowDivisor}}\Delta t\right).
+$$
 
 地雷减速区取覆盖敌方雷中的**最大倍率**，不把多个区域乘起来；实际位移除以该倍率，不直接永久降低 vel。转弯、墙面弹射的每段路程继续消耗 travelLeft。弹射改变方向并消耗一层 pierce，至少保留一层继续；每 tick 反弹子循环有 64 次预算。
 
@@ -188,15 +196,21 @@ flowchart TD
 
 设专精等级 q，效率 $e=1+0.25q$：
 
-$$r=1-0.38/e,\qquad r_b=1-0.15/e,\qquad u=0.15e.$$
+$$
+r=1-0.38/e,\qquad r_b=1-0.15/e,\qquad u=0.15e.
+$$
 
 节点先全部构建，再计算剩余穿透。由浅到深，每一层要按**该层节点总数**付费，付得起才强化这一整层；付不起就停止向深层强化。余下穿透 s 统一变成基础增伤：
 
-$$D_0=\operatorname{finitePower}\left(D(1+0.2q)(1+su)\right).$$
+$$
+D_0=\operatorname{finitePower}\left(D(1+0.2q)(1+su)\right).
+$$
 
 某节点深度 d，有 k 条被强化的前置跨层，伤害为：
 
-$$D_d=D_0r_b^k r^{d-1-k}.$$
+$$
+D_d=D_0r_b^k r^{d-1-k}.
+$$
 
 以上图为例，若预算 7、实际只命中 5 个节点，剩余 2 恰好强化深度 2 的 B/C；D/E 的路径包含一次强化跨层和一次普通跨层。不会只强化 B 而让同深度 C 伤害更低。
 
@@ -242,7 +256,9 @@ flowchart TD
 
 设原始伤害 H、固定格挡 B、护甲 A、护甲穿透 P、相应抗性 T：
 
-$$H'=\max(0,H-\max(0,B))\cdot\frac{100}{100+\max(0,A-P)}\cdot\frac{100}{100+\max(-80,T)}.$$
+$$
+H'=\max(0,H-\max(0,B))\cdot\frac{100}{100+\max(0,A-P)}\cdot\frac{100}{100+\max(-80,T)}.
+$$
 
 再依序计算：盾吸收 `min(shield,H')`；剩余进入 HP；有效伤害是盾吸收加实际生命损失；溢出是穿盾后伤害超过原有 HP 的部分。固定格挡作用于**每一次独立伤害**，因此小额多段/多弹受影响更大。
 
@@ -267,13 +283,17 @@ $$H'=\max(0,H-\max(0,B))\cdot\frac{100}{100+\max(0,A-P)}\cdot\frac{100}{100+\max
 
 [rewards.ts](../../src/core/systems/rewards.ts) 的基础伤害收入：
 
-$$S_{\rm offense}=(D_{\rm effective}+\lambda D_{\rm overkill})\times\text{tierRate}\times\text{chainMultiplier}.$$
+$$
+S_{\rm offense}=(D_{\rm effective}+\lambda D_{\rm overkill})\times\text{tierRate}\times\text{chainMultiplier}.
+$$
 
 单人再乘收益与敌方 rewardMultiplier；承伤收入使用减伤前 raw×takenRate。连击上限由 chainCap 决定，超过 3 秒没击杀断连。对战普通命中不产生这条收入；资源对战靠补助、资源和怪物掉落，合作则调用共享分配函数。
 
 击杀掉落在 [loot.ts](../../src/core/loot.ts) 与 `dropKillLoot`：
 
-$$p=0.1n+0.1D_{\rm overkill}+HP_{\rm monster,max}/1000.$$
+$$
+p=0.1n+0.1D_{\rm overkill}+HP_{\rm monster,max}/1000.
+$$
 
 当前代码**未购买时 n=0 仍保留溢出和怪物生命两项**。晶片 p 乘怪物奖励倍率；血球不乘。`rollLootAmount` 先把期望夹到 625，整数部分确定掉落，小数部分做一次 Bernoulli。自爆不作为玩家击杀，不领取这类击杀卡奖励。
 
@@ -312,7 +332,9 @@ $$p=0.1n+0.1D_{\rm overkill}+HP_{\rm monster,max}/1000.$$
 
 蜂巢等级 n 的继承比例为：
 
-$$c=0.4+\frac{0.35n}{n+3}.$$
+$$
+c=0.4+\frac{0.35n}{n+3}.
+$$
 
 母雷释放 `floor(2n)` 颗子雷，伤害/耐久乘 c，范围半径乘 $\sqrt c$，减速超出 1 的部分乘 c，破片数向下取整。子雷 900 tick 到期、broodLevel=0，不能递归生成孙雷。
 
@@ -411,7 +433,9 @@ $$c=0.4+\frac{0.35n}{n+3}.$$
 
 基础数量：
 
-$$N(f)=4+\lceil2\sqrt f\rceil.$$
+$$
+N(f)=4+\lceil2\sqrt f\rceil.
+$$
 
 合作再乘该房在线人数倍率并向上取整。生成流按 `(seed XOR imul(floor,0x9e3779b1)) >>> 0` 派生；因此该层内容不依赖上一层打了多少发子弹。生成器选地图、随机原型与各属性、词条和一次性资源，再用 applyRoom 排入入场队列。
 
