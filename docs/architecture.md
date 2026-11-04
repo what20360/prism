@@ -9,6 +9,8 @@
 
 > 本文只描述**怎么实现**。玩法争议回到 requirements.md，数值争议回到 balance.md。
 
+> 当前源码的逐模块实现详解见 [技术手册（1/3）](technical/01-architecture-and-simulation.md)、[战斗与模式（2/3）](technical/02-combat-content-and-modes.md)、[客户端、存储与联机（3/3）](technical/03-client-storage-network-and-development.md)。该手册以核对的代码基线为准，并单列历史设计与现实现的不一致；本文保留既有架构设计和演进说明。
+
 ---
 
 ## 1. 设计目标与约束
