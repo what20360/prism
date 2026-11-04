@@ -17,7 +17,6 @@ export interface CardsSectionHandlers {
   readonly onQueue?: (cardId: string) => void
   readonly onBuy: (cardId: string) => void
   readonly onSell: (cardId: string) => void
-  readonly collapsed?: Set<string>
   readonly onPractice?: (action: PracticeAction) => void
 }
 
@@ -146,44 +145,29 @@ export function renderCardsSection(
   for(const [value,label] of [['all','全部卡片'],['buyable','仅显示可购买'],['favorites','仅显示已收藏'],['owned','仅显示已购买'],['unowned','仅显示未购买']]) { const option = document.createElement('option'); option.value=value!; option.textContent=label!; filter.append(option) }
   try { filter.value = sessionStorage.getItem('prism.cardFilter') ?? 'all' } catch { /* Optional. */ }
   wrapper.append(filter)
-  const results = document.createElement('div'); wrapper.append(results)
+  const layout = element('div', 'cards__browser'), nav = element('nav', 'cards__nav'), results = element('div', 'cards__results')
+  nav.setAttribute('aria-label', '升级分类目录'); layout.append(nav, results); wrapper.append(layout)
+  let selected = 'all'
+  try { selected = sessionStorage.getItem('prism.cardCategory') ?? 'all' } catch { /* Optional. */ }
   const render = () => {
-  results.replaceChildren()
-  const filtered = state.cards.filter((c) => filter.value === 'buyable' ? c.availability === 'ok' : filter.value === 'favorites' ? handlers.favorites?.includes(c.id) : filter.value === 'owned' ? c.level > 0 : filter.value === 'unowned' ? c.level === 0 : true)
-  const grouped = new Map<string, CardState[]>()
-  if (handlers.onFavorite) grouped.set('favorites', filtered.filter((c) => handlers.favorites?.includes(c.id)))
-  for (const card of filtered) {
-    const list = grouped.get(card.category)
-    if (list) list.push(card)
-    else grouped.set(card.category, [card])
-  }
-
-  const categories = [...grouped.keys()].sort((a, b) => {
-    const indexA = a === 'favorites' ? -1 : CATEGORY_ORDER.indexOf(a)
-    const indexB = b === 'favorites' ? -1 : CATEGORY_ORDER.indexOf(b)
-    if (a === 'favorites') return -1
-    if (b === 'favorites') return 1
-    return (indexA < 0 ? 99 : indexA) - (indexB < 0 ? 99 : indexB)
-  })
-
-  for (const category of categories) {
-    const section = document.createElement('details')
-    section.className = 'menu__section cards__category'
-    section.open = !handlers.collapsed?.has(category)
-    const summary = element('summary', 'menu__heading', `${category === 'favorites' ? '★ 收藏卡片' : CATEGORY_LABELS[category] ?? category} · ${grouped.get(category)?.length ?? 0}`)
-    section.append(summary)
-    section.addEventListener('toggle', () => { if (section.open) handlers.collapsed?.delete(category); else handlers.collapsed?.add(category) })
-
-    const grid = element('div', 'cards__grid')
-    if (category === 'favorites' && !grouped.get(category)?.length) grid.append(element('p', 'settings__hint', '点击卡片旁的“☆ 收藏”，即可在此快速找到。'))
-    for (const card of grouped.get(category) ?? []) {
-      grid.append(cardButton(state, card, handlers))
+    nav.replaceChildren(); results.replaceChildren()
+    const filtered = state.cards.filter((c) => filter.value === 'buyable' ? c.availability === 'ok' : filter.value === 'favorites' ? handlers.favorites?.includes(c.id) : filter.value === 'owned' ? c.level > 0 : filter.value === 'unowned' ? c.level === 0 : true)
+    const categories = ['all', ...(handlers.onFavorite ? ['favorites'] : []), ...CATEGORY_ORDER]
+    if (!categories.includes(selected)) selected = 'all'
+    const categoryCards = (category: string) => filtered.filter((c) => category === 'all' || (category === 'favorites' ? handlers.favorites?.includes(c.id) : c.category === category))
+    for (const category of categories) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'cards__nav-item'
+      button.textContent = `${category === 'all' ? '全部卡片' : category === 'favorites' ? '★ 收藏卡片' : CATEGORY_LABELS[category]} · ${categoryCards(category).length}`
+      button.setAttribute('aria-pressed', String(selected === category))
+      button.onclick = () => { selected = category; try { sessionStorage.setItem('prism.cardCategory', selected) } catch { /* Optional. */ }; render() }
+      nav.append(button)
     }
-    section.append(grid)
-    results.append(section)
-  }
-
-  if(!filtered.length) results.textContent = '没有符合条件的卡片。'
+    const section = element('section', 'menu__section cards__category')
+    section.append(element('h3', 'menu__heading', selected === 'all' ? '全部卡片' : selected === 'favorites' ? '★ 收藏卡片' : CATEGORY_LABELS[selected]))
+    const grid = element('div', 'cards__grid'), cards = categoryCards(selected)
+    for (const card of cards) grid.append(cardButton(state, card, handlers))
+    if (!cards.length) grid.append(element('p', 'settings__hint', selected === 'favorites' ? '点击卡片旁的“☆ 收藏”，即可在此快速找到。' : '没有符合条件的卡片。'))
+    section.append(grid); results.append(section)
   }
   filter.onchange = () => { try { sessionStorage.setItem('prism.cardFilter',filter.value) } catch { /* Optional. */ }; render() }; render()
 

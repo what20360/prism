@@ -4,7 +4,7 @@ import { formatRuleNumber } from '../content/format'
 
 /** UI-side labels; core stays free of presentation text. */
 export const ATTR_LABELS: Record<AttrKey, string> = {
-  block: '固定格挡', physicalResist: '物理抗性', electricResist: '电抗性', heatResist: '热抗性', weapon: '主武器',
+  damageScale: '伤害倍率', sniperPower: '动能狙击', block: '固定格挡', physicalResist: '物理抗性', electricResist: '电抗性', heatResist: '热抗性', weapon: '主武器',
   arcEfficiency: '电容绕组', laserPower: '聚焦透镜', minePulseLevel: '震荡雷芯', mineBroodLevel: '蜂巢雷芯',
   maxHp: '最大生命',
   speed: '移动速度',

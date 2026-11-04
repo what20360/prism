@@ -25,6 +25,7 @@ export type RoomKind = 'safe' | 'combat' | 'guard' | 'boss'
 export type SkillId = 'deflect' | 'rage' | 'dash'
 
 export interface Actor extends EnemyMechanics {
+  shieldDisabledTicks?: number
   contributions?: Record<number, number>
   weaver?: WeaverState
   spider?: SpiderState
@@ -115,6 +116,11 @@ export interface Projectile {
   blastRadius?: number
   resolvedTick?: number
   targetId?: EntityId | null
+  homingDistance?: number
+  homingRecoveryDistance?: number
+  homingStartSpeed?: number
+  impactPerSpeed?: number
+  impactScale?: number
   homingTurn?: number
   cruiseSpeed?: number
   trail?: Vec2[]
@@ -403,7 +409,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
     pos: spec.pos,
     radius: spec.attrs.radius,
     hp: spec.attrs.maxHp,
-    shield: spec.attrs.shield,
+    shield: spec.team === 'player' ? 0 : spec.attrs.shield,
     alive: true,
     intent: NO_INTENT,
     aimAngle: 0,

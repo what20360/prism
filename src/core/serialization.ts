@@ -40,7 +40,7 @@ export function validateAttrs(value: unknown, keys: readonly string[]): AttrSet 
   if (Object.keys(attrs).length !== keys.length) throw new Error('属性版本不匹配')
   for (const key of keys) finite(attrs[key])
   if (finite(attrs.maxHp) < 1 || finite(attrs.speed) < 0 || finite(attrs.bulletSpeed) < 0 || finite(attrs.range) < 0 || finite(attrs.radius) <= 0 || finite(attrs.vision) <= 0) throw new Error('属性无效')
-  if (keys.includes('weapon')) { oneOf(attrs.weapon, [0, 1, 2]); for (const key of ['block', 'arcEfficiency', 'laserPower', 'minePulseLevel', 'mineBroodLevel']) finite(attrs[key], 0); for (const key of ['physicalResist', 'electricResist', 'heatResist']) finite(attrs[key], -80) }
+  if (keys.includes('weapon')) { oneOf(attrs.weapon, [0, 1, 2, 3]); finite(attrs.damageScale, 0); finite(attrs.sniperPower, 0); for (const key of ['block', 'arcEfficiency', 'laserPower', 'minePulseLevel', 'mineBroodLevel']) finite(attrs[key], 0); for (const key of ['physicalResist', 'electricResist', 'heatResist']) finite(attrs[key], -80) }
   return attrs as unknown as AttrSet
 }
 function intent(value: unknown): void {
@@ -107,6 +107,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     for (const key of ['shockTicks', 'bombTicks', 'windupTicks', 'laserTicks', 'laserTimer']) if (a[key] !== undefined) integer(a[key], 0, 1000000)
     if (a.windupAngle !== undefined) finite(a.windupAngle)
     if (a.burn !== undefined) { const b = record(a.burn); integer(b.sourceId, 1); oneOf(b.sourceTeam, ['player', 'enemy', 'neutral']); finite(b.raw, 0); integer(b.remaining, 1, 3); integer(b.timer, 0, 20); if (b.rewardMultiplier !== undefined) finite(b.rewardMultiplier, 0, 1) }
+    if (a.shieldDisabledTicks !== undefined) integer(a.shieldDisabledTicks, 0, 3600)
     if (a.contactCooldownTicks !== undefined) integer(a.contactCooldownTicks, 0, 600)
     if (finite(a.hp) > finite(record(a.attrs).maxHp)) throw new Error('生命超过上限')
     for (const key of ['lockTargetId', 'manualLockId']) if (a[key] !== null) integer(a[key], 1)
@@ -127,7 +128,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   for (const value of array(d.projectiles, 4000)) {
     const p = entity(value); if (p.damageType !== undefined) oneOf(p.damageType, ['physical', 'electric', 'heat']); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
     numbers(p, 'radius damage penetration innerMult travelLeft'); integer(p.pierceLeft)
-    for (const key of ['rewardMultiplier', 'rangeBudget', 'pierceSpeedMultiplier', 'pierceRangeGain', 'blastRadius', 'resolvedTick', 'homingTurn', 'cruiseSpeed']) if (p[key] !== undefined) finite(p[key], 0)
+    for (const key of ['rewardMultiplier', 'rangeBudget', 'pierceSpeedMultiplier', 'pierceRangeGain', 'blastRadius', 'resolvedTick', 'homingTurn', 'cruiseSpeed', 'homingDistance', 'homingRecoveryDistance', 'homingStartSpeed', 'impactPerSpeed', 'impactScale']) if (p[key] !== undefined) finite(p[key], 0)
     if (p.targetId !== undefined && p.targetId !== null) integer(p.targetId, 1)
     if (p.ricochet !== undefined) bool(p.ricochet)
     for (const id of array(p.hitIds, 2000)) integer(id, 1)

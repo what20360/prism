@@ -134,7 +134,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawActor = (a: ActorView, tick: number) => {
     const player = a.team === 'player', r = a.radius
     const silk = a.behavior === 'weaver' || Boolean(a.spider), worker = a.spider?.role === 'worker'
-    if (player && a.local !== false) drawAim(a)
+    if (player && a.local !== false && !a.stowed) drawAim(a)
     if (a.deflectFieldRadius > 0) {
       const glow = ctx.createRadialGradient(a.x, a.y, r, a.x, a.y, a.deflectFieldRadius)
       glow.addColorStop(0, a.deflectActive ? 'rgba(174,146,255,0.16)' : 'rgba(115,203,245,0.035)'); glow.addColorStop(1, 'rgba(100,190,255,0)')
@@ -191,10 +191,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (player || a.weapon > 0) {
       const tint = weaponPalette(a.team, a.damageType, 1, a.damage).color
-      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = 12
+      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); if (a.stowed) { ctx.translate(-r * 0.42, r * 0.35); ctx.rotate(-Math.PI * 0.72); ctx.scale(0.58, 0.7); ctx.globalAlpha = 0.65 } ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = 12
       if (a.weapon === 1) {
         for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(r * 0.55, side * 10); ctx.lineTo(r + 13, side * 16); ctx.lineTo(r + 24, side * 7); ctx.stroke() }
         ring(r + 9, 0, 7, tint, 2)
+      } else if (a.weapon === 3) {
+        ctx.fillRect(r * 0.25, -6, r + 13, 12); ctx.strokeRect(r * 0.25, -6, r + 13, 12)
+        ctx.fillRect(r + 12, -3, 29, 6); ctx.strokeRect(r + 12, -3, 29, 6)
+        ctx.fillRect(r * 0.7, -12, 16, 6); ctx.strokeRect(r * 0.7, -12, 16, 6)
       } else { ctx.fillRect(r * 0.5, -7, r * 0.7 + 12, 14); ctx.strokeRect(r * 0.5, -7, r * 0.7 + 12, 14); if (a.weapon === 2) ring(r + 21, 0, 11, tint, 2) }
       ctx.restore()
     }
@@ -210,6 +214,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (a.windupTicks !== null) {
       ctx.save(); ctx.strokeStyle = 'rgba(255,124,95,0.55)'; ctx.lineWidth = 2; ctx.setLineDash([12, 12]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + Math.cos(a.windupAngle) * a.range, a.y + Math.sin(a.windupAngle) * a.range); ctx.stroke(); ctx.restore()
     }
+    if (a.shieldDisabledSeconds > 0 && player) { ctx.textAlign = 'center'; text(`禁盾 ${Math.ceil(a.shieldDisabledSeconds)}s`, a.x, a.y + r + 67, 15, '#ff9dba'); ctx.textAlign = 'left' }
     if (a.shield > 0) ring(a.x, a.y, r + 5, 'rgba(180,210,255,0.5)', 2)
     if (player) {
       cooldown(a, r + 13, a.fireCooldownSeconds, a.fireCooldownTotal, 0.3, CYAN)
@@ -261,14 +266,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
     const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
-    text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
+    text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : p.weapon === 3 ? '狙击手' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
     if (s.design) { ctx.textAlign = 'center'; text(s.design.title, width / 2, 30, 16, s.design.theme === 'silk' ? '#d6b0ed' : '#96bbc7'); ctx.textAlign = 'left' }
     text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
       ctx.fillStyle = '#192538'; ctx.fillRect(20, 65, barWidth, 5)
       ctx.fillStyle = p.hp < p.maxHp * 0.3 ? RED : CYAN; ctx.fillRect(20, 65, barWidth * clamp(p.hp / p.maxHp, 0, 1), 5)
-      text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : ''}`, 20, 90, 12, '#d6e6f3')
+      text(`${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}${p.shieldDisabledSeconds > 0 ? `  禁盾 ${Math.ceil(p.shieldDisabledSeconds)}s` : p.shield > 0 ? `  ◇${Math.ceil(p.shield)}` : p.stowed ? '  已收枪' : ''}`, 20, 90, 12, '#d6e6f3')
       text(debug.duel ? `◆ ${Math.floor(s.shards)} · J / K 主动技能` : debug.practice ? `${debug.practice.config.invincible ? '无敌开启' : '可受伤'} · ${debug.practice.config.freeCards ? '自由购卡' : '限额购卡'}` : `◆ ${Math.floor(s.shards)}   击破 ${s.stats.kills}`, 20, 111, 12, GOLD)
       if (debug.endless) {
         text(`种子 ${debug.endless.seed} · 敌人 ${debug.endless.alive + debug.endless.pending}`, 20, 133, 11, PURPLE)
@@ -331,31 +336,61 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (target.rewardMultiplier < 1) text(`棱晶收益 ${Number((target.rewardMultiplier * 100).toFixed(2))}%`, x + 10, y + 175, 11, GOLD)
   }
   const drawBullet = (bullet: Snapshot['projectiles'][number]) => {
-    const energy = bullet.rangeRatio
-    const { hue, color, halo } = weaponPalette(bullet.team, bullet.damageType, energy, bullet.power)
-    ctx.save(); ctx.globalAlpha = 0.65 + 0.35 * energy
-    const count = Math.min(bullet.trail.length, Math.ceil(bullet.speed / 160))
-    const trail = bullet.trail.slice(-count)
-    if (count > 0 && bullet.speed > 35) {
-      const first = trail[0]!, fade = ctx.createLinearGradient(first.x, first.y, bullet.x + 0.01, bullet.y + 0.01)
-      fade.addColorStop(0, `hsla(${hue}, 90%, 55%, 0)`); fade.addColorStop(1, color)
-      ctx.strokeStyle = fade; ctx.lineWidth = Math.max(2, bullet.radius * 0.65)
-      ctx.beginPath(); ctx.moveTo(first.x, first.y)
-      for (const point of trail) ctx.lineTo(point.x, point.y)
-      ctx.lineTo(bullet.x, bullet.y); ctx.stroke()
+    // Absolute remaining range also matters: a short-lived shot starts visibly depleted.
+    const energy = Math.min(bullet.rangeRatio, bullet.rangeLeft / 700)
+    const { hue, color, halo, alpha } = weaponPalette(bullet.team, bullet.damageType, energy, bullet.power)
+    const r = Math.max(2.5, bullet.radius), speed = bullet.speed
+    ctx.save(); ctx.globalAlpha = alpha
+    // Follow the actual previous path, including bends, using a tapering filled ribbon.
+    const path = [...bullet.trail, { x: bullet.x, y: bullet.y }]
+    let budget = Math.min(190, speed * 0.12), length = 0
+    const points = [{ x: bullet.x, y: bullet.y }]
+    for (let i = path.length - 2; i >= 0 && budget > 0; i--) {
+      const from = points.at(-1)!, to = path[i]!, d = Math.hypot(to.x - from.x, to.y - from.y)
+      if (d < 0.01) continue
+      const f = Math.min(1, budget / d)
+      points.push({ x: from.x + (to.x - from.x) * f, y: from.y + (to.y - from.y) * f }); budget -= d * f; length += d * f
     }
-    const glow = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, bullet.radius * 2.2)
-    glow.addColorStop(0, halo); glow.addColorStop(1, `hsla(${hue}, 95%, 50%, 0)`)
-    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 2.2, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius * 0.72, 0, Math.PI * 2); ctx.fill()
-    ring(bullet.x, bullet.y, bullet.radius, color, 1.2)
-    ctx.fillStyle = `hsl(${hue}, 90%, ${60 + 38 * energy}%)`; ctx.beginPath(); ctx.arc(bullet.x - bullet.radius * 0.17, bullet.y - bullet.radius * 0.17, Math.max(2, bullet.radius * 0.29), 0, Math.PI * 2); ctx.fill()
+    if (length > r && speed > 40) {
+      const tail = points.at(-1)!, fade = ctx.createLinearGradient(tail.x, tail.y, bullet.x + 0.01, bullet.y + 0.01)
+      fade.addColorStop(0, `hsla(${hue}, 85%, 86%, 0)`); fade.addColorStop(0.6, `hsla(${hue}, 95%, 75%, 0.5)`); fade.addColorStop(1, color)
+      ctx.fillStyle = fade; ctx.beginPath()
+      const side = (sign: number) => {
+        let traveled = 0
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i]!, prev = points[Math.max(0, i - 1)]!, next = points[Math.min(points.length - 1, i + 1)]!
+          if (i) traveled += Math.hypot(p.x - prev.x, p.y - prev.y)
+          const dx = prev.x - next.x, dy = prev.y - next.y, d = Math.hypot(dx, dy) || 1
+          const w = r * 0.92 * Math.max(0, 1 - traveled / length)
+          const x = p.x - dy / d * w * sign, y = p.y + dx / d * w * sign
+          if (i === 0 && sign === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+        }
+      }
+      side(1)
+      // Reverse the opposite edge so the tail has one continuous pointed silhouette.
+      const edge: { x: number; y: number }[] = []; let traveled = 0
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i]!, prev = points[Math.max(0, i - 1)]!, next = points[Math.min(points.length - 1, i + 1)]!
+        if (i) traveled += Math.hypot(p.x - prev.x, p.y - prev.y)
+        const dx = prev.x - next.x, dy = prev.y - next.y, d = Math.hypot(dx, dy) || 1, w = r * 0.92 * Math.max(0, 1 - traveled / length)
+        edge.push({ x: p.x + dy / d * w, y: p.y - dx / d * w })
+      }
+      for (const p of edge.reverse()) ctx.lineTo(p.x, p.y)
+      ctx.closePath(); ctx.fill()
+    }
+    const glow = ctx.createRadialGradient(bullet.x, bullet.y, r * 0.6, bullet.x, bullet.y, r * 2)
+    glow.addColorStop(0, halo); glow.addColorStop(1, 'transparent')
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, r * 2, 0, Math.PI * 2); ctx.fill()
+    // Dense colored shell and small hot core, without a hollow outer ring.
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, r, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = `hsl(${hue}, ${20 + energy * 40}%, 98%)`; ctx.beginPath(); ctx.arc(bullet.x - r * 0.18, bullet.y - r * 0.18, r * 0.45, 0, Math.PI * 2); ctx.fill()
     ctx.restore()
   }
+
   const drawEnergy = (beam: EnergyTrace, tick: number) => {
     const type = beam.damageType ?? (beam.kind === 'electric' ? 'electric' : 'heat'), palette = weaponPalette(beam.team, type, beam.rangeRatio, beam.power)
     const dx = beam.to.x - beam.from.x, dy = beam.to.y - beam.from.y, length = Math.hypot(dx, dy)
-    ctx.save(); ctx.globalAlpha = Math.min(1, beam.ttl / 4); ctx.shadowColor = palette.color; ctx.shadowBlur = beam.kind === 'electric' ? 14 : 20
+    ctx.save(); ctx.globalAlpha = Math.min(1, beam.ttl / 4) * palette.alpha; ctx.shadowColor = palette.color; ctx.shadowBlur = beam.kind === 'electric' ? 14 : 20
     ctx.lineWidth = Math.max(2, Math.min(14, beam.width * 0.3 + Math.log2(1 + beam.power) * 0.4)); ctx.strokeStyle = palette.color
     ctx.beginPath(); ctx.moveTo(beam.from.x, beam.from.y)
     const count = beam.kind === 'electric' ? Math.max(2, Math.min(40, Math.ceil(length / 30))) : 1

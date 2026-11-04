@@ -1,3 +1,4 @@
+import { CURRENT_BALANCE_VERSION, extendLegacyCombatAttrs, registryForSave, migrateWorldBuild, migrateOrderedTargets } from '../cardMigrations'
 import { CARD_REGISTRY } from '../../content/cards'
 import { buildDungeon } from '../../content/dungeon'
 import { PLAYER_BASE_ATTRS } from '../../content/player'
@@ -25,23 +26,28 @@ import { listCardStates } from '../../core/progress'
 
 export interface CoopConfig { mode:'dungeon'|'endless'; seed:number; difficulty:DungeonDifficulty; maxPlayers:number; resourceMode:CoopResourceMode; baseShare:number; pauseOnDisconnect:boolean }
 export const DEFAULT_COOP: CoopConfig = {mode:'dungeon',seed:20261031,difficulty:1,maxPlayers:5,resourceMode:'equal',baseShare:0.25,pauseOnDisconnect:true}
-export interface CoopSave {format:'prism-coop-save';version:1;balanceVersion:5;name:string;savedAt:string;config:CoopConfig;hostId:number;roomIndex:number;started:boolean;world:WorldData;endless?:EndlessCheckpoint;plans:Record<number,PurchasePlan>}
+export interface CoopSave {format:'prism-coop-save';version:1;balanceVersion:typeof CURRENT_BALANCE_VERSION;name:string;savedAt:string;config:CoopConfig;hostId:number;roomIndex:number;started:boolean;world:WorldData;endless?:EndlessCheckpoint;plans:Record<number,PurchasePlan>}
 export function validateCoopConfig(value:unknown):CoopConfig {
  const c=record(value);if(!['dungeon','endless'].includes(String(c.mode))||!['equal','killer','free','damage'].includes(String(c.resourceMode))||typeof c.pauseOnDisconnect!=='boolean')throw new Error('合作房间配置无效')
  return {mode:c.mode as CoopConfig['mode'],seed:integer(c.seed,0,0xffffffff),difficulty:dungeonDifficulty(c.difficulty),maxPlayers:integer(c.maxPlayers,1,5),resourceMode:c.resourceMode as CoopResourceMode,baseShare:finite(c.baseShare,0,1),pauseOnDisconnect:c.pauseOnDisconnect}
 }
 export function readCoopSave(text:string,allowEnded=false):CoopSave {
  if(new TextEncoder().encode(text).length>2*1024*1024)throw new Error('合作存档不能超过2 MiB')
- const s=record(JSON.parse(text));if(s.format!=='prism-coop-save'||s.version!==1||s.balanceVersion!==5)throw new Error('请选择当前版本的合作存档')
+ const s=record(JSON.parse(text));if(s.format!=='prism-coop-save'||s.version!==1||s.balanceVersion!==5&&s.balanceVersion!==CURRENT_BALANCE_VERSION)throw new Error('请选择当前版本的合作存档')
  s.config=validateCoopConfig(s.config);if(typeof s.name!=='string'||!s.name.trim()||s.name.length>40||typeof s.savedAt!=='string'||!Number.isFinite(Date.parse(s.savedAt))||typeof s.started!=='boolean')throw new Error('合作存档信息无效')
- const w=restoreWorld(s.world,CARD_REGISTRY,DEFAULT_ECONOMY,Object.keys(PLAYER_BASE_ATTRS));if(!w.coop||!w.participants||!allowEnded&&(w.gameOver||w.victory))throw new Error('合作进度已经结束或数据不完整')
- const cfg=s.config as CoopConfig;if(w.seed!==cfg.seed||w.coop.maxPlayers!==cfg.maxPlayers||w.coop.resourceMode!==cfg.resourceMode||w.coop.baseShare!==cfg.baseShare||w.coop.pauseOnDisconnect!==cfg.pauseOnDisconnect)throw new Error('房间配置与进度不一致')
+ extendLegacyCombatAttrs(s.world,s.balanceVersion)
+ let w=restoreWorld(s.world,registryForSave(s.balanceVersion),DEFAULT_ECONOMY,Object.keys(PLAYER_BASE_ATTRS));if(!w.coop||!w.participants||!allowEnded&&(w.gameOver||w.victory))throw new Error('合作进度已经结束或数据不完整')
+ const legacyOwned=new Map<number,readonly import('../../core/cards').Purchase[]>()
+ for(const member of w.coop.members){const migrated=migrateWorldBuild(w,s.balanceVersion,member.id);w=migrated.world;legacyOwned.set(member.id,migrated.owned)}
+ s.world=serializeWorld(w,true)
+ const cfg=s.config as CoopConfig;if(w.seed!==cfg.seed||w.coop!.maxPlayers!==cfg.maxPlayers||w.coop!.resourceMode!==cfg.resourceMode||w.coop!.baseShare!==cfg.baseShare||w.coop!.pauseOnDisconnect!==cfg.pauseOnDisconnect)throw new Error('房间配置与进度不一致')
  for(const [key,value]of Object.entries(PLAYER_BASE_ATTRS))if(w.basePlayerAttrs[key as keyof typeof PLAYER_BASE_ATTRS]!==value)throw new Error('合作初始属性无效')
- const ids=w.coop.members.map(m=>m.id);if(ids.some(id=>!w.participants?.[id]||!w.coop!.members.find(m=>m.id===id)!.connected&&w.coop!.members.find(m=>m.id===id)!.offlineHp>w.actors.get(id)!.attrs.maxHp))throw new Error('合作席位状态无效');if(ids.length>cfg.maxPlayers||Object.keys(w.participants).length!==ids.length||!ids.includes(integer(s.hostId,1)))throw new Error('队伍席位无效')
- for(const id of ids){const actor=w.actors.get(id)!,expected=resolveAttrs(w.basePlayerAttrs,w.participants[id]!.purchases,CARD_REGISTRY);for(const key of Object.keys(expected) as (keyof typeof expected)[])if(Math.abs(actor.attrs[key]-expected[key])>1e-7*Math.max(1,Math.abs(expected[key])))throw new Error('队员构筑无效')}
- integer(s.roomIndex,0,cfg.mode==='endless'?0:24)
+ const ids=w.coop!.members.map(m=>m.id);if(ids.some(id=>!w.participants?.[id]||!w.coop!.members.find(m=>m.id===id)!.connected&&w.coop!.members.find(m=>m.id===id)!.offlineHp>w.actors.get(id)!.attrs.maxHp))throw new Error('合作席位状态无效');if(ids.length>cfg.maxPlayers||Object.keys(w.participants!).length!==ids.length||!ids.includes(integer(s.hostId,1)))throw new Error('队伍席位无效')
+ for(const id of ids){const actor=w.actors.get(id)!,expected=resolveAttrs(w.basePlayerAttrs,w.participants![id]!.purchases,CARD_REGISTRY);for(const key of Object.keys(expected) as (keyof typeof expected)[])if(Math.abs(actor.attrs[key]-expected[key])>1e-7*Math.max(1,Math.abs(expected[key])))throw new Error('队员构筑无效')}
+ integer(s.roomIndex,0,cfg.mode==='endless'?0:buildDungeon().length-1)
  if(cfg.mode==='endless'){const e=record(s.endless);integer(e.floor,1);integer(e.rngState,0,0xffffffff);integer(e.respawned);array(e.spawnQueue,2000).forEach(t=>integer(t))}else if(s.endless!==undefined)throw new Error('闯关存档不能含无尽状态')
- const plans=record(s.plans);for(const [id,p]of Object.entries(plans)){if(!ids.includes(Number(id)))throw new Error('预购席位无效');const v=record(p);if(typeof v.enabled!=='boolean')throw new Error('预购开关无效');validateTargets(v.targets);if(v.quickMode!==undefined)validateQuickMode(v.quickMode)}
+ const plans=record(s.plans);for(const [id,p]of Object.entries(plans)){if(!ids.includes(Number(id)))throw new Error('预购席位无效');const v=record(p);if(typeof v.enabled!=='boolean')throw new Error('预购开关无效');v.targets=validateTargets(s.balanceVersion===CURRENT_BALANCE_VERSION?v.targets:migrateOrderedTargets(v.targets,legacyOwned.get(Number(id)),true));if(v.quickMode!==undefined)validateQuickMode(v.quickMode)}
+ s.balanceVersion=CURRENT_BALANCE_VERSION
  return JSON.parse(JSON.stringify(s)) as CoopSave
 }
 export function coopPopulation(players:number):number {return 1+0.7*(Math.max(1,players)-1)}
@@ -63,7 +69,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
  const scaleRoom=(index:number)=>{const room=rooms[index]!,count=Math.max(1,world.coop!.members.filter(m=>m.connected).length);world.coop!.roomPartySize=count
   const wave=(source:readonly EnemySpawnSpec[])=>{const result=[...source];const normal=source.filter(s=>s.tier!=='boss');const extra=normal.length?Math.ceil(normal.length*coopPopulation(count))-normal.length:(count-1)*2;for(let i=0;i<extra&&result.length<200;i++){const base=normal[i%normal.length]??source[0];if(!base)break;const anchor=room.design?.patrol[(i+2)%room.design.patrol.length]??base.pos;const attrs=base.tier==='boss'?{...base.attrs,maxHp:Math.max(20,base.attrs.maxHp*0.025),radius:30,armor:base.attrs.armor*0.2,block:0,speed:180,fireRate:0}:base.attrs;const pos=resolveSpawnPosition({x:anchor.x+(nextFloat(world.rng)-0.5)*130,y:anchor.y+(nextFloat(world.rng)-0.5)*130},attrs.radius,room.walls,room.bounds);result.push({...base,attrs,pos,...(base.tier==='boss'?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'巢室护卫',contactDamage:attrs.damage*0.5}:{})})}return result}
   return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave)} }
- const checkpoint=(viewer=hostId):CoopSave=>({format:'prism-coop-save',version:1,balanceVersion:5,name,savedAt:new Date().toISOString(),config,hostId:viewer,roomIndex,started,world:(()=>{const data=serializeWorld(world,true);for(const p of data.projectiles){delete p.trail;delete p.segments}data.floaters=data.floaters.slice(-80);data.effects=data.effects.slice(-80);return data})(),endless:endless?.checkpoint(),plans:structuredClone(plans)})
+ const checkpoint=(viewer=hostId):CoopSave=>({format:'prism-coop-save',version:1,balanceVersion:CURRENT_BALANCE_VERSION,name,savedAt:new Date().toISOString(),config,hostId:viewer,roomIndex,started,world:(()=>{const data=serializeWorld(world,true);for(const p of data.projectiles){delete p.trail;delete p.segments}data.floaters=data.floaters.slice(-80);data.effects=data.effects.slice(-80);return data})(),endless:endless?.checkpoint(),plans:structuredClone(plans)})
  return {
   world:()=>world,config:()=>({...config}),hostId:()=>hostId,started:()=>started,roomIndex:()=>roomIndex,plan,
   notice:(id:number)=>notices[id]??null,showOffers:(id:number,visible:boolean)=>{offers[id]=visible},

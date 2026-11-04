@@ -71,7 +71,7 @@ function detonate(world: World, mine: Mine): void {
   for (const actor of world.actors.values()) {
     if (!actor.alive || actor.team === mine.team || distance(actor.pos, mine.pos) > mine.blastRadius) continue
     if (mine.nestRole && !hasLineOfSight(mine.pos, actor.pos, world.room.walls)) continue
-    applyDamage(world, { targetId: actor.id, sourceId: mine.ownerId, sourceTeam: mine.team, raw: mine.damage, penetration: 0, isCore: false, kind: 'mine', damageType: 'heat', rewardMultiplier: mine.rewardMultiplier })
+    applyDamage(world, { targetId: actor.id, sourceId: mine.ownerId, sourceTeam: mine.team, raw: mine.damage, penetration: 0, isCore: false, kind: 'mine', damageType: 'heat', shieldDisruptTicks: mine.nestRole ? WEAVER_RULES.shieldDisruptTicks : undefined, rewardMultiplier: mine.rewardMultiplier })
   }
   world.projectiles = world.projectiles.filter((projectile) => projectile.team === mine.team || distance(projectile.pos, mine.pos) > mine.blastRadius || mine.nestRole && !hasLineOfSight(mine.pos, projectile.pos, world.room.walls))
 }

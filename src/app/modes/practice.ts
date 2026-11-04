@@ -69,7 +69,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
   const credit = (world: World, price = 0) => { if (config.freeCards) world.shards = Math.max(CREDIT, Number.isFinite(price) ? price : 0) }
   const resetMeters = (world: World) => { startTick = world.tick; damageBase = world.stats.damageDealt; killBase = world.stats.kills; previousDamage = world.stats.damageDealt; samples = [] }
   const restore = (world: World) => {
-    const p = getPlayer(world); p.hp = p.attrs.maxHp; p.shield = p.attrs.shield
+    const p = getPlayer(world); p.hp = p.attrs.maxHp; p.shield = 0
     p.iframesTicks = 0; p.fireCooldownTicks = 0; p.mineCooldownTicks = 0
     p.deflectWindowTicks = 0; p.deflectCooldownTicks = 0; p.rageTicks = 0; p.dashTicks = 0; p.rageCooldownTicks = 0; p.dashCooldownTicks = 0; p.burstRemaining = 0; p.laserTicks = 0; p.laserTimer = 0; p.burn = undefined; p.shockTicks = 0
   }
@@ -112,6 +112,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       else if (action.type === 'card-level') {
         const card = world.registry.get(action.id)
         if (!card || !Number.isSafeInteger(action.level) || action.level < 0 || (card.maxLevel !== undefined && action.level > card.maxLevel)) return false
+        if (action.level > 0 && ['precision-stance', 'weapon-electric', 'weapon-laser'].includes(action.id) && card.unavailable?.(getPlayer(world).attrs)) return false
         const purchases = world.purchases.filter((purchase) => purchase.id !== action.id)
         // Granted levels have no payment history; do not allocate one entry per level.
         if (action.level > 0) purchases.push({ id: action.id, level: action.level, paid: [] })

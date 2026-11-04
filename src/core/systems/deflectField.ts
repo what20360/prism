@@ -40,7 +40,7 @@ export function updateDeflectFields(world: World, dt: number): void {
         projectile.targetId = actor.lockTargetId; projectile.travelLeft = Math.max(500, projectile.travelLeft)
         const rebound = strength * (1 - distance / radius) ** 2 * dt
         projectile.vel = { x: -projectile.vel.x + dx / distance * rebound, y: -projectile.vel.y + dy / distance * rebound }
-        if (actor.attrs.deflectLevel >= 2) projectile.damage *= actor.attrs.reflectDamageMult
+        if (actor.attrs.deflectLevel >= 2) { projectile.damage *= actor.attrs.reflectDamageMult; if (projectile.impactScale !== undefined) projectile.impactScale *= actor.attrs.reflectDamageMult }
         world.effects.push({ kind: actor.attrs.deflectLevel >= 2 ? 'reflect' : 'deflect', x: projectile.pos.x, y: projectile.pos.y, radius: 30, ttl: 12 })
         continue
       }

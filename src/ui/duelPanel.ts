@@ -52,7 +52,7 @@ export function createDuelPanel(root: HTMLElement, actions: Actions) {
   const shopHeader = document.createElement('div'); shopHeader.className = 'duel-shop__header'; const shopTitle = document.createElement('h2'); shopTitle.textContent = '对战构筑'; shopHeader.append(shopTitle)
   const budget = document.createElement('p'); budget.className = 'settings__hint'; shopHeader.append(budget)
   const nav = document.createElement('nav'); shopHeader.append(nav)
-  const content = document.createElement('div'); content.className = 'duel-shop__content'; const collapsed = new Set<string>()
+  const content = document.createElement('div'); content.className = 'duel-shop__content'
   let active: 'cards' | 'skills' | 'plans' = 'cards', shopSignature = ''
   for (const [id, label] of [['cards', '升级卡片'], ['skills', '主动技能'], ['plans', '流派与预购']] as const) button(label, () => { active = id; refreshShop(true) }, nav)
   button('返回对局', () => { shop.hidden = true }, nav); shop.append(shopHeader, content)
@@ -63,7 +63,7 @@ export function createDuelPanel(root: HTMLElement, actions: Actions) {
     const signature = JSON.stringify([active, view.cards, view.skillSlots, actions.favorites(), active === 'plans' ? actions.getPlans() : null])
     if (!force && (signature === shopSignature || content.contains(document.activeElement) && document.activeElement?.matches('input, textarea, select'))) return
     shopSignature = signature; const scroll = content.scrollTop
-    if (active === 'cards') content.replaceChildren(renderCardsSection(view, { onBuy: actions.buy, onSell: actions.sell, onQueue: (id) => { actions.queue(id); openShop('plans') }, favorites: actions.favorites(), onFavorite: actions.favorite, collapsed }))
+    if (active === 'cards') content.replaceChildren(renderCardsSection(view, { onBuy: actions.buy, onSell: actions.sell, onQueue: (id) => { actions.queue(id); openShop('plans') }, favorites: actions.favorites(), onFavorite: actions.favorite }))
     else if (active === 'skills') content.replaceChildren(renderSkillsSection(view, actions.equip))
     else content.replaceChildren(renderPlansSection(actions.getPlans(), actions.plans))
     content.scrollTop = scroll

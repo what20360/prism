@@ -127,7 +127,6 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
   root.append(overlay)
 
   let active: MenuSection = 'upgrade'
-  const collapsed = new Set<string>()
 
   const render = (): void => {
     const state = handlers.getState()
@@ -146,7 +145,7 @@ export function createMenu(root: HTMLElement, handlers: MenuHandlers): Menu {
     else if (active === 'attrs') content.append(renderAttrsSection(state.player))
     else if (active === 'settings') {
       content.append(renderSettingsSection(state.settings, { onSetting: handlers.onSetting }, state.player.attrs))
-    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, onQueue: handlers.onQueue, collapsed, onPractice: handlers.onPractice, favorites: handlers.favorites?.(), onFavorite: handlers.onFavorite }))
+    } else content.append(renderCardsSection(state, { onBuy: handlers.onBuy, onSell: handlers.onSell, onQueue: handlers.onQueue, onPractice: handlers.onPractice, favorites: handlers.favorites?.(), onFavorite: handlers.onFavorite }))
 
     for (const [id, button] of buttons) {
       button.hidden = (id === 'practice' && !state.practice) || (id === 'endless' && !state.endless) || (id === 'dungeon' && !state.dungeon)

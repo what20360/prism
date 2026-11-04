@@ -43,7 +43,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
 
   const mitigation = armorToMitigation(attrs.armor)
   const homing = homingProfile(attrs.homing)
-  const dps = attrs.damage * Math.min(attrs.fireRate, 60 / Math.max(1, (attrs.burstCount - 1) * WEAPON_RULES.burstGapTicks + 1)) * attrs.multishot * attrs.burstCount
+  const dps = attrs.damage * attrs.multishot * attrs.burstCount / (1 / attrs.fireRate + (attrs.burstCount - 1) * WEAPON_RULES.burstGapTicks / 60)
 
   wrapper.append(
     group('生存', [
@@ -58,12 +58,13 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('复活次数', formatNumber(attrs.revives)),
     ]),
     group('火力', [
-      row('主武器', attrs.weapon === 1 ? '电弧 · 电伤' : attrs.weapon === 2 ? '激光 · 热伤' : '弹芯枪 · 物理'),
+      row('主武器', attrs.weapon === 1 ? '电弧 · 电伤' : attrs.weapon === 2 ? '激光 · 热伤' : attrs.weapon === 3 ? '狙击手 · 物理' : '弹芯枪 · 物理'),
       row('单发伤害', formatNumber(attrs.damage)),
       row('射速', `${formatNumber(attrs.fireRate)} 发/秒`),
       row('理论 DPS', attrs.weapon === 0 ? formatNumber(dps) : '依目标与穿透；可在测试场测量'),
       row('射程（路径距离）', formatNumber(attrs.range * (attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1))),
       row('弹速', formatNumber(attrs.bulletSpeed)),
+      row('动能狙击', attrs.sniperPower > 0 ? `Lv${attrs.sniperPower} · 每100命中弹速增加 ${attrs.sniperPower} 基础伤害，再乘伤害倍率` : '未专精'),
       row('发射初速 / 最高弹速', `${formatNumber(attrs.bulletSpeed * homing.initialMultiplier)} / ${formatNumber(attrs.bulletSpeed * homing.cruiseMultiplier)}`),
       row('穿透层数', formatNumber(attrs.pierce)),
       row('贯穿推进', attrs.pierceBoost > 0 ? `每次速度 ×${formatNumber(penetrationProfile(attrs.pierceBoost).speedMultiplier)}，射程 +${formatNumber(penetrationProfile(attrs.pierceBoost).rangeGain)}` : '未解锁'),
@@ -74,7 +75,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
       row('弹射', attrs.ricochet > 0 ? '每次消耗 1 穿透' : '未解锁'),
       row('连发轮数', formatNumber(attrs.burstCount)),
       row('电弧传导保留 / 强化', `${formatNumber(arcProfile(attrs.arcEfficiency).retention * 100)}% / ${formatNumber(arcProfile(attrs.arcEfficiency).boostedRetention * 100)}%`),
-      row('激光脉冲 / 照射时间', `${formatNumber(attrs.damage * ARSENAL_RULES.laserDamage * (1 + 0.2 * attrs.laserPower))} / ${formatNumber(ARSENAL_RULES.laserTicks * attrs.burstCount / 60)} 秒`),
+      row('激光脉冲 / 照射时间', `${formatNumber(attrs.damage * ARSENAL_RULES.laserDamage * (1 + 0.1 * attrs.laserPower))} / ${formatNumber(ARSENAL_RULES.laserTicks * attrs.burstCount / 60)} 秒`),
       row('追踪转速', attrs.homing > 0 ? `${formatNumber(homing.turnRate)} 弧度/秒` : '未解锁'),
       row('同时存在子弹', attrs.maxProjectiles > 0 ? `${attrs.maxProjectiles} 颗` : '不限'),
       row('视野倍率', `×${formatNumber(attrs.vision)}`),
@@ -84,7 +85,7 @@ export function renderAttrsSection(view: PlayerView): HTMLElement {
     group('恢复与收益', [
       row('击杀晶片 / 血球等级', `${formatNumber(attrs.mineShardChance)} / ${formatNumber(attrs.bloodOrbChance)}`),
       row('吸血', `${formatNumber(attrs.lifesteal * 100)}%`),
-      row('吸盾', `${formatNumber(attrs.shieldSteal * 100)}%`),
+      row('脱战护盾恢复', `${formatNumber(attrs.shieldRegen)} /秒`),
       row('棱晶收益', `×${formatNumber(attrs.shardGain)}`),
       row('磁铁吸取半径', attrs.pickupRadius > 0 ? formatNumber(attrs.pickupRadius) : '未解锁'),
     ]),

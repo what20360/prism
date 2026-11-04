@@ -1,7 +1,7 @@
 /** Shared numeric rules used by simulation and generated card descriptions. */
 export const CARD_ECONOMY = { growth: 1.5, refundRatio: 0.6 } as const
 export const WEAPON_RULES = { burstGapTicks: 4, spreadStep: 0.12 } as const
-export const HOMING_RULES = { initialMultiplier: 0.2, cruiseMultiplier: 1, acceleration: 250, baseTurn: 1, rootTurn: 0.6 } as const
+export const HOMING_RULES = { initialMultiplier: 0.5, cruiseMultiplier: 1, acceleration: 250, baseTurn: 1, rootTurn: 0.6 } as const
 export const ROOM_RESOURCE_RULES = { bloodMin: 1, bloodMax: 2, shardMin: 3, shardMax: 5, bloodValue: 10, shardValueMin: 4, shardValueMax: 6 } as const
 export function penetrationProfile(level: number) { return { speedMultiplier: 1 + 0.12 * level, rangeGain: 200 * level } }
 export const MINE_RULES = { ignoreSlowFactor: 0.65, grenadeSpeed: 160, grenadeTravel: 360 } as const
@@ -33,3 +33,6 @@ export function dashProfile(level: number) { return { duration: 0.22, cooldown: 
 export function mineSlowMultiplier(multiplier: number, ignoreBullets: boolean): number {
   return 1 + Math.max(0, multiplier - 1) * (ignoreBullets ? MINE_RULES.ignoreSlowFactor : 1)
 }
+
+export const COMBAT_RULES = { outOfCombatTicks: 180 } as const
+export const SNIPER_RULES = { impactPerSpeed: 0.01, damageMultiplier: 2, fireRateMultiplier: 0.5, speedMultiplier: 0.7, travelMultiplier: 1.1 } as const

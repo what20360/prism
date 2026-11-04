@@ -88,7 +88,7 @@ describe('silk-den volleys and brood', () => {
     for (let i = 0; i < 700; i++) {
       updateWeaver(w, q, p)
       const next = w.projectiles.filter((b) => b.ownerId === q.id).length
-      if (next > count) { shots.push(i); expect(next - count).toBe(13); expect(q.intent.move).toEqual({ x: 0, y: 0 }); count = next }
+      if (next > count) { shots.push(i); expect(next - count).toBe(39); expect(q.intent.move).toEqual({ x: 0, y: 0 }); count = next }
     }
     expect(shots.slice(0, 3).map((n) => n - shots[0]!)).toEqual([0, 60, 120]); expect(shots[3]! - shots[0]!).toBe(600)
   })

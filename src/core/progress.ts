@@ -123,12 +123,14 @@ export function sellCard(world: World, cardId: string, actorId?: number): boolea
 export function reapplyAttrs(world: World, player: Actor, actorId?: number): void {
   const next = resolveAttrs(world.basePlayerAttrs, progressOf(world, actorId).purchases, world.registry)
   const hpGain = next.maxHp - player.attrs.maxHp
-  const shieldGain = next.shield - player.attrs.shield
 
   const previous = player.attrs
   player.attrs = next
   enforceMineLimits(world, player)
-  if (previous.weapon !== next.weapon) { player.laserTicks = 0; player.laserTimer = 0; player.burstRemaining = 0; player.burstTimer = 0 }
+  if (previous.weapon !== next.weapon) {
+    if (player.burstRemaining > 0 || (player.laserTicks ?? 0) > 0) player.fireCooldownTicks = Math.max(player.fireCooldownTicks, Math.max(1, Math.round(60 / Math.max(0.001, previous.fireRate))))
+    player.laserTicks = 0; player.laserTimer = 0; player.burstRemaining = 0; player.burstTimer = 0
+  }
   if (previous.maxProjectiles !== 1 && next.maxProjectiles === 1) { player.laserTicks = 0; player.laserTimer = 0 }
   reconcileSkills(player, previous)
   if (next.maxProjectiles > 0) {
@@ -141,8 +143,7 @@ export function reapplyAttrs(world: World, player: Actor, actorId?: number): voi
   player.hp = Math.min(player.hp, next.maxHp)
 
   const cap = shieldCap(next)
-  // Buying a shield card has to hand over the shield points it promises.
-  if (shieldGain > 0) player.shield += shieldGain
+  if (player.shieldDisabledTicks) player.shield = 0
   if (player.shield > cap) player.shield = cap
 }
 

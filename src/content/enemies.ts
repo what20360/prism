@@ -1,5 +1,5 @@
 import type { AttrSet } from '../core/attrs'
-import { ARSENAL_DEFAULTS } from '../core/attrs'
+import { ARSENAL_DEFAULTS, COMBAT_DEFAULTS } from '../core/attrs'
 import type { EnemyBehavior, EnemyTier, EnemyMechanics } from '../core/world'
 
 export interface EnemyType extends EnemyMechanics {
@@ -12,7 +12,7 @@ export interface EnemyType extends EnemyMechanics {
 }
 
 const ZERO_ATTRS: AttrSet = {
-  ...ARSENAL_DEFAULTS,
+  ...ARSENAL_DEFAULTS, ...COMBAT_DEFAULTS,
   maxHp: 30,
   speed: 0,
   radius: 34,

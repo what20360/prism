@@ -1,4 +1,4 @@
-import { combatAttrs } from './combat'
+import { combatAttrs, isOutOfCombat } from './combat'
 import { skillRemaining, skillTotal, unlocked } from './systems/skills'
 import type { Actor, SkillId, Pickup, DamageType, MonsterTrait, EnergyTrace, RoomDesign } from './world'
 import { ARSENAL_RULES } from './rules'
@@ -28,6 +28,8 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly stowed: boolean
+  readonly shieldDisabledSeconds: number
   readonly local?: boolean
   readonly weaver?: { readonly mineStock: number; readonly spiderStock: number; readonly volley: number; readonly windup: number; readonly shotTicks: number }
   readonly spider?: { readonly role: 'worker' | 'bomber'; readonly dashUsed: boolean; readonly pursuing: boolean }
@@ -101,6 +103,7 @@ export interface ProjectileView {
   readonly vy: number
   readonly speed: number
   readonly rangeRatio: number
+  readonly rangeLeft: number
   readonly trail: readonly { x: number; y: number }[]
 }
 
@@ -181,6 +184,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   for (const actor of [...world.actors.values()].sort((a,b)=>Number(b.id===viewerId)-Number(a.id===viewerId))) {
     const attrs = combatAttrs(actor)
     actors.push({
+      stowed: isOutOfCombat(actor), shieldDisabledSeconds: (actor.shieldDisabledTicks ?? 0) / TICK_RATE,
       block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
       weapon: attrs.weapon, damageType: actor.attackType ?? (attrs.weapon === 1 ? 'electric' : attrs.weapon === 2 ? 'heat' : 'physical'),
       traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.windupTicks ?? null, windupAngle: actor.windupAngle ?? actor.aimAngle,
@@ -217,7 +221,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       deflectCooldownTotal: skillTotal(actor, 'deflect'),
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
       range: actor.attrs.range * (attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1),
-      fireCooldownSeconds: actor.fireCooldownTicks / TICK_RATE,
+      fireCooldownSeconds: actor.burstRemaining > 0 || (actor.laserTicks ?? 0) > 0 ? 1 / Math.max(0.001, attrs.fireRate) : actor.fireCooldownTicks / TICK_RATE,
       fireCooldownTotal: 1 / Math.max(0.001, attrs.fireRate),
       mineCooldownSeconds: actor.mineCooldownTicks / TICK_RATE,
       mineCooldownTotal: actor.attrs.mineCooldown / Math.max(0.01, actor.attrs.mineCooldownRate),
@@ -242,6 +246,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
     vx: p.vel.x,
     vy: p.vel.y,
     speed: Math.hypot(p.pos.x - p.prevPos.x, p.pos.y - p.prevPos.y) * TICK_RATE,
+    rangeLeft: p.travelLeft,
     rangeRatio: Math.max(0, Math.min(1, p.travelLeft / Math.max(Number.MIN_VALUE, p.rangeBudget ?? p.travelLeft))),
     trail: p.trail?.map((point) => ({ ...point })) ?? [],
   }))

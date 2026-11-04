@@ -1,3 +1,4 @@
+import { isAttacking } from '../combat'
 import { shieldCap } from '../attrs'
 import { TICK_RATE } from '../types'
 import type { Effect, World } from '../world'
@@ -12,6 +13,7 @@ const REGEN_DELAY_TICKS = 3 * TICK_RATE
 /** Step 3: cooldowns, invulnerability, deflection, regen, chain timeout, effects. */
 export function updateTimers(world: World): void {
   for (const actor of world.actors.values()) {
+    if (actor.shieldDisabledTicks && actor.shieldDisabledTicks > 0) { actor.shieldDisabledTicks--; actor.shield = 0 }
     if (actor.shockTicks) actor.shockTicks--
     if (actor.alive && actor.burn && --actor.burn.timer <= 0) {
       const burn = actor.burn
@@ -29,10 +31,10 @@ export function updateTimers(world: World): void {
     if (actor.deflectWindowTicks > 0) actor.deflectWindowTicks -= 1
     if (actor.deflectCooldownTicks > 0) actor.deflectCooldownTicks -= 1
 
-    if (actor.intent.fire === true || actor.intent.placeMine || (actor.laserTicks ?? 0) > 0) actor.outOfCombatTicks = 0
+    if (isAttacking(actor)) actor.outOfCombatTicks = 0
     else actor.outOfCombatTicks += 1
 
-    if (actor.alive && actor.attrs.shieldRegen > 0 && actor.outOfCombatTicks > REGEN_DELAY_TICKS) {
+    if (actor.alive && !actor.shieldDisabledTicks && actor.attrs.shieldRegen > 0 && actor.outOfCombatTicks > REGEN_DELAY_TICKS) {
       actor.shield = Math.min(shieldCap(actor.attrs), actor.shield + actor.attrs.shieldRegen / TICK_RATE)
     }
   }

@@ -2,6 +2,8 @@
 
 本手册依据 **2026-11-04 核对的源码**编写，代码基线为 [`828c4a9eed139ee7a54b1f7786c536680a07306f`](https://github.com/what20360/prism/tree/828c4a9eed139ee7a54b1f7786c536680a07306f)。它描述该版本**实际如何运行**；后续改代码时，需要同步维护相应章节。文中的源码链接相对于本目录，可在 GitHub 直接打开；函数名、类型名是进一步搜索的入口。
 
+**当前规则：已同步 v1.22（2026-11-04）；新增状态、字段与迁移说明见[第四篇](04-sniper-combat-and-presentation.md)。原始架构基线链接用于追溯，当前实现以本分支源码与第四篇为准。**
+
 | 分册 | 内容 |
 |---|---|
 | **本篇** | 项目结构、依赖方向、世界与实体、逻辑时钟、每 tick 顺序、空间算法、快照与确定性 |
@@ -394,19 +396,19 @@ console.log({ tick: world.tick, position: world.actors.get(id)!.pos, hash: hashW
 
 | 符号 | 源码声明 |
 |---|---|
-| `World` | [src/core/world.ts:219](../../src/core/world.ts#L219) |
+| `World` | [src/core/world.ts:225](../../src/core/world.ts#L225) |
 | `Actor` | [src/core/world.ts:27](../../src/core/world.ts#L27) |
-| `Projectile` | [src/core/world.ts:89](../../src/core/world.ts#L89) |
-| `Mine` | [src/core/world.ts:124](../../src/core/world.ts#L124) |
-| `Pickup` | [src/core/world.ts:153](../../src/core/world.ts#L153) |
-| `CoopState` | [src/core/world.ts:258](../../src/core/world.ts#L258) |
-| `createWorld` | [src/core/world.ts:303](../../src/core/world.ts#L303) |
-| `createActor` | [src/core/world.ts:387](../../src/core/world.ts#L387) |
+| `Projectile` | [src/core/world.ts:90](../../src/core/world.ts#L90) |
+| `Mine` | [src/core/world.ts:130](../../src/core/world.ts#L130) |
+| `Pickup` | [src/core/world.ts:159](../../src/core/world.ts#L159) |
+| `CoopState` | [src/core/world.ts:264](../../src/core/world.ts#L264) |
+| `createWorld` | [src/core/world.ts:309](../../src/core/world.ts#L309) |
+| `createActor` | [src/core/world.ts:393](../../src/core/world.ts#L393) |
 | `Intent` | [src/core/controller.ts:7](../../src/core/controller.ts#L7) |
 | `step` | [src/core/simulation.ts:27](../../src/core/simulation.ts#L27) |
 | `applyRoom` | [src/core/dungeon.ts:16](../../src/core/dungeon.ts#L16) |
 | `findPath` | [src/core/navigation.ts:46](../../src/core/navigation.ts#L46) |
-| `toSnapshot` | [src/core/snapshot.ts:177](../../src/core/snapshot.ts#L177) |
+| `toSnapshot` | [src/core/snapshot.ts:180](../../src/core/snapshot.ts#L180) |
 | `hashWorld` | [src/core/hash.ts:3](../../src/core/hash.ts#L3) |
 | `createGame` | [src/app/game.ts:146](../../src/app/game.ts#L146) |
 

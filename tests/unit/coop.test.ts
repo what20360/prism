@@ -79,7 +79,7 @@ describe('cooperative campaign and endless authority',()=>{
   expect(loaded.hostId()).toBe(ids[1]);expect(loaded.world().coop!.members[0]!.connected).toBe(false)
   expect(loaded.world().actors.get(ids[1]!)!.hp).toBe(w.actors.get(ids[1]!)!.hp)
   expect(loaded.world().actors.get(ids[1]!)!.attrs.maxHp).toBe(35)
-  save.roomIndex=25;expect(()=>readCoopSave(JSON.stringify(save))).toThrow()
+  save.roomIndex=25;expect(()=>readCoopSave(JSON.stringify(save))).not.toThrow();save.roomIndex=26;expect(()=>readCoopSave(JSON.stringify(save))).toThrow()
  })
  it('loads absent participants as disconnected while preserving countdown and purchases',()=>{
   const {m,w,ids}=party();m.action(ids[1]!,{kind:'buy',id:'gun-damage'});kill(w,ids[1]!);for(let i=0;i<100;i++)m.tick(new Map())

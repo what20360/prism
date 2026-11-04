@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
-import { createCardRegistry, resolveAttrs } from '../../src/core/cards'
+import { LEGACY_V1_REGISTRY } from '../../src/content/legacyCards'
+import { resolveAttrs } from '../../src/core/cards'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { buildDungeon } from '../../src/content/dungeon'
@@ -62,7 +63,7 @@ describe('complete run saves', () => {
   it('migrates legacy suspension saves without rerolling the world, renaming or rewriting live bullets', () => {
     const a = world(), player = getPlayer(a); a.shards = 10000
     for (const id of ['gun-range', 'homing', 'suspension', 'burst', 'suspension']) buyCard(a, id)
-    const current = { ...player.attrs }, legacy = createCardRegistry(CARD_REGISTRY.all().map((card) => card.id === 'suspension' ? { ...card, effectFn: (level, attrs) => ({ ...attrs, bulletSpeed: attrs.bulletSpeed / (1 + 0.6 * level) }) } : card))
+    const current = { ...player.attrs }, legacy = LEGACY_V1_REGISTRY
     player.attrs = resolveAttrs(a.basePlayerAttrs, a.purchases, legacy); emitProjectile(a, player, 0)
     const saved = { ...checkpoint(), balanceVersion: 1, name: '飞剑旧局', world: serializeWorld(a) }, before = JSON.stringify(saved), loaded = readCheckpoint(before)
     expect(loaded.balanceVersion).toBe(CURRENT_BALANCE_VERSION); expect(loaded.name).toBe(saved.name); expect(loaded.savedAt).toBe(saved.savedAt)

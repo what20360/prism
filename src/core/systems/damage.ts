@@ -1,6 +1,6 @@
 import { grantCoopShards, COOP_REVIVE_TICKS } from '../coop'
 import { combatAttrs } from '../combat'
-import { resolveDamage, shieldCap } from '../attrs'
+import { resolveDamage } from '../attrs'
 import { distance } from '../collision'
 import { TICK_RATE } from '../types'
 import { ARSENAL_RULES, KILL_LOOT_RULES } from '../rules'
@@ -28,6 +28,7 @@ export interface DamageEvent {
   readonly penetration: number
   readonly isCore: boolean
   readonly kind?: 'bullet' | 'mine' | 'contact' | 'electric' | 'laser' | 'status'
+  readonly shieldDisruptTicks?: number
   readonly damageType?: DamageType
   readonly rewardMultiplier?: number
 }
@@ -43,6 +44,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
   // Invulnerability nullifies the hit entirely: no damage, no rewards.
   if (target.iframesTicks > 0) return
 
+  if (event.shieldDisruptTicks && (target.team === 'player' || world.participants?.[target.id])) { target.shieldDisabledTicks = Math.max(target.shieldDisabledTicks ?? 0, event.shieldDisruptTicks); target.shield = 0; target.outOfCombatTicks = 0 }
   const attrs = combatAttrs(target), type = event.damageType ?? 'physical'
   const resistance = type === 'electric' ? attrs.electricResist : type === 'heat' ? attrs.heatResist : attrs.physicalResist
   const actual = resolveDamage(event.raw, attrs.armor, event.penetration, attrs.block, resistance)
@@ -130,10 +132,7 @@ function applyLifesteal(player: Actor, damage: number): void {
     player.hp = Math.min(player.attrs.maxHp, player.hp + damage * attrs.lifesteal)
   }
 
-  const shieldGain = damage * player.attrs.shieldSteal
-  if (shieldGain > 0) {
-    player.shield = Math.min(shieldCap(player.attrs), player.shield + shieldGain)
-  }
+
 }
 
 function killActor(world: World, target: Actor, player: Actor | undefined): void {

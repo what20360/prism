@@ -76,14 +76,14 @@ describe('card pipeline', () => {
   it('enforces prerequisites', () => {
     const world = makeWorld(1000)
 
-    const locked = listCardStates(world).find((card) => card.id === 'shield-steal')
+    const locked = listCardStates(world).find((card) => card.id === 'shield-regen')
     expect(locked?.availability).toBe('locked')
-    expect(buyCard(world, 'shield-steal')).toEqual({ ok: false, reason: 'requirements' })
+    expect(buyCard(world, 'shield-regen')).toEqual({ ok: false, reason: 'requirements' })
 
     expect(buyCard(world, 'shield').ok).toBe(true)
-    const unlocked = listCardStates(world).find((card) => card.id === 'shield-steal')
+    const unlocked = listCardStates(world).find((card) => card.id === 'shield-regen')
     expect(unlocked?.availability).toBe('ok')
-    expect(buyCard(world, 'shield-steal').ok).toBe(true)
+    expect(buyCard(world, 'shield-regen').ok).toBe(true)
   })
 
   it('has no hard cap on numeric upgrades', () => {
@@ -97,7 +97,7 @@ describe('card pipeline', () => {
   })
 })
 
-describe('lifesteal and shield steal', () => {
+describe('lifesteal without shield steal', () => {
   it('heals for a share of damage dealt', () => {
     const world = makeWorld()
     const player = getPlayer(world)
@@ -129,7 +129,7 @@ describe('lifesteal and shield steal', () => {
     expect(player.hp).toBeCloseTo(20, 6)
   })
 
-  it('caps shield steal at max hp * shieldCapMult', () => {
+  it('never restores shields from damage, even with a deprecated legacy attribute', () => {
     const world = makeWorld()
     const player = getPlayer(world)
     setAttrs(player, { shield: 12, shieldSteal: 1, shieldCapMult: 1, armor: 0 })
@@ -153,7 +153,7 @@ describe('lifesteal and shield steal', () => {
       isCore: false,
     })
 
-    expect(player.shield).toBeCloseTo(player.attrs.maxHp, 6)
+    expect(player.shield).toBe(0)
   })
 })
 
@@ -365,7 +365,7 @@ describe('card info', () => {
 
     const deflect = states.find((state) => state.id === 'deflect')
     expect(deflect?.requires).toEqual([])
-    expect(states.find((state) => state.id === 'shield-steal')?.requires).toEqual([{ card: 'shield', level: 1 }])
+    expect(states.find((state) => state.id === 'shield-regen')?.requires).toEqual([{ card: 'shield', level: 1 }])
     expect(deflect?.summary).toContain('力场半径')
 
     const damage = states.find((state) => state.id === 'gun-damage')
@@ -375,15 +375,16 @@ describe('card info', () => {
 })
 
 describe('shield cards', () => {
-  it('hands over the shield points a shield card promises', () => {
+  it('adds shield capacity and natural regen without granting instant points', () => {
     const world = makeWorld()
     const player = getPlayer(world)
     const before = player.shield
 
     buyCard(world, 'shield')
 
-    expect(player.shield).toBeGreaterThan(before)
-    expect(player.shield).toBe(player.attrs.shield)
+    expect(player.shield).toBe(before)
+    expect(player.attrs.shield).toBe(12)
+    expect(player.attrs.shieldRegen).toBe(2)
   })
 
   it('never lets the shield exceed its cap when the card is bought', () => {

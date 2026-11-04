@@ -9,6 +9,8 @@ export interface AttrSet {
   electricResist: number
   heatResist: number
   weapon: number
+  damageScale: number
+  sniperPower: number
   arcEfficiency: number
   laserPower: number
   minePulseLevel: number
@@ -81,6 +83,8 @@ export interface AttrSet {
   /** Outward acceleration at the centre, in units/s^2 (falls off with distance). */
   deflectFieldStrength: number
 }
+
+export const COMBAT_DEFAULTS = { damageScale: 1, sniperPower: 0 } as const
 
 export type AttrKey = keyof AttrSet
 

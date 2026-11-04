@@ -6,10 +6,10 @@ import type { DuelAction } from '../content/duel'
 import type { PurchaseNotice } from '../app/purchaseQueue'
 import { CARD_REGISTRY } from '../content/cards'
 export type CoopPacket={type:'hello';name:string}|{type:'input';sequence:number;intent:Intent;offers?:boolean}|{type:'action';sequence:number;action:DuelAction}|{type:'ready';sequence:number;ready:boolean}|{type:'state';serial:number;viewerId:number;save:CoopSave;notice?:PurchaseNotice|null}|{type:'ping'|'pong';time:number}
-export function encodeCoop(packet:CoopPacket):string{return JSON.stringify({protocol:'prism-coop-1',...packet})}
+export function encodeCoop(packet:CoopPacket):string{return JSON.stringify({protocol:'prism-coop-2',...packet})}
 export function decodeCoop(text:string):CoopPacket {
  if(new TextEncoder().encode(text).length>2*1024*1024)throw new Error('合作消息过大')
- const p=record(JSON.parse(text));if(p.protocol!=='prism-coop-1')throw new Error('合作版本不匹配')
+ const p=record(JSON.parse(text));if(p.protocol!=='prism-coop-2')throw new Error('合作版本不匹配')
  if(p.type==='hello'){if(typeof p.name!=='string'||p.name.length>24||/[\u0000-\u001f]/.test(p.name))throw new Error('队员名称无效');return {type:'hello',name:p.name}}
  if(p.type==='ping'||p.type==='pong')return {type:p.type,time:finite(p.time,0)}
  if(p.type==='input')return {type:'input',sequence:integer(p.sequence),intent:cleanIntent(p.intent),offers:p.offers!==false}

@@ -22,10 +22,10 @@ function setup(purchases: Purchase[] = [], overrides: Partial<AttrSet> = {}) {
 }
 
 describe('homing and flying-sword ballistics', () => {
-  it('launches at one fifth speed and never accelerates past the resolved bullet speed', () => {
-    const { world, player, emit } = setup([], { homing: 1, range: 10000 })
+  it('launches at half speed and never accelerates past the resolved bullet speed', () => {
+    const { world, player, emit } = setup([], { homing: 1, range: 1000 })
     const bullet = emit()
-    expect(bullet.vel.x).toBe(140); expect(bullet.homingTurn).toBeCloseTo(1.6)
+    expect(bullet.vel.x).toBe(350); expect(bullet.homingTurn).toBeCloseTo(1.6)
     expect(bullet.cruiseSpeed).toBe(player.attrs.bulletSpeed)
     for (let i = 0; i < 240; i++) updateProjectiles(world, 1 / 60)
     expect(Math.hypot(bullet.vel.x, bullet.vel.y)).toBeCloseTo(700)
@@ -53,7 +53,7 @@ describe('homing and flying-sword ballistics', () => {
     expect(sword.player.attrs.range).toBeCloseTo(plain.player.attrs.range * 1.45)
     expect(sword.player.attrs.bulletSpeed).toBeCloseTo(700 / 1.9)
     const a = plain.emit(), b = sword.emit()
-    expect(b.homingTurn).toBe(a.homingTurn); expect(b.vel.x).toBeCloseTo(140 / 1.9)
+    expect(b.homingTurn).toBe(a.homingTurn); expect(b.vel.x).toBeCloseTo(350 / 1.9)
     expect(b.travelLeft).toBeCloseTo(sword.player.attrs.range); expect(b.rangeBudget).toBe(b.travelLeft)
     const duration = (run: typeof plain) => {
       let ticks = 0
@@ -158,9 +158,9 @@ describe('range is actual path length', () => {
 describe('formula-driven growth cards', () => {
   it('caps only pure binary mechanisms and lets numeric effects and descriptions grow', () => {
     expect(ALL_CARDS.filter((card) => card.maxLevel !== undefined).map((card) => card.id).sort())
-      .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'ricochet', 'weapon-electric', 'weapon-laser'])
+      .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'precision-stance', 'ricochet', 'weapon-electric', 'weapon-laser'])
     for (const card of ALL_CARDS.filter((card) => card.maxLevel === undefined)) {
-      const context = { ...PLAYER_BASE_ATTRS, shield: 12, weapon: card.id === 'arc-coil' ? 1 : card.id === 'laser-focus' ? 2 : 0 }
+      const context = { ...PLAYER_BASE_ATTRS, shield: 12, weapon: card.id === 'arc-coil' ? 1 : card.id === 'laser-focus' ? 2 : card.id === 'sniper-specialty' ? 3 : 0 }
       const a = card.effectFn(30, context), b = card.effectFn(31, context)
       expect(b, card.id).not.toEqual(a)
       expect(card.summary?.(31), card.id).not.toBe(card.summary?.(30))
@@ -168,12 +168,13 @@ describe('formula-driven growth cards', () => {
       expect(Object.values(b).every(Number.isFinite), card.id).toBe(true)
     }
   })
-  it('keeps generated stance text and cumulative modifiers aligned across levels', () => {
-    const card = CARD_REGISTRY.get('precision-stance')!, attrs = card.effectFn(3, PLAYER_BASE_ATTRS)
-    expect(attrs.bulletSpeed).toBe(4900); expect(attrs.range).toBeCloseTo(4480)
-    expect(card.summary?.(3)).toContain('弹速 ×7')
-    expect(card.summary?.(3)).toContain('射程 ×8')
-    expect(card.summary?.(3)).not.toContain('追踪操控')
+  it('keeps the weapon single-purchase and generates uncapped specialization effects', () => {
+    const card = CARD_REGISTRY.get('precision-stance')!, attrs = card.effectFn(1, PLAYER_BASE_ATTRS)
+    expect(card.maxLevel).toBe(1); expect(attrs.weapon).toBe(3)
+    expect(attrs.bulletSpeed).toBe(2100); expect(attrs.range).toBeCloseTo(1120)
+    const spec = CARD_REGISTRY.get('sniper-specialty')!, specialized = spec.effectFn(3, attrs)
+    expect(specialized.damage).toBe(attrs.damage * 8); expect(specialized.fireRate).toBe(attrs.fireRate / 8)
+    expect(spec.summary?.(3)).toContain('伤害 ×8'); expect(spec.summary?.(3)).toContain('每100弹速')
   })
   it('scales active skills through the same rules used by their generated descriptions', () => {
     const { world, player } = setup([{ id: 'rage', level: 3 }, { id: 'dash', level: 3 }])

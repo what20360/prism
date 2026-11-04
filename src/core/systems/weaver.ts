@@ -130,7 +130,7 @@ export function updateWeaver(world: World, queen: Actor, player: Actor): void {
     if (--s.volleyTimer <= 0) {
       move = still
       const shots = Math.min(31, Math.max(3, Math.floor(queen.attrs.multishot)))
-      for (let i = 0; i < shots; i++) emitProjectile(world, queen, queen.aimAngle + (i - (shots - 1) / 2) * R.fanStep)
+      for (const speed of R.fanLayers) for (let i = 0; i < shots; i++) if (emitProjectile(world, queen, queen.aimAngle + (i - (shots - 1) / 2) * R.fanStep)) { const bullet = world.projectiles.at(-1)!; bullet.vel = { x: bullet.vel.x * speed, y: bullet.vel.y * speed }; if (bullet.cruiseSpeed !== undefined) bullet.cruiseSpeed *= speed }
       s.shotTicks = 10
       if (s.volley === 3) { s.volley = 0; s.volleyTimer = 0 }
       else { s.volley++; s.volleyTimer = R.volleyGap }

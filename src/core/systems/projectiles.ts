@@ -36,6 +36,7 @@ export function updateProjectiles(world: World, dt: number): void {
       projectile.pos = end
       const result = resolveProjectilePath(world, projectile, from, end)
       const spent = travel * portion
+      if (projectile.homingRecoveryDistance) projectile.homingDistance = (projectile.homingDistance ?? 0) + spent
       projectile.travelLeft = Math.max(0, projectile.travelLeft - spent); travel = Math.max(0, travel - spent)
       if (result === 'stopped') { projectile.pierceLeft = 0; alive = false; break }
       if (result === 'reflected') { reflected = true; break }
@@ -46,6 +47,7 @@ export function updateProjectiles(world: World, dt: number): void {
       projectile.pos = { x: end.x + wall.nx * 0.01, y: end.y + wall.ny * 0.01 }
       projectile.trail.push({ ...projectile.pos }); if (projectile.trail.length > 9) projectile.trail.shift()
     }
+    recoverSpeed(projectile)
     projectile.resolvedTick = world.tick
     if (alive && (projectile.travelLeft > 0 || reflected)) survivors.add(projectile.id)
   }
@@ -63,6 +65,13 @@ function steer(world: World, projectile: Projectile, dt: number): void {
     const difference = Math.atan2(Math.sin(desired - current), Math.cos(desired - current))
     angle += Math.max(-projectile.homingTurn * dt, Math.min(projectile.homingTurn * dt, difference))
   }
-  const speed = Math.min(projectile.cruiseSpeed ?? Infinity, Math.hypot(projectile.vel.x, projectile.vel.y) + HOMING_RULES.acceleration * dt)
+  const speed = projectile.homingRecoveryDistance ? Math.hypot(projectile.vel.x, projectile.vel.y) : Math.min(projectile.cruiseSpeed ?? Infinity, Math.hypot(projectile.vel.x, projectile.vel.y) + HOMING_RULES.acceleration * dt)
   projectile.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }
+}
+
+function recoverSpeed(projectile: Projectile): void {
+  if (!projectile.homingRecoveryDistance || projectile.homingStartSpeed === undefined || projectile.cruiseSpeed === undefined) return
+  const fraction = Math.min(1, (projectile.homingDistance ?? 0) / projectile.homingRecoveryDistance)
+  const current = Math.hypot(projectile.vel.x, projectile.vel.y), speed = Math.max(current, projectile.homingStartSpeed + (projectile.cruiseSpeed - projectile.homingStartSpeed) * fraction)
+  if (current > 0) projectile.vel = { x: projectile.vel.x * speed / current, y: projectile.vel.y * speed / current }
 }

@@ -55,19 +55,20 @@ export function resolveProjectilePath(world: World, projectile: Projectile, from
       length ? (to.y - from.y) / length : Math.sin(Math.atan2(projectile.vel.y, projectile.vel.x))) <= core
     if (isCore) world.stats.coreHits += 1
     applyDamage(world, { targetId: target.id, sourceId: projectile.ownerId, sourceTeam: projectile.team,
-      raw: projectile.damage * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
+      raw: impactDamage(projectile) * (isCore ? projectile.innerMult : 1), penetration: projectile.penetration, isCore, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
     const radius = projectile.blastRadius ?? 0
     if (radius > 0) {
       world.effects.push({ kind: 'explosion', x: target.pos.x, y: target.pos.y, radius, ttl: 14 })
       for (const other of world.actors.values()) {
         if (!other.alive || other.team === projectile.team || other.id === target.id || distance(other.pos, target.pos) > radius + other.radius) continue
-        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: projectile.damage, penetration: projectile.penetration, isCore: false, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
+        applyDamage(world, { targetId: other.id, sourceId: projectile.ownerId, sourceTeam: projectile.team, raw: impactDamage(projectile), penetration: projectile.penetration, isCore: false, kind: 'bullet', damageType: projectile.damageType, rewardMultiplier: projectile.rewardMultiplier })
       }
     }
     projectile.hitIds.push(target.id); projectile.pierceLeft -= isCore ? 2 : 1
     if (projectile.pierceLeft <= 0) return 'stopped'
     const boost = projectile.pierceSpeedMultiplier ?? 1
     projectile.vel = { x: Math.sign(projectile.vel.x) * Math.min(Number.MAX_VALUE, Math.abs(projectile.vel.x) * boost), y: Math.sign(projectile.vel.y) * Math.min(Number.MAX_VALUE, Math.abs(projectile.vel.y) * boost) }
+    if (projectile.homingStartSpeed !== undefined) projectile.homingStartSpeed = Math.min(Number.MAX_VALUE, projectile.homingStartSpeed * boost)
     if (projectile.cruiseSpeed !== undefined) projectile.cruiseSpeed = Math.min(Number.MAX_VALUE, projectile.cruiseSpeed * boost)
     grantRange(projectile, projectile.pierceRangeGain ?? 0)
   }
@@ -84,7 +85,11 @@ function tryDeflect(world: World, projectile: Projectile, target: Actor): boolea
   projectile.targetId = target.lockTargetId; grantRange(projectile, Math.max(0, 500 - projectile.travelLeft))
   projectile.vel = { x: -projectile.vel.x, y: -projectile.vel.y }
   let kind: EffectKind = 'deflect'
-  if (target.attrs.deflectLevel >= 2) { projectile.damage *= target.attrs.reflectDamageMult; kind = 'reflect' }
+  if (target.attrs.deflectLevel >= 2) { projectile.damage *= target.attrs.reflectDamageMult; if (projectile.impactScale !== undefined) projectile.impactScale *= target.attrs.reflectDamageMult; kind = 'reflect' }
   world.effects.push({ kind, x: projectile.pos.x, y: projectile.pos.y, radius: 34, ttl: 14 })
   return true
+}
+
+export function impactDamage(projectile: Projectile): number {
+  return Math.min(Number.MAX_VALUE / 1e6, projectile.damage + Math.hypot(projectile.vel.x, projectile.vel.y) * (projectile.impactPerSpeed ?? 0) * (projectile.impactScale ?? 1))
 }

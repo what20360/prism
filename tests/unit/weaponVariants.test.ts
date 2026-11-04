@@ -102,7 +102,7 @@ describe('aim preference and laser focusing', () => {
   })
   it('separates weapon-specific cards and removes focus effects on sale', () => {
     const w = arena(), p = getPlayer(w)
-    expect(CARD_REGISTRY.all().filter((c) => c.category === 'weapon').map((c) => c.id)).toEqual(['weapon-electric', 'weapon-laser', 'arc-coil', 'laser-focus'])
+    expect(CARD_REGISTRY.all().filter((c) => c.category === 'weapon').map((c) => c.id)).toEqual(['precision-stance', 'sniper-specialty', 'weapon-electric', 'weapon-laser', 'arc-coil', 'laser-focus'])
     buyCard(w, 'weapon-laser'); buyCard(w, 'laser-focus'); expect(p.attrs.laserPower).toBe(1)
     sellCard(w, 'laser-focus'); expect(p.attrs.laserPower).toBe(0)
     expect(CARD_REGISTRY.get('laser-focus')!.summary!(3)).toContain('散射角间距')

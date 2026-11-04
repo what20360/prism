@@ -2,6 +2,8 @@
 
 代码基线与日期同 [第一篇](01-architecture-and-simulation.md)：**2026-11-04 / `828c4a9e`**。本篇从“一个属性如何变成一次实际命中”展开，再介绍敌人、关卡及各模式。浏览器、存档和网络细节见 [第三篇](03-client-storage-network-and-development.md)。
 
+**当前规则：已同步 v1.22（2026-11-04）；新增状态、字段与迁移说明见[第四篇](04-sniper-combat-and-presentation.md)。原始架构基线链接用于追溯，当前实现以本分支源码与第四篇为准。**
+
 ## 1. 内容定义如何进入核心
 
 内容层主要输出普通对象和纯函数，不负责操作 DOM 或驱动逐帧循环。
@@ -93,9 +95,9 @@ $$
 
 ### 2.5 武器兼容性与狙击手
 
-主武器 `attrs.weapon`：0 为实体弹、1 为电弧、2 为激光。电弧/激光解锁卡单级互斥；专精依赖对应解锁，并在该武器下生效。`ALL_CARDS` 还包一层 unavailable，阻止购买当前无效的实体弹速、追踪、悬浮、贯穿推进和爆炸等组合。
+主武器 `attrs.weapon`：0 为弹芯枪、1 为电弧、2 为激光、3 为狙击手。三个解锁卡均单级且相互排斥；专精依赖对应解锁，并在该武器下生效。`ALL_CARDS` 还包一层 unavailable，阻止购买当前无效的实体弹速、追踪、悬浮、贯穿推进和爆炸等组合。
 
-狙击手等级 n 将伤害/射程分别乘 $2^n$，弹速乘 $1+2n$，设置 `maxProjectiles=1`。随后优先级 110 的连发和霰弹识别到该上限，各自改为伤害乘 $1+0.1n_{\rm card}$，不增加弹数、也不执行原来的代价。武器系统还会主动清空 burstRemaining，防止“上一颗消失后补发一颗”的延迟连发。
+狙击武器将伤害/射程分别乘2、弹速乘3，设置 `maxProjectiles=1`；动能狙击专精n级提供伤害×2ⁿ、攻速×0.5ⁿ、战斗移速×0.7ⁿ，并将命中速度按0.01n加入可获倍率的基础伤害。随后优先级 110 的连发和霰弹识别到该上限，各自改为伤害乘 $1+0.1n_{\rm card}$，不增加弹数、也不执行原来的代价。武器系统还会主动清空 burstRemaining，防止“上一颗消失后补发一颗”的延迟连发。
 
 发弹统一走 `emitProjectile`，所以普通射击、连发和破片都检查一弹容量；它不是只在鼠标开火入口做限制。能量武器不创建相同的实体 Projectile，不应把这项容量误解为限制电弧节点或激光脉冲。
 
@@ -121,13 +123,13 @@ $$
 
 ### 4.1 发射、连发和霰弹
 
-武器冷却以 `round(60/fireRate)` tick 计，至少 1 tick。一次普通攻击通过 fireAt 发出 multishot 个方向，相邻方向间隔 0.12 弧度；同向连发记录 burstAngle，轮间隔 4 tick。连发和霰弹分别决定时间轮数与每轮方向数，实体弹总数相乘，但受容量和运行预算限制。
+武器冷却以 `round(60/fireRate)` tick 计，至少 1 tick。一次普通攻击通过 fireAt 发出 multishot 个方向，相邻方向间隔 0.12 弧度；同向连发记录 burstAngle，轮间隔 4 tick；连发末轮或激光结束时才启动完整普攻冷却。连发和霰弹分别决定时间轮数与每轮方向数，实体弹总数相乘，但受容量和运行预算限制。
 
 `emitProjectile` 把当时的伤害、半径、穿透、核心倍率、追踪参数等复制进弹丸，从角色半径的一半位置出发，或使用破片指定原点。实体弹不是实时引用发射者当前伤害；买卡后大多数已飞出的弹不会随之重算。
 
 ### 4.2 追踪与慢弹
 
-追踪等级 n>0 时，初速是最终 bulletSpeed 的 0.2，最高是 1.0，按 250 单位/秒² 加速，最大角速度：
+追踪等级 n>0 时，初速是最终 bulletSpeed 的 0.5，最高是 1.0，按实际已飞路径/初始半程线性恢复至原速，最大角速度：
 
 $$
 \omega(n)=1+0.6\sqrt n\quad\text{rad/s}.
@@ -396,7 +398,7 @@ $$
 | 保护/进攻雷 | 预测未来约 0.35 秒来弹；半血前在脚下保护，半血后对可见范围内玩家投送移动雷 |
 | 蜘蛛缓存 | 上限 6，每 240 tick 补 1，缺员且有库存时每 120 tick 补一只 |
 | 半血一次性爆发 | phaseBurst 锁一次；立即补齐幼蛛，每只直接消耗最大 HP/36，自身至少留 1 HP |
-| 扇形弹幕 | 600 tick 冷却，三波、波间 60 tick；前两波靠近、第三波后撤，临发射停步并追踪瞄准 |
+| 扇形弹幕 | 600 tick 冷却，三波、每波三层39颗、速度0.72/1/1.28，波间 60 tick；前两波靠近、第三波后撤，临发射停步并追踪瞄准 |
 | 核心区约束 | AI 目标夹在 RoomDesign.core 内，角色分离后再次限制巢母位置 |
 
 半血献祭是自身资源代价，直接扣 HP，不走玩家伤害和击杀奖励。这是统一伤害入口之外的一项明确例外。
@@ -561,19 +563,19 @@ stateDiagram-v2
 | `buyCard` | [src/core/progress.ts:66](../../src/core/progress.ts#L66) |
 | `sellCard` | [src/core/progress.ts:108](../../src/core/progress.ts#L108) |
 | `reapplyAttrs` | [src/core/progress.ts:123](../../src/core/progress.ts#L123) |
-| `emitProjectile` | [src/core/systems/weapons.ts:74](../../src/core/systems/weapons.ts#L74) |
+| `emitProjectile` | [src/core/systems/weapons.ts:89](../../src/core/systems/weapons.ts#L89) |
 | `updateProjectiles` | [src/core/systems/projectiles.ts:15](../../src/core/systems/projectiles.ts#L15) |
 | `resolveProjectilePath` | [src/core/systems/hits.ts:24](../../src/core/systems/hits.ts#L24) |
 | `fireElectric` | [src/core/systems/energyWeapons.ts:17](../../src/core/systems/energyWeapons.ts#L17) |
 | `fireLaserPulse` | [src/core/systems/energyWeapons.ts:57](../../src/core/systems/energyWeapons.ts#L57) |
-| `applyDamage` | [src/core/systems/damage.ts:39](../../src/core/systems/damage.ts#L39) |
+| `applyDamage` | [src/core/systems/damage.ts:40](../../src/core/systems/damage.ts#L40) |
 | `updateMines` | [src/core/systems/mines.ts:43](../../src/core/systems/mines.ts#L43) |
 | `updateWeaver` | [src/core/systems/weaver.ts:85](../../src/core/systems/weaver.ts#L85) |
 | `buildDungeon` | [src/content/dungeon.ts:122](../../src/content/dungeon.ts#L122) |
 | `wallsOutsideFloor` | [src/content/levelSets.ts:46](../../src/content/levelSets.ts#L46) |
 | `createEndlessMode` | [src/app/modes/endless.ts:73](../../src/app/modes/endless.ts#L73) |
 | `createPracticeMode` | [src/app/modes/practice.ts:49](../../src/app/modes/practice.ts#L49) |
-| `createCoopMatch` | [src/app/modes/coop.ts:48](../../src/app/modes/coop.ts#L48) |
+| `createCoopMatch` | [src/app/modes/coop.ts:54](../../src/app/modes/coop.ts#L54) |
 | `createDuelMatch` | [src/app/modes/duel.ts:22](../../src/app/modes/duel.ts#L22) |
 
 上一篇：[架构、数据结构与模拟](01-architecture-and-simulation.md)；下一篇：[客户端、存储、联机与维护](03-client-storage-network-and-development.md)。

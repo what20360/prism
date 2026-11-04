@@ -2,6 +2,8 @@
 
 依据 **2026-11-04 核对的代码基线 `828c4a9e`**。架构、World 与 tick 顺序见 [第一篇](01-architecture-and-simulation.md)，武器与模式机制见 [第二篇](02-combat-content-and-modes.md)。本篇重点解释外层如何驱动核心，以及文件/网络数据如何安全地变成运行时对象。
 
+**当前规则：已同步 v1.22（2026-11-04）；新增状态、字段与迁移说明见[第四篇](04-sniper-combat-and-presentation.md)。原始架构基线链接用于追溯，当前实现以本分支源码与第四篇为准。**
+
 ## 1. 浏览器启动与会话生命周期
 
 入口 HTML：[index.html](../../index.html)；模块装配：[app/main.ts](../../src/app/main.ts)。页面只需要 `canvas#game`，其余菜单和触控 DOM 由代码创建。
@@ -175,8 +177,8 @@ moveTarget 交换步骤时保留同卡等级的递增集合；removeTarget 撤�
 | 键位 | `prism.bindings` | 固定 9 项映射 | [input/bindings.ts](../../src/input/bindings.ts) |
 | 商店筛选 | sessionStorage `prism.cardFilter` | 字符串枚举 | sections/cards.ts |
 | 收藏与命名预设集合 | `prism.builds.v2`，兼容 v1 | 导出 prism-build v2，导入支持 v1/v2 | planManager.ts、upgradePlans.ts |
-| 单人自动/手动槽 | `prism.save.v1.auto / slot-1 / slot-2 / slot-3` | prism-save v1；balanceVersion 5 | saveStore.ts、checkpoints.ts |
-| 合作自动槽 | `prism.coop.auto` | prism-coop-save v1；balanceVersion 5 | coopSession.ts、modes/coop.ts |
+| 单人自动/手动槽 | `prism.save.v1.auto / slot-1 / slot-2 / slot-3` | prism-save v1；balanceVersion 6 | saveStore.ts、checkpoints.ts |
+| 合作自动槽 | `prism.coop.auto` | prism-coop-save v1；balanceVersion 6 | coopSession.ts、modes/coop.ts |
 | 实时对战 | 不提供比赛进度槽 | 网络协议另计版本 | duelSession.ts、protocol.ts |
 
 配置版本、存档封套版本、数值版本和联机协议版本互不等同。增加一个新属性、改旧卡公式、换传输协议，可能需要更新不同的版本/迁移入口。
@@ -234,7 +236,7 @@ flowchart TD
 
 [cardMigrations.ts](../../src/app/cardMigrations.ts) 的顺序是：
 
-1. registryForSave 根据 balanceVersion 选择 V1/V2/V3/V4 或当前 V5。
+1. registryForSave 根据 balanceVersion 选择 V1/V2/V3/V4/V5 或当前 V6。
 2. 必要时仅补旧版本新增属性的默认字段；再通过 restoreWorld 结构检查。
 3. 使用旧卡表核验“购买记录确实对应旧 attrs”，不把未知属性一律洗成合法。
 4. 映射退役 ID，合并等级，按旧价补缺失 paid，保留所有实付金额。
@@ -242,7 +244,7 @@ flowchart TD
 6. 保留旧弹丸、地雷、房间和随机状态；它们已有的数值不会统一重发一遍。
 7. 迁移收藏与有序未完成目标，不排序丢掉购买顺序。
 
-无 balanceVersion 的历史文件会尝试匹配对应旧规则；未知版本拒绝。数值版本 5 与存档格式 v1 并存，是因为 JSON 外壳没变、卡片解释方式变了。
+无 balanceVersion 的历史文件会尝试匹配对应旧规则；未知版本拒绝。数值版本 6 与存档格式 v1 并存，是因为 JSON 外壳没变、卡片解释方式变了。
 
 ### 8.5 保存、命名与失败处理
 
@@ -258,7 +260,7 @@ CoopSave 还保存 config、hostId、started、全部 participants、成员在�
 
 createCoopMatch(saved) 恢复时：原在线角色先取实际生命；只把 hostId 成员设在线/准备，其余席位 alive=false、HP=0，并保留 offlineHp/offlineAlive 和 reviveTicks。世界暂停，朋友要重新建立连接。**重新建房恢复不是自动选主或无缝迁移**。
 
-合作目前只接受当前 balanceVersion=5，未复用单人 V1–V4 全迁移链。自动槽也只有合作独立的一槽，没有普通 SaveManager 的三个手动槽；文件备份承担多份合作进度保存。
+合作接受 balanceVersion=5 或当前6，逐队员核验旧构筑并迁移，保留缺席席位；不接受合作V1–V4。自动槽也只有合作独立的一槽，没有普通 SaveManager 的三个手动槽；文件备份承担多份合作进度保存。
 
 ## 9. 网络传输：信令、通道与分片
 
@@ -337,7 +339,7 @@ peer.send 仅在通道 open 且 bufferedAmount 不高于 256 KiB 时发送，失
 
 ### 10.2 协议内容
 
-`DUEL_PROTOCOL=7`。输入有 intent、sequence、round、offers；动作有 buy/sell/equip/plan/queue/auto/quick-mode/move/remove；其余有 ready、forfeit、ping/pong、state。state 包含 DuelState 与 WorldData。
+`DUEL_PROTOCOL=8`。输入有 intent、sequence、round、offers；动作有 buy/sell/equip/plan/queue/auto/quick-mode/move/remove；其余有 ready、forfeit、ping/pong、state。state 包含 DuelState 与 WorldData。
 
 decodePacket 除结构校验外，还检查模式、初始属性、阵营/钱包成员、角色/弹丸/雷/资源预算、经济卡限制、购买与角色属性吻合、双方 damageIframesTicks=0。固定装备没有购买，非资源模式不能凭空出现资源怪。
 
@@ -357,7 +359,7 @@ Connection 保存 peer、id、connected/closed、最近消息时间、sequence�
 
 ### 11.2 包和刷新节奏
 
-协议字符串为 `prism-coop-1`，不是数值 7。包有 hello(name)、input(sequence,intent,offers)、action、ready、ping/pong、state(serial,viewerId,save,notice)。复用了 cleanIntent/cleanAction，但独立核对 CoopSave 和成员。
+协议字符串为 `prism-coop-2`，不是数值 8。包有 hello(name)、input(sequence,intent,offers)、action、ready、ping/pong、state(serial,viewerId,save,notice)。复用了 cleanIntent/cleanAction，但独立核对 CoopSave 和成员。
 
 | 项 | 当前值/行为 |
 |---|---|
@@ -386,18 +388,11 @@ close 一位队员会从活连接集合移除并调用 match.disconnect，席位
 
 ## 12. 实现审阅：当前边界与已复现不一致
 
-本节是源码审阅结果，**本次文档编写不修改游戏逻辑**。不要把下列问题写成已经修复，也不要把某项单测通过推成完整联机验收。
+本节是源码审阅结果，下面区分当前已覆盖边界与仍存在的不一致；单测通过不等同于完整联机验收。
 
-### 12.1 合作最终房间索引校验不一致（已复现）
+### 12.1 合作最终房间边界
 
-- [content/dungeon.ts](../../src/content/dungeon.ts) 生成 26 房，最终盘丝洞索引 **25**。
-- [app/modes/coop.ts](../../src/app/modes/coop.ts) 的 readCoopSave 对闯关 roomIndex 只允许 **0–24**。
-- [net/coopProtocol.ts](../../src/net/coopProtocol.ts) 的 state 校验复用了 readCoopSave，因此不仅导入，最终房间的实时状态也可能被拒绝并导致客机断开。
-- 当前合作测试还有将 25 当作无效值的断言，说明单测覆盖了限制，却没有覆盖完整 26 房合作贯通。
-
-本次用实际引擎做最小调用复核：`buildDungeon({seed:20261031,difficulty:1}).length` 为 26；创建合作 match、start，重复设置 exitReached 并 tick 推进到 roomIndex=25；`readCoopSave(JSON.stringify(match.save()))` 抛出“数值无效”。强制出口只用于缩短审阅复现，不代表真实战斗通关测试。
-
-后续修复入口是从同一房间列表推导边界，并补最终 Boss 实时包与存档恢复测试；不应只把某个 UI 层数文字改掉。
+当前 readCoopSave 从 `buildDungeon().length−1` 推导上界，接受最终盘丝洞索引25、拒绝26。实时状态继续复用同一解析器。测试覆盖最终房间导入与旧合作存档迁移；不将引擎测试等同于五设备联机验收。
 
 ### 12.2 合作隐藏提示未阻止自动购买（已复现）
 
@@ -424,7 +419,7 @@ readDuelIntent 在正常 UI 中检查 autoAim 属性；1v1 的 match.tick 又对
 | 原型数量 | ENEMIES 有 8 键含保留 Boss，不宜沿用早期“七种”当精确代码计数 |
 | 墙体遮挡 | 实体溅射、普通雷与巢母雷的视线检查不同，见第二篇 |
 | 函数命名/旧注释 | mineShardChance 已代表击杀晶片等级；packLoot 压缩不代表最终合并实体；读代码时跟随实际调用链 |
-| 普通/合作存档 | 普通支持冻结历史数值迁移，合作只接受当前数值版本；不保证互通 |
+| 普通/合作存档 | 普通支持冻结历史数值迁移，合作支持V5至V6逐席位迁移；不保证互通 |
 | UI 与权限 | disabled/隐藏/正常客户端检查不是房主端授权的替代 |
 | 真实直连 | 现有纯逻辑测试不证明跨运营商、校园网、移动端五设备可用；没有 TURN 兜底 |
 
@@ -539,8 +534,8 @@ workflow **没有单独运行 lint**，所以 lint 仍应在提交前执行。Gi
 | `serializeWorld` | [src/core/serialization.ts:55](../../src/core/serialization.ts#L55) |
 | `restoreWorld` | [src/core/serialization.ts:60](../../src/core/serialization.ts#L60) |
 | `readCheckpoint` | [src/app/checkpoints.ts:21](../../src/app/checkpoints.ts#L21) |
-| `migrateWorldBuild` | [src/app/cardMigrations.ts:54](../../src/app/cardMigrations.ts#L54) |
-| `readCoopSave` | [src/app/modes/coop.ts:33](../../src/app/modes/coop.ts#L33) |
+| `migrateWorldBuild` | [src/app/cardMigrations.ts:64](../../src/app/cardMigrations.ts#L64) |
+| `readCoopSave` | [src/app/modes/coop.ts:34](../../src/app/modes/coop.ts#L34) |
 | `createDuelPeer` | [src/net/peer.ts:16](../../src/net/peer.ts#L16) |
 | `createMessageAssembler` | [src/net/framing.ts:10](../../src/net/framing.ts#L10) |
 | `createRemoteInput` | [src/net/protocol.ts:10](../../src/net/protocol.ts#L10) |
