@@ -1,8 +1,11 @@
 export type AimMode = 'auto' | 'manual'
 export type FireMode = 'auto' | 'manual'
+export type AutoSaveMode = 'room' | 'interval' | 'off'
 
 /** Only player preferences are persisted; run state never belongs here. */
 export interface ControlSettings {
+  readonly autoSaveMode?: AutoSaveMode
+  readonly autoSaveSeconds?: number
   readonly aimMode: AimMode
   readonly fireMode: FireMode
   readonly music?: boolean
@@ -14,6 +17,8 @@ export interface ControlSettings {
 export type SettingKey = keyof ControlSettings
 
 export const DEFAULT_SETTINGS: ControlSettings = {
+  autoSaveMode:'room',
+  autoSaveSeconds:60,
   aimMode: 'manual',
   fireMode: 'manual',
   music: true,
@@ -22,7 +27,7 @@ export const DEFAULT_SETTINGS: ControlSettings = {
   autoPickup: true,
 }
 
-export const CONFIG_VERSION = 3
+export const CONFIG_VERSION = 4
 export const CONFIG_STORAGE_KEY = 'prism.config'
 
 export interface ConfigStorage {
@@ -49,12 +54,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function decodeSettings(value: unknown): ControlSettings {
-  if (!isRecord(value) || ![1, 2, CONFIG_VERSION].includes(value.version as number) || !isRecord(value.settings)) {
+  if (!isRecord(value) || ![1, 2, 3, CONFIG_VERSION].includes(value.version as number) || !isRecord(value.settings)) {
     return { ...DEFAULT_SETTINGS }
   }
 
   const { aimMode, fireMode } = value.settings
   return {
+    autoSaveMode:['room','interval','off'].includes(String(value.settings.autoSaveMode))?value.settings.autoSaveMode as AutoSaveMode:'room',
+    autoSaveSeconds:typeof value.settings.autoSaveSeconds==='number'&&Number.isInteger(value.settings.autoSaveSeconds)&&value.settings.autoSaveSeconds>=5&&value.settings.autoSaveSeconds<=3600?value.settings.autoSaveSeconds:60,
     aimMode: value.version !== 1 && (aimMode === 'auto' || aimMode === 'manual') ? aimMode : DEFAULT_SETTINGS.aimMode,
     fireMode: value.version !== 1 && (fireMode === 'auto' || fireMode === 'manual') ? fireMode : DEFAULT_SETTINGS.fireMode,
     music: typeof value.settings.music === 'boolean' ? value.settings.music : true,
@@ -80,7 +87,7 @@ export function createSettingsStore(storage: ConfigStorage | undefined = browser
       try {
         storage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({
           version: CONFIG_VERSION,
-          settings: { aimMode: settings.aimMode, fireMode: settings.fireMode, music: settings.music ?? true, sfx: settings.sfx ?? true, touchControls: settings.touchControls === true, autoPickup: settings.autoPickup !== false },
+          settings: { autoSaveMode:settings.autoSaveMode??'room',autoSaveSeconds:settings.autoSaveSeconds??60,aimMode: settings.aimMode, fireMode: settings.fireMode, music: settings.music ?? true, sfx: settings.sfx ?? true, touchControls: settings.touchControls === true, autoPickup: settings.autoPickup !== false },
         }))
         return true
       } catch {

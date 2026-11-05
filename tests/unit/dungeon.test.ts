@@ -239,10 +239,10 @@ describe('seeded seven-level dungeon', () => {
     const a = buildDungeon({ seed: 765, difficulty: 5 })
     expect(a).toEqual(buildDungeon({ seed: 765, difficulty: 5 })); expect(a).not.toEqual(buildDungeon({ seed: 766, difficulty: 5 }))
   })
-  it('uses base populations and single waves while drawing seeded archetypes and traits', () => {
+  it('increases base populations with depth and keeps single waves on standard difficulty while drawing seeded archetypes and traits', () => {
     const baseline = buildDungeon(), easy = buildDungeon({ seed: 4123, difficulty: 1 })
     for (let i = 0; i < easy.length; i++) {
-      expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length).toBe(baseline[i]!.spawns.length); expect(easy[i]!.waves ?? []).toHaveLength(0)
+      expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length).toBe(easy[i]!.kind === 'boss' ? 1 : Math.ceil(baseline[i]!.spawns.length * (1.15 + 0.14 * i / ROOMS_PER_FLOOR))); expect(easy[i]!.waves ?? []).toHaveLength(0)
       for (const enemy of easy[i]!.spawns) {
         const type = Object.values(ENEMIES).find((type) => enemy.name?.endsWith(type.name))!
         expect(type).toBeDefined(); expect(enemy.attrs.maxHp).toBeGreaterThanOrEqual(type.attrs.maxHp)

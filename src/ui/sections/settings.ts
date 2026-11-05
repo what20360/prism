@@ -21,7 +21,7 @@ const FIELDS: readonly Field[] = [
   {
     key: 'aimMode',
     label: '瞄准方式',
-    hint: '开局使用鼠标或右摇杆瞄准。自动索敌需要购买对应升级卡。',
+    hint: '手动使用鼠标或右摇杆瞄准。自动偏好可先设置，购买自动索敌后生效。',
     options: [
       { value: 'auto', label: '自动索敌' },
       { value: 'manual', label: '鼠标瞄准' },
@@ -30,7 +30,7 @@ const FIELDS: readonly Field[] = [
   {
     key: 'fireMode',
     label: '射击方式',
-    hint: '开局按住鼠标左键或触屏射击区。自动开火需要购买「自动扳机」。',
+    hint: '手动按住鼠标左键或触屏射击区。自动偏好可先设置，购买「自动扳机」后生效。',
     options: [
       { value: 'auto', label: '自动开火' },
       { value: 'manual', label: '按住左键开火' },
@@ -78,8 +78,6 @@ export function renderSettingsSection(
         button.className = active ? 'settings__option settings__option--active' : 'settings__option'
         button.textContent = option.label
         button.setAttribute('aria-pressed', String(active))
-        button.disabled = option.value === 'auto' && (field.key === 'aimMode' ? attrs.autoAim : attrs.autoFire) <= 0
-        if (button.disabled) button.title = '请先购买对应升级卡'
         button.addEventListener('click', () => {
           onSetting(field.key, option.value as ControlSettings[typeof field.key])
         })
@@ -88,7 +86,7 @@ export function renderSettingsSection(
 
       const hint = document.createElement('p')
       hint.className = 'settings__hint'
-      hint.textContent = field.hint
+      hint.textContent = field.hint + ((field.key==='aimMode'?attrs.autoAim:attrs.autoFire)<=0&&settings[field.key]==='auto'?' 已预设自动，购买对应卡片后生效。':'')
 
       section.append(group, hint)
       wrapper.append(section)
@@ -120,10 +118,13 @@ export function renderSettingsSection(
     touch.setAttribute('aria-pressed', String(settings.touchControls === true))
     touch.addEventListener('click', () => onSetting('touchControls', !settings.touchControls))
     wrapper.append(touch)
+    const saves=document.createElement('section');saves.className='menu__section';const saveTitle=document.createElement('h3');saveTitle.textContent='自动存档';saves.append(saveTitle)
+    const mode=document.createElement('select');mode.setAttribute('aria-label','自动存档方式');for(const [value,label]of [['room','每关一次'],['interval','定时保存（也在进关时保存）'],['off','关闭自动存档']]){const option=document.createElement('option');option.value=value!;option.textContent=label!;mode.append(option)}mode.value=settings.autoSaveMode??'room';mode.onchange=()=>onSetting('autoSaveMode',mode.value as ControlSettings['autoSaveMode']);saves.append(mode)
+    if(settings.autoSaveMode==='interval'){const label=document.createElement('label');label.textContent='保存间隔（秒）';const seconds=document.createElement('input');seconds.type='number';seconds.min='5';seconds.max='3600';seconds.step='1';seconds.value=String(settings.autoSaveSeconds??60);seconds.setAttribute('aria-label','自动存档间隔秒数');seconds.onchange=()=>onSetting('autoSaveSeconds',Math.max(5,Math.min(3600,Math.round(Number(seconds.value)||60))));label.append(seconds);saves.append(label)}
+    const saveHint=document.createElement('p');saveHint.className='settings__hint';saveHint.textContent='此处控制单人自动槽；手动保存和导出不受影响。联机合作由服务器的自动存档配置控制。';saves.append(saveHint);wrapper.append(saves)
     const magnet = document.createElement('button'); magnet.type = 'button'; magnet.className = 'settings__option'
-    magnet.disabled = attrs.pickupRadius <= 0
-    magnet.textContent = `磁铁自动吸取：${magnet.disabled ? '未解锁' : settings.autoPickup !== false ? '开启' : '关闭'}`
-    magnet.setAttribute('aria-pressed', String(!magnet.disabled && settings.autoPickup !== false))
+    magnet.textContent = `磁铁自动吸取：${settings.autoPickup !== false ? attrs.pickupRadius>0?'开启':'开启（待购买磁吸核心）' : '关闭'}`
+    magnet.setAttribute('aria-pressed', String(settings.autoPickup !== false))
     magnet.onclick = () => onSetting('autoPickup', settings.autoPickup === false)
     const magnetHint = document.createElement('p'); magnetHint.className = 'settings__hint'; magnetHint.textContent = '购买磁吸核心后，在范围内自动吸取资源。关闭后仍可接触拾取；满生命时保留血球。'
     wrapper.append(magnet, magnetHint)

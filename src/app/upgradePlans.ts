@@ -60,3 +60,29 @@ export function removeTarget(targets: readonly UpgradeTarget[], index: number, c
   const count = Math.max(0, removed.level - previous)
   return targets.filter((_, i) => i !== index).map((t, i) => i >= index && t.id === removed.id ? { id: t.id, level: t.level - count } : { ...t })
 }
+
+/** Append explicit milestones, recursively inserting missing card prerequisites in a portable draft. */
+export function appendPresetTargets(targets:readonly UpgradeTarget[],id:string,count=1,withRequirements=true):UpgradeTarget[]{
+ if(!Number.isInteger(count)||count<1||count>50)throw new Error('每次追加次数须为1–50')
+ const result=targets.map(t=>({...t})),levelOf=(key:string)=>result.filter(t=>t.id===key).at(-1)?.level??0
+ const ensure=(key:string,level:number,path:Set<string>)=>{
+  if(levelOf(key)>=level)return
+  if(path.has(key))throw new Error('卡片前置存在循环')
+  const card=CARD_REGISTRY.get(key);if(!card)throw new Error('未知卡片')
+  if(card.maxLevel!==undefined&&level>card.maxLevel)throw new Error('此卡片已经达到最高等级')
+  if(withRequirements)for(const requirement of card.requires??[])if(requirement.card)ensure(requirement.card,requirement.level??1,new Set([...path,key]))
+  result.push({id:key,level})
+ }
+ const card=CARD_REGISTRY.get(id);if(!card)throw new Error('未知卡片')
+ for(let i=0;i<(card.maxLevel===1?1:count);i++)ensure(id,levelOf(id)+1,new Set())
+ return validateTargets(result)
+}
+export function duplicatePresetTarget(targets:readonly UpgradeTarget[],index:number):UpgradeTarget[]{
+ const selected=targets[index];if(!selected)return [...targets]
+ return validateTargets([...targets.slice(0,index+1),{id:selected.id,level:selected.level+1},...targets.slice(index+1).map(t=>t.id===selected.id?{id:t.id,level:t.level+1}:{...t})])
+}
+export function presetCost(targets:readonly UpgradeTarget[]):number {
+ const levels=new Map<string,number>();let total=0
+ for(const target of targets){const card=CARD_REGISTRY.get(target.id);if(!card)return Infinity;for(let level=(levels.get(target.id)??0)+1;level<=target.level;level++)total+=card.priceFn(level);levels.set(target.id,target.level)}
+ return total
+}

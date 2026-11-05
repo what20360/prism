@@ -3,6 +3,7 @@ import { CARD_REGISTRY } from '../../src/content/cards'
 import { LEGACY_V3_REGISTRY } from '../../src/content/legacyCardsV3'
 import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../../src/content/legacyPlayer'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { withMonsterTraits } from '../../src/content/monsterTraits'
 import { ARSENAL_DEFAULTS, type AttrSet } from '../../src/core/attrs'
@@ -26,7 +27,7 @@ import { createDuelMatch } from '../../src/app/modes/duel'
 import { createSyncEncoder, createSyncDecoder } from '../../src/net/sync'
 import { toSnapshot } from '../../src/core/snapshot'
 function arena(attrs: Partial<AttrSet> = {}, registry = CARD_REGISTRY) {
-  const w = createWorld({ seed: 90, registry, economy: DEFAULT_ECONOMY, playerAttrs: { ...PLAYER_BASE_ATTRS, ...attrs },
+  const w = createWorld({ seed: 90, registry, economy: DEFAULT_ECONOMY, playerAttrs: { ...(registry === CARD_REGISTRY ? PLAYER_BASE_ATTRS : LEGACY_PLAYER_BASE_ATTRS), ...attrs },
     room: { id: 'arsenal', kind: 'combat', bounds: { x: 0, y: 0, width: 2000, height: 1500 }, walls: [], spawns: [], pickups: [], entry: { x: 100, y: 500 } } })
   w.shards = 100000; getPlayer(w).intent = { move: { x: 0, y: 0 }, fire: false, aim: { x: 1, y: 0 } }; return w
 }

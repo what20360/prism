@@ -14,22 +14,27 @@ function kill(w:ReturnType<typeof party>['w'],id:number){w.actors.get(id)!.ifram
 describe('cooperative campaign and endless authority',()=>{
  it.each([1,2,3,4,5])('starts %i friendly participants with independent starting money and valid snapshots',count=>{
   const {m,w,ids}=party(count);expect(w.coop!.members).toHaveLength(count);expect(ids.every(id=>w.actors.get(id)!.team==='player')).toBe(true)
-  expect(ids.every(id=>w.participants![id]!.shards===200)).toBe(true);expect(coopPopulation(count)).toBeCloseTo(1+0.7*(count-1))
+  expect(ids.every(id=>w.participants![id]!.shards===50)).toBe(true);expect(coopPopulation(count)).toBeCloseTo(1+0.7*(count-1))
   const saved=readCoopSave(JSON.stringify(m.save()));expect(saved.world.coop!.members).toHaveLength(count)
   for(const id of ids)expect(toSnapshot(w,id).actors[0]!.id).toBe(id)
  })
  it('rejects a sixth player and seats cannot be claimed twice',()=>{const {m,ids}=party(5);expect(()=>m.join('第六人')).toThrow();expect(()=>m.join('冒名',ids[1])).toThrow()})
  it('requires initial ready check and prevents guests from buying through another wallet',()=>{
   const m=createCoopMatch();const id=m.join('队员');expect(m.start()).toBe(false);m.ready(id);expect(m.start()).toBe(true)
-  expect(m.action(id,{kind:'buy',id:'gun-damage'})).toBe(true);expect(m.world().participants![id]!.shards).toBe(190);expect(m.world().participants![1]!.shards).toBe(200)
+  expect(m.action(id,{kind:'buy',id:'gun-damage'})).toBe(true);expect(m.world().participants![id]!.shards).toBe(40);expect(m.world().participants![1]!.shards).toBe(50)
   expect(m.action(999,{kind:'buy',id:'gun-damage'})).toBe(false)
+ })
+ it('starts every endless participant at 50 without sharing purchase funds',()=>{
+  const m=createCoopMatch({...DEFAULT_COOP,mode:'endless'}),ids=[m.hostId(),m.join('队员')]
+  expect(ids.map(id=>m.world().participants![id]!.shards)).toEqual([50,50]);m.action(ids[1]!,{kind:'buy',id:'gun-damage'})
+  expect(ids.map(id=>m.world().participants![id]!.shards)).toEqual([50,40]);m.restart();expect(ids.map(id=>m.world().participants![id]!.shards)).toEqual([50,50])
  })
  it('revives a downed player after five seconds at half health with no shield',()=>{
   const {m,w,ids}=party();const a=w.actors.get(ids[1]!)!;a.attrs={...a.attrs,shield:40};a.shield=40;kill(w,a.id);expect(a.alive).toBe(false);expect(w.gameOver).toBe(false)
   for(let i=0;i<299;i++)m.tick(new Map(ids.map(id=>[id,idle])));expect(a.alive).toBe(false);m.tick(new Map(ids.map(id=>[id,idle])));expect(a.alive).toBe(true);expect(a.hp).toBe(25);expect(a.shield).toBe(0);expect(a.iframesTicks).toBeGreaterThan(0)
  })
  it('preserves earned shields between rooms and revives fractional-health builds at exactly half',()=>{
-  const {m,w,ids}=party();m.action(ids[1]!,{kind:'buy',id:'shield'});const b=w.actors.get(ids[1]!)!;b.shield=45;w.exitReached=true;m.tick(new Map());expect(b.shield).toBe(45)
+  const {m,w,ids}=party();m.action(ids[1]!,{kind:'buy',id:'shield'});const b=w.actors.get(ids[1]!)!;b.shield=4;w.exitReached=true;m.tick(new Map());expect(b.shield).toBe(4)
   b.attrs={...b.attrs,maxHp:1.5};b.hp=1.5;kill(w,b.id);for(let i=0;i<300;i++)m.tick(new Map());expect(b.hp).toBe(0.75);expect(b.shield).toBe(0)
  })
  it('declares a wipe immediately without waiting for the revive countdown',()=>{const {m,w,ids}=party();ids.forEach(id=>kill(w,id));m.tick(new Map());expect(w.gameOver).toBe(true);expect(ids.every(id=>!w.actors.get(id)!.alive)).toBe(true)})
@@ -53,7 +58,7 @@ describe('cooperative campaign and endless authority',()=>{
   const {w,ids}=party(3);w.coop!.resourceMode=mode;const before=ids.map(id=>w.participants![id]!.shards)
   grantCoopShards(w,120,ids[1]!,{[ids[0]!]:30,[ids[1]!]:90})
   expect(ids.reduce((s,id,i)=>s+w.participants![id]!.shards-before[i]!,0)).toBeCloseTo(120)
-  if(mode==='equal')expect(w.participants![ids[2]!]!.shards).toBe(240)
+  if(mode==='equal')expect(w.participants![ids[2]!]!.shards).toBe(90)
   if(mode==='damage'){const weights=resourceWeights(w,ids[1],{[ids[0]!]:30,[ids[1]!]:90});expect(weights[1]![1]).toBeGreaterThan(weights[0]![1]);expect(weights[2]![1]).toBeGreaterThan(0)}
  })
  it('shares health without wasting it on full-health or downed members',()=>{
@@ -66,7 +71,7 @@ describe('cooperative campaign and endless authority',()=>{
  it('locks kill drops to their owner until that owner disconnects',()=>{
   const {m,w,ids}=party();w.coop!.resourceMode='killer';const a=w.actors.get(ids[0]!)!,b=w.actors.get(ids[1]!)!;b.pos={x:a.pos.x+300,y:a.pos.y}
   w.pickups=[{id:w.nextEntityId++,kind:'shard',pos:{...a.pos},value:25,ttl:1800,ownerId:b.id}];updatePickups(w);expect(w.pickups).toHaveLength(1)
-  m.disconnect(b.id);updatePickups(w);expect(w.pickups).toHaveLength(0);expect(w.participants![a.id]!.shards).toBe(225)
+  m.disconnect(b.id);updatePickups(w);expect(w.pickups).toHaveLength(0);expect(w.participants![a.id]!.shards).toBe(75)
  })
  it('records effective damage contributions without friendly hits or overkill inflation',()=>{
   const {w,ids}=party();w.pickups=[];const e=createActor(w,{team:'enemy',tier:'normal',behavior:'turret',hasCore:false,contactDamage:0,pos:{x:600,y:300},attrs:{...PLAYER_BASE_ATTRS,maxHp:100}})
@@ -101,7 +106,7 @@ describe('cooperative campaign and endless authority',()=>{
  it('restarts the whole party with stable seats and fresh wallets, requiring readiness again',()=>{
   const {m,w,ids}=party(5);m.action(ids[2]!,{kind:'buy',id:'gun-damage'});m.disconnect(ids[4]!);kill(w,ids[1]!);m.restart()
   const fresh=m.world();expect(fresh).not.toBe(w);expect(fresh.coop!.members.map(p=>p.id)).toEqual(ids);expect(fresh.coop!.members[4]!.connected).toBe(false)
-  expect(fresh.participants![ids[2]!]!.shards).toBe(200);expect(fresh.participants![ids[2]!]!.purchases).toEqual([]);expect(fresh.coop!.members[1]!.reviveTicks).toBe(0)
+  expect(fresh.participants![ids[2]!]!.shards).toBe(50);expect(fresh.participants![ids[2]!]!.purchases).toEqual([]);expect(fresh.coop!.members[1]!.reviveTicks).toBe(0)
   expect(m.start()).toBe(false);ids.slice(1,4).forEach(id=>m.ready(id));expect(m.start()).toBe(true);expect(new Set([...fresh.actors.keys()]).size).toBe(fresh.actors.size)
   expect(()=>readCoopSave(JSON.stringify(m.save()))).not.toThrow()
  })

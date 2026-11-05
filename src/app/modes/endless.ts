@@ -28,8 +28,8 @@ export function endlessFactor(rng: Rng, open: boolean): number {
   return open ? value : Math.max(ENDLESS_RULES.finiteMin, Math.min(ENDLESS_RULES.finiteMax, value))
 }
 export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0): EnemySpawnSpec {
-  const typeRoll = nextFloat(rng), type = ENEMIES[typeRoll < 0.3 ? 'drifter' : typeRoll < 0.46 ? 'turret' : typeRoll < 0.64 ? 'stalker' : typeRoll < 0.8 ? 'bomber' : typeRoll < 0.93 ? 'warden' : 'lancer']!
-  const factor = endlessFactor(rng, open), elite = type.hasCore
+  const typeRoll = nextFloat(rng), type = ENEMIES[typeRoll < 0.3 ? 'drifter' : typeRoll < 0.46 ? 'turret' : typeRoll < 0.64 ? 'stalker' : typeRoll < 0.8 ? 'bomber' : typeRoll < 0.86 ? 'bulwark' : typeRoll < 0.92 ? 'arc-rider' : typeRoll < 0.97 ? 'warden' : 'lancer']!
+  const factor = endlessFactor(rng, open), elite = type.hasCore || type.tier==='elite'
   const stat = (base: number, growth: number, exponent = 1, bias = 1): number => {
     const mean = finite(base * growth ** (floor - 1))
     const result = finite(mean * factor ** exponent * bias * (0.8 + 0.4 * nextFloat(rng)))
@@ -40,7 +40,7 @@ export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0
     maxHp: stat(50, g.maxHp, 1, elite ? 1.6 : type.attrs.maxHp / 50), damage: stat(9, g.damage, 0.7, Math.max(0.7, type.attrs.damage / 13)), armor: stat(15, g.armor, 0.5, elite ? 1.2 : 0.6), block: stat(3, g.block, 0.5, elite ? 1 : 0.25),
     speed: type.attrs.speed > 0 ? stat(185, g.speed, 0.2, type.attrs.speed / 185) : 0,
     bulletSpeed: stat(430, g.bulletSpeed, 0.2), fireRate: type.attrs.fireRate > 0 ? stat(0.8, g.fireRate, 0.2, type.attrs.fireRate / 0.8) : 0,
-    range: stat(900, g.range, 0.1), shield: 0,
+    range: stat(900, g.range, 0.1), shield: 0, shieldCapMult:0,
   }
   let result = withMonsterTraits({ pos: { x: 1600, y: 400 }, attrs, tier: elite ? 'elite' : 'normal', behavior: type.behavior,
     contactDamage: type.contactDamage > 0 ? attrs.damage : 0, hasCore: type.hasCore, attackType: type.attackType, traits: type.traits,
@@ -61,6 +61,7 @@ export interface EndlessState {
   readonly rngState: number; readonly spawnQueue: readonly number[]
 }
 export interface EndlessMode {
+  floor():number
   room(): RoomSpec
   initialize(world: World): void
   afterStep(world: World): void
@@ -109,7 +110,7 @@ export function createEndlessMode(): EndlessMode {
     if (floor % 5 === 0) world.room.exit = exitForRoom(world, true)
   }
   const advance = (world: World) => { floor += 1; enter(world) }
-  return { room, initialize: (world) => { seed = world.seed; floor = 1; enter(world) }, advance,
+  return {floor:()=>floor, room, initialize: (world) => { seed = world.seed; floor = 1; enter(world) }, advance,
     checkpoint: () => ({ floor, rngState: rng.state, respawned, spawnQueue: [...queue] }),
     restore: (world, saved) => { seed = world.seed; currentEntry = world.room.entry; currentPatrol = world.room.design?.patrol ?? []; floor = saved.floor; rng = createRng(saved.rngState); respawned = saved.respawned; queue = [...saved.spawnQueue]; population = Math.ceil(endlessCount(floor)*(world.coop ? 1+0.7*(world.coop.roomPartySize-1):1)) },
     afterStep: (world) => {

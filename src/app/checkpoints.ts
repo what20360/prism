@@ -7,10 +7,10 @@ import { MAX_SAVE_BYTES } from '../storage/saveStore'
 import type { EndlessCheckpoint } from './modes/endless'
 import { validateTargets, validateQuickMode, type PurchasePlan } from './upgradePlans'
 import { dungeonDifficulty, type DungeonDifficulty } from '../content/difficulties'
-import { extendLegacyCombatAttrs, CURRENT_BALANCE_VERSION, migrateOrderedTargets, migrateWorldBuild, registryForSave } from './cardMigrations'
+import { basePlayerAttrsForSave, extendLegacyCombatAttrs, CURRENT_BALANCE_VERSION, migrateOrderedTargets, migrateWorldBuild, registryForSave } from './cardMigrations'
 export { CURRENT_BALANCE_VERSION } from './cardMigrations'
 export interface RunCheckpoint {
-  readonly balanceVersion?: 1 | 2 | 3 | 4 | 5 | typeof CURRENT_BALANCE_VERSION
+  readonly balanceVersion?: 1 | 2 | 3 | 4 | 5 | 6 | typeof CURRENT_BALANCE_VERSION
   readonly name?: string
   readonly difficulty?: DungeonDifficulty
   readonly format: 'prism-save'; readonly version: 1; readonly savedAt: string
@@ -33,6 +33,7 @@ export function readCheckpoint(text: string): RunCheckpoint {
   if (d.balanceVersion === undefined || Number(d.balanceVersion) <= 3) extendLegacyAttrs(d.world)
   extendLegacyCombatAttrs(d.world, d.balanceVersion)
   let world = restoreWorld(d.world, registry, DEFAULT_ECONOMY, Object.keys(PLAYER_BASE_ATTRS))
+  for(const [key,value]of Object.entries(basePlayerAttrsForSave(d.balanceVersion)))if(world.basePlayerAttrs[key as keyof typeof world.basePlayerAttrs]!==value)throw new Error('存档初始属性无效')
   if (world.participants || world.cardRestrictions) throw new Error('联网对局不能作为单人存档导入')
   const player = [...world.actors.values()].find((a) => a.team === 'player')!
   if (!player.alive || world.gameOver || world.victory) throw new Error('此存档中的对局已经结束')

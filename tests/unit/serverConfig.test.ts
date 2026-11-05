@@ -21,6 +21,13 @@ describe('server configuration and operational logs',()=>{
   const dir=await directory();await expect(loadServerConfig(['--config','missing.json'],{},dir)).rejects.toThrow();await writeFile(join(dir,'broken.json'),'{');await expect(loadServerConfig(['--config','broken.json'],{},dir)).rejects.toThrow()
   await expect(loadServerConfig([],{PRISM_PORT:'nonsense'},dir)).rejects.toThrow();await expect(loadServerConfig([],{PRISM_DISCOVERY:'maybe'},dir)).rejects.toThrow();await expect(loadServerConfig(['--mystery'],{},dir)).rejects.toThrow()
  })
+ it('configures room, interval or disabled progress saves with environment precedence',async()=>{
+  const dir=await directory();expect(await loadServerConfig([],{},dir)).toMatchObject({autoSaveMode:'room',autoSaveSeconds:60})
+  await writeFile(join(dir,'prism-server.config.json'),JSON.stringify({autoSave:{mode:'interval',seconds:30}}))
+  expect(await loadServerConfig([],{},dir)).toMatchObject({autoSaveMode:'interval',autoSaveSeconds:30})
+  expect(await loadServerConfig([],{PRISM_AUTOSAVE:'off',PRISM_AUTOSAVE_SECONDS:'90'},dir)).toMatchObject({autoSaveMode:'off',autoSaveSeconds:90})
+  for(const autoSave of [{mode:'invalid'},{seconds:4},{seconds:3601},{seconds:10.5},{unknown:true}]){await writeFile(join(dir,'bad.json'),JSON.stringify({autoSave}));await expect(loadServerConfig(['--config','bad.json'],{},dir)).rejects.toThrow()}
+ })
  it('redacts secrets, escapes terminal controls, honors levels and protects reserved log fields',async()=>{
   const dir=await directory(),terminal:string[]=[],logger=await createLogger({directory:dir,terminal:s=>terminal.push(s)})
   logger.write('debug','hidden');logger.write('info','test',{token:'bearer-secret',password:'password-secret',key:'create-secret',nested:{credential:'private'},name:'name\x1b[31m\nspoof',event:'override',level:'error'})

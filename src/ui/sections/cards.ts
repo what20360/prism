@@ -1,3 +1,4 @@
+import {CARD_GROUPS} from '../../content/cardLayout'
 import { CARD_REGISTRY } from '../../content/cards'
 import type { PracticeState, PracticeAction } from '../../app/modes/practice'
 import { formatRuleNumber as fmt } from '../../content/format'
@@ -21,27 +22,8 @@ export interface CardsSectionHandlers {
   readonly onPractice?: (action: PracticeAction) => void
 }
 
-const CATEGORY_ORDER: readonly string[] = [
-  'weapon',
-  'gun',
-  'mine',
-  'defense',
-  'recovery',
-  'mobility',
-  'skill',
-  'special',
-]
-
-const CATEGORY_LABELS: Record<string, string> = {
-  weapon: '武器与专精',
-  gun: '枪械与弹道',
-  mine: '地雷',
-  defense: '防御',
-  recovery: '恢复',
-  mobility: '机动',
-  skill: '技能',
-  special: '特殊',
-}
+const CATEGORY_ORDER = CARD_GROUPS.map(g=>g.id)
+const CATEGORY_LABELS:Record<string,string>=Object.fromEntries(CARD_GROUPS.map(g=>[g.id,g.label]))
 
 function element(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag)

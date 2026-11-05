@@ -1,4 +1,4 @@
-export const DUNGEON_START_SHARDS = 200
+export const DUNGEON_START_SHARDS = 50
 export const DIFFICULTIES = ['标准', '进阶', '危险', '残酷', '炼狱', '极限', '绝境'] as const
 export type DungeonDifficulty = 1 | 2 | 3 | 4 | 5 | 6 | 7
 export function dungeonDifficulty(value: unknown): DungeonDifficulty {
@@ -12,5 +12,5 @@ export function dungeonProfile(difficulty: DungeonDifficulty, depth: number) {
   return { hp: 1.4 ** rank * 1.055 ** (rank * depth), damage: 1.17 ** rank * 1.018 ** (rank * depth),
     armor: 12 * rank * (1 + depth / 5), speed: 1.04 ** rank * 1.01 ** (rank * depth),
     bulletSpeed: 1.05 ** rank * 1.012 ** (rank * depth), fireRate: 1.07 ** rank * 1.018 ** (rank * depth),
-    count: 1 + 0.14 * rank + 0.05 * rank * depth, waves: 1 + Math.floor(rank * (0.25 + depth * 0.2)) }
+    count: 1.15 + 0.14 * depth + 0.18 * rank + 0.055 * rank * depth, waves: 1 + Math.floor(rank * (0.25 + depth * 0.2)) }
 }

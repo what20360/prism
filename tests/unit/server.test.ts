@@ -28,9 +28,9 @@ async function client(url:string,identity?:{userId:string;token:string;serverId:
 }
 const options=(extra:Partial<RoomOptions>={}):RoomOptions=>({name:'朋友的房间',mode:'dungeon',duelMode:'budget',coop:{...DEFAULT_COOP,pauseOnDisconnect:false},password:'',hidden:false,...extra})
 async function create(c:Awaited<ReturnType<typeof client>>,o=options()){const ack=await c.command({kind:'create',options:o,key:'private-create-key'});expect(ack.ok,ack.message as string).toBe(true);return (await c.wait(p=>p.type==='room'&&Boolean(p.room))).room as RoomInfo}
-const scoped=(room:RoomInfo,kind:'start'|'cancel-start'|'pause'|'restart'|'leave'|'export'|'close')=>({kind,roomId:room.id,epoch:room.epoch})
+const scoped=(room:RoomInfo,kind:'ready'|'start'|'cancel-start'|'pause'|'restart'|'leave'|'export'|'close')=>({kind,roomId:room.id,epoch:room.epoch})
 describe('authoritative server rooms over real WebSockets',()=>{
- it('lets five automatically ready players move and fire in the waiting arena without changing the saved match',async()=>{
+ it('lets five players move and fire even before they are ready in the waiting arena without changing the saved match',async()=>{
   const {s,url}=await server(),clients=await Promise.all(Array.from({length:5},()=>client(url))),room=await create(clients[0]!)
   for(const c of clients.slice(1))await c.command({kind:'join',roomId:room.id,password:''})
   const r=s.rooms.get(room.id)!,saved=JSON.stringify(r.coop!.save().world)
@@ -44,7 +44,7 @@ describe('authoritative server rooms over real WebSockets',()=>{
   clients[0]!.ws.send(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:room.id,epoch:room.epoch,sequence:2,intent:{move:{x:0,y:0},aim:{x:0,y:-1},fire:true},offers:true}));await clients[0]!.command({kind:'list'});for(let i=0;i<45;i++)s.tick()
   expect(r.waitingArena!.world.stats.kills).toBeGreaterThan(0);expect(r.waitingArena!.world.pickups).toHaveLength(0)
   expect(JSON.stringify(r.coop!.save().world)).toBe(saved);expect(s.inspectPlayer(clients[0]!.identity.userId)).toMatchObject({accepted:2,move:{x:0,y:0},fire:true})
-  s.broadcast();const ready=(await clients[0]!.wait(p=>p.type==='room'&&Boolean((p.room as RoomInfo)?.members.length===5))).room as RoomInfo;expect(ready.members.every(m=>m.ready)).toBe(true)
+  s.broadcast();const ready=(await clients[0]!.wait(p=>p.type==='room'&&Boolean((p.room as RoomInfo)?.members.length===5))).room as RoomInfo;expect(ready.members.filter(m=>m.ready).map(m=>m.userId)).toEqual([ready.ownerId])
  })
  it('refunds the actual last-level price only in the waiting arena, including during the five-second countdown',async()=>{
   const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!,wallet=()=>r.coop!.world().participants![1]!.shards
@@ -58,12 +58,15 @@ describe('authoritative server rooms over real WebSockets',()=>{
   await a.command({kind:'pause',roomId:r.id,epoch:r.epoch});const cost=r.coop!.world().participants![1]!.purchases[0]!.paid![0]!
   await action('sell');expect(wallet()).toBe(remaining+Math.floor(cost*.6));expect(wallet()).toBeLessThan(initial)
  })
- it('cancels countdowns on demand, joining and disconnecting, and refuses manual ready commands',async()=>{
+ it('requires readiness and cancels countdowns on demand, joining, cancelling readiness and disconnecting',async()=>{
   const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a),r=s.rooms.get(room.id)!
   await a.command(scoped(room,'start'));await a.command({kind:'cancel-start',roomId:r.id,epoch:r.epoch});expect(r.startTicks).toBe(0)
   await a.command(scoped(room,'start'));await b.command({kind:'join',roomId:r.id,password:''});expect(r.startTicks).toBe(0)
-  await a.command(scoped(room,'start'));await b.close();await a.command({kind:'list'});expect(r.startTicks).toBe(0)
-  expect(()=>decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId:'old-ready',command:{kind:'ready',roomId:r.id,epoch:r.epoch}}))).toThrow()
+  expect((await a.command(scoped(room,'start'))).ok).toBe(false)
+  expect((await b.command(scoped(room,'ready'))).ok).toBe(true);expect((await a.command(scoped(room,'start'))).ok).toBe(true);expect(r.startTicks).toBe(300)
+  await b.command(scoped(room,'ready'));expect(r.startTicks).toBe(0);expect(r.members.find(m=>m.userId===b.identity.userId)!.ready).toBe(false)
+  await b.command(scoped(room,'ready'));await a.command(scoped(room,'start'));await b.close();await a.command({kind:'list'});expect(r.startTicks).toBe(0)
+  expect(decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId:'ready',command:{kind:'ready',roomId:r.id,epoch:r.epoch}}))).toMatchObject({command:{kind:'ready'}})
  })
  it('clears training inputs at match start, accepts new movement/fire and expires unattended input',async()=>{
   const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!
@@ -79,7 +82,7 @@ describe('authoritative server rooms over real WebSockets',()=>{
   const {s,url}=await server({logger}),a=await client(url),b=await client(url),room=await create(a)
   await b.command({kind:'join',roomId:room.id,password:''});expect((await s.admin('help')).text).toContain('input <玩家ID>');expect(JSON.parse((await s.admin('status')).text).players).toBe(2)
   expect((await s.admin('rooms')).text).toContain(room.id);expect((await s.admin('players '+room.id)).text).toContain(b.identity.userId)
-  await s.admin('start '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(300);await s.admin('cancel '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(0)
+  await b.command(scoped(room,'ready'));await s.admin('start '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(300);await s.admin('cancel '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(0)
   await s.admin('transfer '+room.id+' '+b.identity.userId);expect(s.rooms.get(room.id)!.ownerId).toBe(b.identity.userId)
   await s.admin('ban '+room.id+' '+a.identity.userId);expect((await a.command({kind:'join',roomId:room.id,password:''})).ok).toBe(false)
   await s.admin('unban '+room.id+' '+a.identity.userId);expect((await a.command({kind:'join',roomId:room.id,password:''})).ok).toBe(true)
@@ -161,12 +164,46 @@ describe('authoritative server rooms over real WebSockets',()=>{
  })
  it('runs all three duel modes on the server and does not send the opponent’s purchase plan',async()=>{
   for(const duelMode of ['fixed','budget','resource'] as const){const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a,options({mode:'duel',duelMode}))
-   await b.command({kind:'join',roomId:room.id,password:''});await a.command(scoped(room,'start'))
+   await b.command({kind:'join',roomId:room.id,password:''});await b.command(scoped(room,'ready'));await a.command(scoped(room,'start'))
    for(let i=0;i<301;i++)s.tick();s.broadcast();const decoded=createSyncDecoder().apply(await b.wait(p=>p.type==='sync'))!
    expect(decoded.mode).toBe('duel');expect(decoded.duel!.phase).toBe('fighting');expect(decoded.snapshot.actors[0]!.id).toBe(2);expect(decoded.duel).not.toHaveProperty('plans')
    expect((await b.command({kind:'game',roomId:room.id,epoch:s.rooms.get(room.id)!.epoch,action:{kind:'buy',id:'gun-damage'}})).ok).toBe(duelMode!=='fixed')
   }
  },12000)
+ it('automatically persists each cooperative room boundary without writing during the same room',async()=>{
+  const {s,url,dir}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!
+  await a.command(scoped(room,'start'));for(let i=0;i<300;i++)s.tick()
+  const db=async()=>JSON.parse(await readFile(join(dir,'server.json'),'utf8')) as {rooms:{save:{started:boolean;roomIndex:number;world:{tick:number}}}[]}
+  const until=async(predicate:(d:Awaited<ReturnType<typeof db>>)=>boolean)=>{for(let i=0;i<100;i++){const d=await db();if(predicate(d))return d;await new Promise(resolve=>setTimeout(resolve,5))}throw new Error('save did not reach expected room')}
+  const first=await until(d=>d.rooms[0]!.save.started),bytes=await readFile(join(dir,'server.json'),'utf8')
+  for(let i=0;i<20;i++)s.tick();expect(await readFile(join(dir,'server.json'),'utf8')).toBe(bytes)
+  r.coop!.world().exitReached=true;s.tick();const next=await until(d=>d.rooms[0]!.save.roomIndex===1)
+  expect(next.rooms[0]!.save.world.tick).toBeGreaterThan(first.rooms[0]!.save.world.tick);expect(s.status()).toMatchObject({autoSaveMode:'room',autoSaveSeconds:60})
+ })
+ it('saves a restarted run even when it has the same room ID, floor and seed',async()=>{
+  const {s,url,dir}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!
+  await a.command(scoped(room,'start'));for(let i=0;i<300;i++)s.tick();for(let i=0;i<20;i++)s.tick()
+  r.coop!.world().shards=0;await s.admin('save')
+  await a.command({kind:'restart',roomId:r.id,epoch:r.epoch});await a.command({kind:'start',roomId:r.id,epoch:r.epoch});await s.admin('save')
+  for(let i=0;i<300;i++)s.tick()
+  let started=false
+  for(let i=0;i<100;i++){started=Boolean(JSON.parse(await readFile(join(dir,'server.json'),'utf8')).rooms[0].save.started);if(started)break;await new Promise(resolve=>setTimeout(resolve,5))}
+  expect(started).toBe(true)
+ })
+ it('tracks endless floors as room epochs and resets readiness when restarting',async()=>{
+  const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a,options({mode:'endless',coop:{...DEFAULT_COOP,mode:'endless',pauseOnDisconnect:false}})),r=s.rooms.get(room.id)!
+  await b.command({kind:'join',roomId:room.id,password:''});await b.command(scoped(room,'ready'));await a.command(scoped(room,'start'));for(let i=0;i<300;i++)s.tick()
+  const before=r.epoch;expect(r.roomIndex).toBe(1);r.coop!.world().exitReached=true;s.tick();expect(r.roomIndex).toBe(2);expect(r.epoch).toBe(before+1)
+  expect(r.coop!.save().endless!.floor).toBe(2);await a.command({kind:'restart',roomId:r.id,epoch:r.epoch})
+  expect(r.members.find(m=>m.userId===b.identity.userId)!.ready).toBe(false);expect((await a.command({kind:'start',roomId:r.id,epoch:r.epoch})).ok).toBe(false)
+ })
+ it('honors disabled progress saves while retaining explicit administrative persistence',async()=>{
+  const {s,url,dir}=await server({autoSaveMode:'off'}),a=await client(url),room=await create(a)
+  await a.command(scoped(room,'start'));await s.admin('save');const before=await readFile(join(dir,'server.json'),'utf8')
+  for(let i=0;i<300;i++)s.tick();s.rooms.get(room.id)!.coop!.world().exitReached=true;s.tick()
+  expect(await readFile(join(dir,'server.json'),'utf8')).toBe(before)
+  await s.admin('save');expect(JSON.parse(await readFile(join(dir,'server.json'),'utf8')).rooms[0].save.roomIndex).toBe(1)
+ })
  it('rejects untrusted origins and exposes a small compatible server info endpoint',async()=>{
   const {url}=await server(),info=await (await fetch(url+'/api/info')).json();expect(info.protocol).toBe(SERVER_PROTOCOL);expect(info).not.toHaveProperty('createKey')
   const ws=new WebSocket(url.replace('http','ws')+'/socket',{origin:'https://untrusted.example'});ws.on('error',()=>{});cleanup.push(async()=>{ws.terminate()});expect(await new Promise<string>(resolve=>ws.once('unexpected-response',(_req,res)=>{res.resume();resolve(String(res.statusCode))}))).toBe('403')
@@ -189,7 +226,7 @@ describe('connection and identity primitives',()=>{
   for(const url of ['https://user:pass@example.com','ftp://example.com','https://example.com/secret','https://example.com/?token=secret'])expect(()=>socketAddress(url)).toThrow()
  })
  it('rejects prototype payloads, extra authority packets, invalid versions and non-finite inputs',()=>{
-  expect(()=>decodeClient('{"protocol":"prism-server-2","__proto__":{}}')).toThrow()
+  expect(()=>decodeClient('{"protocol":"prism-server-3","__proto__":{}}')).toThrow()
   for(const value of [{protocol:'old',type:'hello',name:'a'},{protocol:SERVER_PROTOCOL,type:'state',hp:100},{protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:{move:{x:Infinity,y:0}}}])expect(()=>decodeClient(JSON.stringify(value))).toThrow()
  })
  it('stores bearer token hashes and salted room-password hashes, preserving identities on reopen',async()=>{

@@ -21,7 +21,8 @@ export function scheduleStart(room:Room):void {
  if(room.startTicks>0)throw new Error('已经开始倒计时')
  if(room.options.mode==='duel'&&room.members.filter(m=>m.connected).length!==2)throw new Error('等待对手进入大厅')
  if(!room.members.some(m=>m.connected))throw new Error('大厅没有在线玩家')
- for(const m of room.members)if(m.connected){m.ready=true;room.coop?.ready(m.actorId,true)}
+ if(room.members.some(m=>m.connected&&m.userId!==room.ownerId&&!m.ready))throw new Error('等待所有在线队员准备')
+ for(const m of room.members)if(m.connected)room.coop?.ready(m.actorId,true)
  room.startTicks=START_DELAY_TICKS
 }
 export function cleanRoomOptions(value:unknown):RoomOptions {
@@ -31,16 +32,17 @@ export function cleanRoomOptions(value:unknown):RoomOptions {
 }
 function roomId():string {const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',bytes=randomBytes(6);return [...bytes].map(b=>alphabet[b%alphabet.length]).join('')}
 export function roomSummary(room:Room):RoomSummary {return {id:room.id,name:room.options.name,mode:room.options.mode,duelMode:room.options.duelMode,count:room.members.filter(m=>m.connected).length,capacity:room.options.mode==='duel'?2:room.options.coop.maxPlayers,locked:Boolean(room.password),running:room.coop?room.coop.started()&&!room.coop.world().paused&&!room.coop.world().gameOver&&!room.coop.world().victory:['countdown','fighting'].includes(room.duel!.state().phase)}}
-export function roomInfo(room:Room):RoomInfo {return {...roomSummary(room),waiting:isWaiting(room),startCountdown:Math.ceil(room.startTicks/60),epoch:room.epoch,members:room.members.map(m=>({...m,ready:isWaiting(room)?m.connected:room.coop?room.coop.world().coop!.members.find(p=>p.id===m.actorId)?.ready??false:room.duel!.state().ready[m.actorId-1]??false})),ownerId:room.ownerId,hidden:room.options.hidden,config:room.options.coop}}
+export function roomInfo(room:Room):RoomInfo {return {...roomSummary(room),waiting:isWaiting(room),startCountdown:Math.ceil(room.startTicks/60),epoch:room.epoch,members:room.members.map(m=>({...m,ready:m.connected&&m.ready})),ownerId:room.ownerId,hidden:room.options.hidden,config:room.options.coop}}
 export function createRoom(user:Identity,options:RoomOptions,now:number):Room {
  const {password,...safe}=options,room:Room={id:roomId(),options:safe,password:password?passwordHash(password):'',ownerId:user.id,members:[{userId:user.id,name:user.name,actorId:1,role:'owner',connected:true,ready:true}],banned:[],epoch:randomBytes(4).readUInt32BE(),lastActive:now,startTicks:0,coop:options.mode==='duel'?undefined:createCoopMatch(options.coop),duel:options.mode==='duel'?createDuelMatch(options.coop.seed,options.duelMode):undefined,duelRound:0,roomIndex:0}
+ room.roomIndex=room.coop?.progress()??0
  if(room.coop){room.coop.world().coop!.members[0]!.name=user.name;room.coop.rename(options.name)}
  return room
 }
 export function joinRoom(room:Room,user:Identity,password:string,reconnect=false,seat?:number,passwordVerified=false):void {
  if(room.banned.includes(user.id))throw new Error('你已被此房间封禁')
  const old=room.members.find(m=>m.userId===user.id)
- if(old){room.startTicks=0;if(room.coop&&!room.coop.world().coop!.members.find(m=>m.id===old.actorId)!.connected)room.coop.join(user.name,old.actorId);old.connected=true;old.name=user.name;if(room.coop)room.coop.world().coop!.members.find(m=>m.id===old.actorId)!.name=user.name;room.lastActive=Date.now();return}
+ if(old){room.startTicks=0;if(!old.connected&&isWaiting(room))old.ready=old.userId===room.ownerId;if(room.coop&&!room.coop.world().coop!.members.find(m=>m.id===old.actorId)!.connected)room.coop.join(user.name,old.actorId);old.connected=true;old.name=user.name;if(room.coop)room.coop.world().coop!.members.find(m=>m.id===old.actorId)!.name=user.name;room.lastActive=Date.now();return}
  if(reconnect)throw new Error('没有可恢复的房间席位')
  if(!passwordVerified&&room.password&&!passwordMatches(password,room.password))throw new Error('房间密码不正确')
  const inherited=room.members.find(m=>m.userId.startsWith('unclaimed:')&&(seat===undefined||m.actorId===seat))
@@ -64,7 +66,7 @@ export function removeRoomMember(room:Room,userId:string):void {
  room.members=room.members.filter(m=>m!==member)
  if(room.ownerId===userId){const next=room.members.find(m=>m.connected&&m.role==='moderator')??room.members.find(m=>m.connected)??room.members[0];if(next){room.ownerId=next.userId;next.role='owner'}}
 }
-export function transferOwner(room:Room,target:RoomMember):void {const previous=room.members.find(m=>m.userId===room.ownerId);if(previous)previous.role='player';target.role='owner';room.ownerId=target.userId}
+export function transferOwner(room:Room,target:RoomMember):void {const previous=room.members.find(m=>m.userId===room.ownerId);if(previous){previous.role='player';previous.ready=false};target.role='owner';target.ready=true;room.ownerId=target.userId;room.startTicks=0}
 export function authorize(room:Room,userId:string,command:ServerCommand):RoomMember {
  const member=room.members.find(m=>m.userId===userId&&m.connected);if(!member)throw new Error('你不在此房间')
  if('epoch'in command&&command.epoch!==room.epoch)throw new Error('房间状态已变化，请等待同步后重试')
@@ -82,17 +84,17 @@ export function playState(room:Room,userId:string):PlayState {
  const {plans,notices,...score}=duel??{plans:undefined,notices:undefined}
  const restrictions=duel?.mode==='fixed'?Object.fromEntries(world.registry.all().map(c=>[c.id,'固定装备模式不能购买'])):world.cardRestrictions
  return {waiting,startCountdown:Math.ceil(room.startTicks/60),snapshot:toSnapshot(world,member.actorId),attrs:combatAttrs(a),purchases:progress.purchases,plan:room.coop?.plan(member.actorId)??plans?.[member.actorId-1]??{enabled:false,targets:[]} as PurchasePlan,notice:room.coop?.notice(member.actorId)??notices?.[member.actorId-1]??null,
-  knownSkills:SKILL_IDS.filter(id=>unlocked(a.attrs,id)).map(id=>toSkillView(a,id)),restrictions,paused:waiting?false:room.coop?world.paused:room.members.filter(m=>m.connected).length<2||!['countdown','fighting'].includes(duel!.phase),label:waiting?`等待大厅 · ${room.id}${room.startTicks?' · '+Math.ceil(room.startTicks/60)+'秒后开始':''}`:room.coop?`${room.options.mode==='endless'?'无尽':'闯关'} · 房间 ${room.id} · ${room.coop.roomIndex()+1}`:`1v1 · 第${duel!.round}回合`,mode:room.options.mode,...(duel?{duel:score as PlayState['duel']}:{})}
+  knownSkills:SKILL_IDS.filter(id=>unlocked(a.attrs,id)).map(id=>toSkillView(a,id)),restrictions,paused:waiting?false:room.coop?world.paused:room.members.filter(m=>m.connected).length<2||!['countdown','fighting'].includes(duel!.phase),label:waiting?`等待大厅 · ${room.id}${room.startTicks?' · '+Math.ceil(room.startTicks/60)+'秒后开始':''}`:room.coop?`${room.options.mode==='endless'?'无尽':'闯关'} · 房间 ${room.id} · ${room.options.mode==='endless'?room.coop.progress():room.coop.roomIndex()+1}`:`1v1 · 第${duel!.round}回合`,mode:room.options.mode,...(duel?{duel:score as PlayState['duel']}:{})}
 }
 export function tickRoom(room:Room,inputs:ReadonlyMap<string,{intent:Intent;offers:boolean}>):boolean {
  const online=room.members.filter(m=>m.connected);if(!online.length)return false
  if(isWaiting(room)){
   visibleWorld(room);room.waitingArena!.tick(matchWorld(room),room.members,new Map(online.map(m=>[m.actorId,inputs.get(m.userId)?.intent??IDLE_INPUT])))
-  if(room.startTicks>0&&--room.startTicks===0){for(const m of online){m.ready=true;room.coop?.ready(m.actorId,true)};const ok=room.coop?room.coop.start():room.duel!.start();if(!ok)throw new Error('等待大厅开局失败');room.waitingArena=undefined;room.epoch++;return true}
+  if(room.startTicks>0&&--room.startTicks===0){for(const m of online){m.ready=true;room.coop?.ready(m.actorId,true)};const ok=room.coop?room.coop.start():room.duel!.start();if(!ok)throw new Error('等待大厅开局失败');room.waitingArena=undefined;room.roomIndex=room.coop?.progress()??0;room.epoch++;return true}
   return false
  }
- if(room.coop){const next=new Map<number,Intent>();for(const m of online){const input=inputs.get(m.userId);next.set(m.actorId,input?.intent??IDLE_INPUT);room.coop.showOffers(m.actorId,input?.offers??false)}room.coop.tick(next);if(room.roomIndex!==room.coop.roomIndex()){room.roomIndex=room.coop.roomIndex();room.epoch++;return true}}
- else if(online.length===2){for(const m of online)room.duel!.showOffers((m.actorId-1) as 0|1,inputs.get(m.userId)?.offers??false);room.duel!.tick(inputs.get(room.members.find(m=>m.actorId===1)!.userId)?.intent??IDLE_INPUT,inputs.get(room.members.find(m=>m.actorId===2)!.userId)?.intent??IDLE_INPUT);if(room.duelRound!==room.duel!.state().round){room.duelRound=room.duel!.state().round;room.epoch++;return true}}
+ if(room.coop){const next=new Map<number,Intent>();for(const m of online){const input=inputs.get(m.userId);next.set(m.actorId,input?.intent??IDLE_INPUT);room.coop.showOffers(m.actorId,input?.offers??false)}room.coop.tick(next);if(room.roomIndex!==room.coop.progress()){room.roomIndex=room.coop.progress();room.epoch++;return true}}
+ else if(online.length===2){for(const m of online)room.duel!.showOffers((m.actorId-1) as 0|1,inputs.get(m.userId)?.offers??false);room.duel!.tick(inputs.get(room.members.find(m=>m.actorId===1)!.userId)?.intent??IDLE_INPUT,inputs.get(room.members.find(m=>m.actorId===2)!.userId)?.intent??IDLE_INPUT);if(isWaiting(room)){for(const m of room.members)m.ready=m.userId===room.ownerId;room.epoch++;return true};if(room.duelRound!==room.duel!.state().round){room.duelRound=room.duel!.state().round;room.epoch++;return true}}
  return false
 }
 export function storedRoom(room:Room):StoredRoom|null {if(!room.coop)return null;return {id:room.id,options:room.options,password:room.password,ownerId:room.ownerId,members:room.members,banned:room.banned,lastActive:room.lastActive,save:room.coop.save()}}
@@ -100,6 +102,6 @@ export function restoreRoom(value:unknown):Room {
  const stored=value as StoredRoom,save=readCoopSave(JSON.stringify(stored.save),true),options=cleanRoomOptions({...stored.options,password:''})
  if(typeof stored.id!=='string'||!Array.isArray(stored.members)||stored.members.length>5||!stored.members.some(m=>m.userId===stored.ownerId)||stored.members.some(m=>typeof m.userId!=='string'||!save.world.coop!.members.some(s=>s.id===m.actorId))||new Set(stored.members.map(m=>m.userId)).size!==stored.members.length)throw new Error('房间身份绑定损坏')
  const coop=createCoopMatch(options.coop,save);for(const m of coop.world().coop!.members)if(m.connected)coop.disconnect(m.id)
- return {...stored,options:{...options,password:undefined} as Omit<RoomOptions,'password'>,coop,duel:undefined,epoch:randomBytes(4).readUInt32BE(),duelRound:0,startTicks:0,roomIndex:save.roomIndex,members:stored.members.map(m=>({...m,connected:false,ready:false}))}
+ return {...stored,options:{...options,password:undefined} as Omit<RoomOptions,'password'>,coop,duel:undefined,epoch:randomBytes(4).readUInt32BE(),duelRound:0,startTicks:0,roomIndex:coop.progress(),members:stored.members.map(m=>({...m,connected:false,ready:false}))}
 }
 export function creationAllowed(policy:'open'|'key',key:string,expected:string):boolean {return policy==='open'||equalSecret(key,expected)}

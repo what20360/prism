@@ -2,7 +2,7 @@
 
 依据 **2026-11-04 核对的代码基线 `828c4a9e`**。架构、World 与 tick 顺序见 [第一篇](01-architecture-and-simulation.md)，武器与模式机制见 [第二篇](02-combat-content-and-modes.md)。本篇重点解释外层如何驱动核心，以及文件/网络数据如何安全地变成运行时对象。
 
-**当前规则：v1.24（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.25（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 浏览器启动与会话生命周期
 
@@ -15,7 +15,7 @@
 3. 创建 SaveManager、PlanManager、边缘 QuickBuy。它们通过回调获取当前会话，避免固定绑定到某个已经被替换的 World。
 4. 创建主页、单人菜单和结算面板。
 5. `launch('dungeon','home')` 先建立可绘制的单人世界，但处于 home，未正式开局，checkpoint 不应产生一个虚假的进行中存档。
-6. 启动每 10 秒自动保存，以及 pagehide/visibilitychange 的保存回调。
+6. 启动每秒策略检查，以及切房、pagehide/visibilitychange的保存请求；默认同关只写一次，见第七篇。
 
 ### 1.1 launch 与模式切换
 
@@ -177,8 +177,8 @@ moveTarget 交换步骤时保留同卡等级的递增集合；removeTarget 撤�
 | 键位 | `prism.bindings` | 固定 9 项映射 | [input/bindings.ts](../../src/input/bindings.ts) |
 | 商店筛选 | sessionStorage `prism.cardFilter` | 字符串枚举 | sections/cards.ts |
 | 收藏与命名预设集合 | `prism.builds.v2`，兼容 v1 | 导出 prism-build v2，导入支持 v1/v2 | planManager.ts、upgradePlans.ts |
-| 单人自动/手动槽 | `prism.save.v1.auto / slot-1 / slot-2 / slot-3` | prism-save v1；balanceVersion 6 | saveStore.ts、checkpoints.ts |
-| 合作服务端存档 | `.prism-server/server.json` 与导出JSON | prism-coop-save v1；balanceVersion 6；附带身份绑定 | server/store.ts、server/rooms.ts、modes/coop.ts |
+| 单人自动/手动槽 | `prism.save.v1.auto / slot-1 / slot-2 / slot-3` | prism-save v1；balanceVersion 7 | saveStore.ts、checkpoints.ts |
+| 合作服务端存档 | `.prism-server/server.json` 与导出JSON | prism-coop-save v1；balanceVersion 7；附带身份绑定 | server/store.ts、server/rooms.ts、modes/coop.ts |
 | 实时对战 | 不提供比赛进度槽 | prism-server-1；仅进程内支持重连 | serverSession.ts、serverProtocol.ts、server/rooms.ts |
 
 配置版本、存档封套版本、数值版本和联机协议版本互不等同。增加一个新属性、改旧卡公式、换传输协议，可能需要更新不同的版本/迁移入口。
@@ -236,7 +236,7 @@ flowchart TD
 
 [cardMigrations.ts](../../src/app/cardMigrations.ts) 的顺序是：
 
-1. registryForSave 根据 balanceVersion 选择 V1/V2/V3/V4/V5 或当前 V6。
+1. registryForSave 根据 balanceVersion 选择 V1/V2/V3/V4/V5/V6 或当前 V7。
 2. 必要时仅补旧版本新增属性的默认字段；再通过 restoreWorld 结构检查。
 3. 使用旧卡表核验“购买记录确实对应旧 attrs”，不把未知属性一律洗成合法。
 4. 映射退役 ID，合并等级，按旧价补缺失 paid，保留所有实付金额。
@@ -244,11 +244,11 @@ flowchart TD
 6. 保留旧弹丸、地雷、房间和随机状态；它们已有的数值不会统一重发一遍。
 7. 迁移收藏与有序未完成目标，不排序丢掉购买顺序。
 
-无 balanceVersion 的历史文件会尝试匹配对应旧规则；未知版本拒绝。数值版本 6 与存档格式 v1 并存，是因为 JSON 外壳没变、卡片解释方式变了。
+无 balanceVersion 的历史文件会尝试匹配对应旧规则；未知版本拒绝。数值版本 7 与存档格式 v1 并存，是因为 JSON 外壳没变、卡片解释方式变了。
 
 ### 8.5 保存、命名与失败处理
 
-[saveManager.ts](../../src/app/saveManager.ts) 管理业务，SaveStore 只做有界字符串读写。自动保存由 main 的 10 秒定时器、页面隐藏/离开以及重要菜单动作触发；Game.checkpoint 在未开始、测试场、已结束时返回 null。
+[saveManager.ts](../../src/app/saveManager.ts) 管理业务，SaveStore 只做有界字符串读写。自动保存由进关回调与main的一秒策略检查、页面隐藏/离开及菜单动作请求触发，统一服从每关/定时/关闭策略；Game.checkpoint 在未开始、测试场、已结束时返回 null。
 
 三个手动槽相互独立，导入先完整验证再写入，导入成功也不会立刻替换当前世界，用户还需读档。覆盖/导入保留已有槽位名称，空槽继承文件名字段；名称 1–40 字、禁止控制字符。导出文件名额外移除文件系统特殊字符。
 
@@ -260,7 +260,7 @@ CoopSave 还保存 config、hostId、started、全部 participants、成员在�
 
 createCoopMatch(saved) 恢复时：原在线角色先取实际生命；只把 hostId 成员设在线/准备，其余席位 alive=false、HP=0，并保留 offlineHp/offlineAlive 和 reviveTicks。世界暂停，朋友要重新建立连接。**重新建房恢复不是自动选主或无缝迁移**。
 
-合作接受 balanceVersion=5 或当前6，逐队员核验旧构筑并迁移，保留缺席席位；不接受合作V1–V4。自动槽也只有合作独立的一槽，没有普通 SaveManager 的三个手动槽；文件备份承担多份合作进度保存。
+合作接受 balanceVersion=5/6 或当前7，逐队员核验旧构筑并迁移，保留缺席席位；不接受合作V1–V4。自动槽也只有合作独立的一槽，没有普通 SaveManager 的三个手动槽；文件备份承担多份合作进度保存。
 
 ## 9. 当前网络入口
 

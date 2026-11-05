@@ -7,6 +7,7 @@ import { formatRuleNumber as fmt } from './format'
 import { describeRage, describeDash } from './skills'
 import { PLAYER_BASE_ATTRS } from './player'
 import { CARD_PURPOSES } from './cardRoles'
+import { CARD_LAYOUT } from './cardLayout'
 
 /** Numeric operations are the single source for both effects and descriptions. */
 type Operation = 'add' | 'multiply' | 'divide' | 'set' | 'chance'
@@ -41,7 +42,7 @@ function formulaCard(id: string, name: string, category: Card['category'], cost:
     },
     summary: (level) => {
       const modifiers = formula(level), text = modifiers.filter(([, op, value, label]) => label && (op !== 'add' || value !== 0)).map(describeModifier).join(' · ')
-      return (describe ? describe(level, modifiers, text) : text) + ' · 可回收'
+      return (describe ? describe(level, modifiers, text) : text)
     },
   }
 }
@@ -74,7 +75,7 @@ export const CARDS: readonly Card[] = [
   attrCard('gun-inner', '核心透镜', 'gun', 12, 'innerDamageMult', 0.3, '内层伤害倍率', 10, false, [{ card: 'gun-pierce', level: 1 }]),
   attrCard('armor', '复合装甲', 'defense', 12, 'armor', 15, '护甲', 20),
   attrCard('maxhp', '强化骨架', 'defense', 10, 'maxHp', 10, '最大生命', 20),
-  formulaCard('shield', '棱光护盾', 'defense', 16, (level) => [['shield', 'add', 12 * level, '护盾值'], ['shieldCapMult', 'add', 0.25 * level, '护盾上限系数'], ['shieldRegen', 'add', 2 * level, '脱战护盾回复/秒']], { priority: 20 }),
+  formulaCard('shield', '棱光护盾', 'defense', 16, (level) => [['shieldCapMult', 'add', 0.1 * level, '护盾系数'], ['shieldRegen', 'add', 1, '脱战护盾回复/秒']], { priority: 20 }),
   attrCard('shard-gain', '棱晶共鸣', 'special', 20, 'shardGain', 0.15, '棱晶收益', 5, true),
   attrCard('lifesteal', '生命虹吸', 'recovery', 20, 'lifesteal', 0.03, '吸血', 30, true),
   attrCard('revive', '备用核心', 'special', 60, 'revives', 1, '复活次数', 40),
@@ -88,8 +89,8 @@ export const CARDS: readonly Card[] = [
   ], { priority: 60, requires: [{ card: 'deflect', level: 1 }], describe: (_level, _modifiers, text) => `强化回击；${text}` }),
 ]
 export const BUILD_CARDS: readonly Card[] = [
-  toggle('auto-aim', '自动索敌', 'special', 50, 'autoAim', () => '启用全方向自动瞄准：优先手动锁定，否则优先攻击方向的可见目标；设置中可切回鼠标瞄准', undefined, 0),
-  toggle('auto-fire', '自动扳机', 'special', 50, 'autoFire', () => '启用自动射击；设置中可切回手动', undefined, 0),
+  toggle('auto-aim', '自动索敌', 'special', 50, 'autoAim', () => '解锁全方向自动瞄准：设置选择自动时生效；优先手动锁定，否则优先攻击方向的可见目标', undefined, 0),
+  toggle('auto-fire', '自动扳机', 'special', 50, 'autoFire', () => '解锁自动射击：设置选择自动时生效；射程内无目标时可手动开火', undefined, 0),
   formulaCard('burst', '脉冲连发', 'gun', 26, (level) => [
     ['burstCount', 'add', level, '连发轮数'], ['damage', 'divide', 1 + 0.2 * level, '伤害'], ['range', 'divide', 1 + 0.1 * level, '射程'],
   ], { priority: 110, sniperConversion: true, tags: ['连发'], describe: (_level, _modifiers, text) => `${text}；实体弹同向间隔 ${fmt(WEAPON_RULES.burstGapTicks / TICK_RATE)} 秒；电弧增加最深传递层数，激光延长照射；与霰弹相乘；狙击手生效时改为伤害 ×${fmt(1 + 0.1 * _level)}（弹数与代价均暂停）` }),
@@ -106,7 +107,7 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('suspension', '悬浮弹芯', 'gun', 14, (level) => [
     ['bulletSpeed', 'divide', 1 + 0.3 * level, '弹速'], ['range', 'multiply', 1 + 0.15 * level, '射程'],
   ], {
-    priority: 100, enabled: (a) => a.weapon === 0 || a.weapon === 3, resellable: true, tags: ['飞剑', '追踪', '可回收'], describe: (_level, _modifiers, text) => `${text}；延长飞行路径，配合追踪形成飞剑`,
+    priority: 100, enabled: (a) => a.weapon === 0 || a.weapon === 3, resellable: true, tags: ['飞剑', '追踪', '可回收'], describe: (_level, _modifiers, text) => `${text}；降低飞行速度并延长路径预算`,
   }),
   formulaCard('pierce-drive', '贯穿推进', 'gun', 24, (level) => [['pierceBoost', 'add', level, '贯穿推进等级']], {
     priority: 100, enabled: (a) => a.weapon === 0 || a.weapon === 3, tags: ['穿透', '飞剑'], requires: [{ card: 'gun-pierce', level: 1 }], describe: (level) => {
@@ -123,7 +124,7 @@ export const BUILD_CARDS: readonly Card[] = [
   ], { priority: 92, maxLevel: 1, tags: ['狙击', '主武器'], unavailable: a => a.weapon === 1 || a.weapon === 2 ? '先出售当前能量武器再切换狙击手' : null,
     describe: (_n, modifiers) => `${modifiers.filter(([key]) => key !== 'weapon').map(describeModifier).join(' · ')}；连发/霰弹转为伤害；脱战移速×${fmt(SNIPER_RULES.travelMultiplier)}，取消专精移速惩罚` }),
   formulaCard('sniper-specialty', '动能狙击', 'weapon', 48, n => [
-    ['sniperPower', 'add', n, '狙击专精'], ['damage', 'multiply', SNIPER_RULES.damageMultiplier ** n, '伤害'], ['fireRate', 'multiply', SNIPER_RULES.fireRateMultiplier ** n, '攻速'], ['speed', 'multiply', SNIPER_RULES.speedMultiplier ** n, '战斗移速'],
+    ['sniperPower', 'add', n, '狙击专精'], ['damage', 'multiply', SNIPER_RULES.damageMultiplier ** n, '伤害'], ['fireRate', 'divide', (1 / SNIPER_RULES.fireRateMultiplier) ** n, '攻速'], ['speed', 'multiply', SNIPER_RULES.speedMultiplier ** n, '战斗移速'],
   ], { priority: 120, requires: [{ card: 'precision-stance', level: 1 }], enabled: a => a.weapon === 3,
     describe: (n,_m,text) => text + `；命中时每100弹速折算${fmt(n)}点基础伤害，可获得伤害倍率；脱战取消专精移速代价` }),
   formulaCard('ascender', '广角棱镜', 'special', 12, (level) => [['vision', 'multiply', 1 + 0.12 * level, '可见世界范围']], { priority: 100, tags: ['视野'] }),
@@ -145,7 +146,7 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('magnet', '磁吸核心', 'special', 12, (level) => [['pickupRadius', 'add', 100 + 80 * level, '自动吸取半径']], {
     priority: 100, tags: ['拾取'], describe: (_level, _modifiers, text) => `${text}；设置中可开关，靠近仍可手动拾取`,
   }),
-  formulaCard('shield-regen', '护盾回充', 'recovery', 18, (level) => [['shieldRegen', 'add', 3 * level, '护盾回复/秒']], { priority: 30, requires: [{ card: 'shield', level: 1 }], enabled: (attrs) => attrs.shield > 0, tags: ['护盾'], describe: (_n, _m, text) => `${text}；需激活护盾，脱战后回复` }),
+  formulaCard('shield-regen', '护盾回充', 'recovery', 18, (level) => [['shieldRegen', 'add', 3 * level, '护盾回复/秒']], { priority: 30, requires: [{ card: 'shield', level: 1 }], enabled: (attrs) => attrs.shieldCapMult > 0, tags: ['护盾'], describe: (_n, _m, text) => `${text}；需激活护盾，脱战后回复` }),
   numericCard('thruster', '矢量推进', 'mobility', 10, [['speed', 'add', 25, '移速']], ['机动']),
   numericCard('greed', '棱晶契约', 'special', 26, [['shardGain', 'multiply', 1.3, '收益'], ['maxHp', 'multiply', 0.9, '最终生命']], ['经济', '高风险'], false, undefined, 1000),
   formulaCard('rage', '狂暴', 'skill', 32, (level) => [['rageLevel', 'add', level, '狂暴等级']], { priority: 50, tags: ['主动'], describe: (level) => describeRage(level) }),
@@ -164,12 +165,12 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('mine-brood', '蜂巢雷芯', 'mine', 32, (n) => [['mineBroodLevel', 'add', n, '子雷等级']], { priority: 130,
     describe: (n) => { const p = broodProfile(n); return `末段释放 ${fmt(p.children)} 子雷，伤害/耐久继承 ${fmt(p.inherit * 100)}%，范围按面积同比继承；子雷限额=母雷上限×${fmt(p.capMultiplier)}，独立计数，持续 ${fmt(p.lifetime / TICK_RATE)} 秒且不再繁殖` } }),
 ]
-export const ALL_CARDS: readonly Card[] = [...BUILD_CARDS.slice(0, 2), ...CARDS, ...BUILD_CARDS.slice(2)].map((card) => ({ ...card, purpose: CARD_PURPOSES[card.id], unavailable: (attrs: AttrSet) => {
+export const ALL_CARDS: readonly Card[] = [...BUILD_CARDS.slice(0, 2), ...CARDS, ...BUILD_CARDS.slice(2)].map((card) => ({ ...card, category:CARD_LAYOUT[card.id]!.category, tags:CARD_LAYOUT[card.id]!.tags, purpose: CARD_PURPOSES[card.id], unavailable: (attrs: AttrSet) => {
   const own = card.unavailable?.(attrs); if (own) return own
   if ((attrs.weapon === 1 || attrs.weapon === 2) && ['gun-bulletspeed', 'homing', 'suspension', 'pierce-drive', 'explosive'].includes(card.id)) return '此卡适用于实体弹；能量主武器不支持，切回实体弹后可购买'
   if (attrs.weapon === 1 && attrs.maxProjectiles !== 1 && card.id === 'burst' && Math.floor(attrs.pierce) <= Math.floor(attrs.burstCount)) return '电弧需要更多穿透层数才能增加传导目标'
   if (attrs.weapon === 1 && card.id === 'gun-size') return '电弧不采用实体弹命中半径'
   if (attrs.weapon === 1 && ['ricochet', 'gun-inner'].includes(card.id)) return '电弧不采用墙面弹射或核心命中'
   return null
-} }))
+} })).sort((a,b)=>CARD_LAYOUT[a.id]!.order-CARD_LAYOUT[b.id]!.order)
 export const CARD_REGISTRY = createCardRegistry(ALL_CARDS)

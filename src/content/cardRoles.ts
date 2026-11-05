@@ -21,7 +21,7 @@ export const CARD_PURPOSES: Readonly<Record<string, string>> = {
   'gun-inner': '专门强化穿透后命中核心的伤害。',
   armor: '提高持续承伤能力，与生命和恢复互补。',
   maxhp: '提高生命容错，也扩大血球和护盾容量。',
-  shield: '获得护盾并解锁护盾恢复路线。',
+  shield: '每级增加10%最大生命的护盾容量，自带固定脱战回复。',
   'shard-gain': '投资后续伤害收入与晶片拾取收益。',
   lifesteal: '用有效伤害立即恢复生命，适合持续作战。',
   revive: '抵御一次致命失误；已消耗的次数不会因回购重置。',

@@ -6,7 +6,7 @@ import {createTouchControls} from '../../src/input/touch'
 import {createPointerInput} from '../../src/input/pointer'
 import {DEFAULT_SETTINGS} from '../../src/storage/config'
 import {createPlanManager} from '../../src/app/planManager'
-import {createRoom,roomInfo,playState} from '../../src/server/rooms'
+import {createRoom,joinRoom,roomInfo,playState} from '../../src/server/rooms'
 import {DEFAULT_COOP} from '../../src/app/modes/coop'
 import {createSyncEncoder} from '../../src/net/sync'
 import type {ClientPacket,ServerInfo} from '../../src/net/serverProtocol'
@@ -21,8 +21,8 @@ class Socket {
 }
 const cleanup:(()=>void)[]=[]
 afterEach(()=>{cleanup.splice(0).reverse().forEach(f=>f());vi.unstubAllGlobals();vi.restoreAllMocks();document.body.replaceChildren();localStorage.clear()})
-async function setup(realTouch=false){
- const info:ServerInfo={protocol:'prism-server-2',serverId:'test-server',version:'1.24',rooms:0,name:'测试服务器',createPolicy:'key'}
+async function setup(realTouch=false,guest=false){
+ const info:ServerInfo={protocol:'prism-server-3',serverId:'test-server',version:'1.25',rooms:0,name:'测试服务器',createPolicy:'key'}
  const frames=new Map<number,FrameRequestCallback>();let frameId=0
  vi.stubGlobal('requestAnimationFrame',(f:FrameRequestCallback)=>{frames.set(++frameId,f);return frameId});vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id))
  vi.stubGlobal('WebSocket',Socket);vi.stubGlobal('fetch',async()=>({ok:true,text:async()=>JSON.stringify(info)}));vi.spyOn(document,'hidden','get').mockReturnValue(false)
@@ -36,18 +36,33 @@ async function setup(realTouch=false){
  const click=(name:string)=>{const b=Array.from(document.querySelectorAll('button')).find(b=>b.textContent===name);expect(b,`button ${name}`).toBeTruthy();b!.click()}
  field('服务器地址').value='http://127.0.0.1:8787';click('连接服务器');await Promise.resolve();await Promise.resolve();await Promise.resolve();await Promise.resolve()
  const socket=Socket.latest;socket.emit({type:'welcome',userId:id,token:'a'.repeat(43),info})
- const room=createRoom({id,name:'队员',hash:'unused',created:0},{name:'测试房间',mode:'dungeon',duelMode:'budget',coop:DEFAULT_COOP,password:'',hidden:false},0),encoder=createSyncEncoder()
+ const room=createRoom({id:guest?'P-00000000-0000-4000-8000-000000000002':id,name:'队员',hash:'unused',created:0},{name:'测试房间',mode:'dungeon',duelMode:'budget',coop:DEFAULT_COOP,password:'',hidden:false},0),encoder=createSyncEncoder()
+ if(guest)joinRoom(room,{id,name:'队员',hash:'unused',created:0},'')
  let lastEpoch=room.epoch
  const sync=()=>{if(room.epoch!==lastEpoch){encoder.reset();lastEpoch=room.epoch};socket.emit({type:'room',room:roomInfo(room)});socket.emit(encoder.encode(playState(room,id),performance.now()))}
  const frame=(now:number)=>{const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f(now)}
  sync();return {session,socket,room,sync,frame,click,input,canvas,renderer,touch}
 }
 describe('server browser session controls',()=>{
- it('automatically enters a playable waiting arena without exposing manual ready controls',async()=>{
+ it('enters a playable waiting arena and gives the host a quick start button',async()=>{
   const t=await setup();expect(document.querySelector('.server-lobby')!.hasAttribute('hidden')).toBe(true)
-  expect(document.body.textContent).not.toContain('准备 / 取消准备');expect(t.session.active()).toBe(true)
+  expect(document.querySelector<HTMLButtonElement>('.server-start-button')!.textContent).toBe('开始对局（5秒倒计时）');expect(t.session.active()).toBe(true)
   window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyD',bubbles:true}));t.canvas.dispatchEvent(new PointerEvent('pointerdown',{button:0,pointerType:'mouse',clientX:900,clientY:350,bubbles:true}));t.frame(1000)
   expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{move:{x:1,y:0},fire:true}})
+ })
+ it('lets guests ready/cancel from the arena and disables host start until guests are ready',async()=>{
+  const t=await setup(false,true),quick=document.querySelector<HTMLButtonElement>('.server-start-button')!
+  expect(quick.hidden).toBe(false);expect(quick.textContent).toBe('准备');quick.click()
+  expect(t.socket.sent.at(-1)).toMatchObject({type:'command',command:{kind:'ready'}})
+  t.room.members.find(m=>m.userId===id)!.ready=true;t.room.startTicks=300;t.sync()
+  expect(quick.hidden).toBe(false);expect(quick.textContent).toBe('取消准备');quick.click()
+  expect(t.socket.sent.at(-1)).toMatchObject({type:'command',command:{kind:'ready'}})
+ })
+ it('updates the host quick-start state when a guest becomes ready',async()=>{
+  const t=await setup();joinRoom(t.room,{id:'P-00000000-0000-4000-8000-000000000002',name:'客人',hash:'unused',created:0},'');t.sync()
+  const quick=document.querySelector<HTMLButtonElement>('.server-start-button')!;expect(quick.disabled).toBe(true);expect(quick.textContent).toContain('等待1人准备')
+  t.room.members[1]!.ready=true;t.sync();expect(quick.disabled).toBe(false);quick.click()
+  expect(t.socket.sent.at(-1)).toMatchObject({type:'command',command:{kind:'start'}})
  })
  it('shows the authoritative countdown and uses server-priced full refunds during preparation',async()=>{
   const t=await setup();t.room.coop!.action(1,{kind:'buy',id:'gun-damage'});t.room.startTicks=300;t.sync()

@@ -98,12 +98,19 @@ function legacyDungeon(): RoomSpec[] {
 export const ROOMS_PER_FLOOR = 5
 
 export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
+export function dungeonEnemyPalette(difficulty:DungeonDifficulty,depth:number):string[] {
+ const types=['drifter','turret','stalker','bomber']
+ if(difficulty>=2||depth>=0.8)types.push('arc-rider')
+ if(difficulty>=3||depth>=1.2)types.push('bulwark')
+ if(difficulty>=4||depth>=2)types.push('lancer','warden')
+ return types
+}
 function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = [], entry: Vec2 = ENTRY): EnemySpawnSpec[] {
   const profile = dungeonProfile(difficulty, depth), placed: EnemySpawnSpec[] = []
   for (let i = 0; i < count; i++) {
     const originalSource = original[i % original.length]!
-    const options = ['drifter', 'turret', 'stalker', 'bomber', 'lancer']
-    const source = originalSource.behavior !== 'boss' && nextFloat(rng) < 0.48 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
+    const options = dungeonEnemyPalette(difficulty,depth)
+    const source = originalSource.tier !== 'boss' && !(originalSource.tier==='elite'&&i===0) && nextFloat(rng) < 0.78 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
     const factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
     const attrs = { ...source.attrs, maxHp: source.attrs.maxHp * profile.hp * factor, damage: source.attrs.damage * profile.damage * factor,
       armor: source.attrs.armor + profile.armor, block: source.attrs.block + 0.7 * (difficulty - 1) * (1 + depth / 3), speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,

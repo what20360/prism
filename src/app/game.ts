@@ -81,6 +81,7 @@ export interface GameOptions {
   readonly pointer?: PointerSource
   readonly renderer: Renderer
   readonly touch?: TouchSource
+  readonly onRoomChange?: () => void
   readonly onSnapshot?: (snapshot: Snapshot, paused: boolean) => void
   readonly initialSettings?: ControlSettings
   readonly onSettingsChange?: (settings: ControlSettings) => void
@@ -102,6 +103,7 @@ export interface Game {
   setQuickMode(mode: QuickMode): void
   purchaseNotice(): PurchaseNotice | null
   setSaveName(name: string | undefined): void
+  autoSaveKey(): string | null
   checkpoint(): RunCheckpoint | null
   start(): void
   stop(): void
@@ -160,7 +162,7 @@ export function createGame(options: GameOptions): Game {
     })
     options.practice?.initialize(created)
     options.endless?.initialize(created)
-    if (options.difficulty !== undefined) created.shards = DUNGEON_START_SHARDS
+    if (!options.practice) created.shards = DUNGEON_START_SHARDS
     return created
   }
 
@@ -303,7 +305,9 @@ export function createGame(options: GameOptions): Game {
         options.practice?.beforeStep(world)
         step(world, intents)
         options.practice?.afterStep(world)
+        const roomBefore=options.endless?.floor()
         options.endless?.afterStep(world)
+        if(options.endless?.floor()!==roomBefore)options.onRoomChange?.()
         if (!world.gameOver && !world.victory) purchaseNotice = purchaseQueue.update(plan, listCardStates(world), 1, buyCard)
         accumulator -= TICK_DT
       }
@@ -315,7 +319,7 @@ export function createGame(options: GameOptions): Game {
     if (!options.practice && !options.endless && world.exitReached && roomIndex + 1 < options.rooms.length) {
       roomIndex += 1
       const next = options.rooms[roomIndex]
-      if (next) applyRoom(world, next)
+      if (next) {applyRoom(world, next);options.onRoomChange?.()}
     }
 
     if (!runEnded && (world.gameOver || world.victory)) {
@@ -357,15 +361,11 @@ export function createGame(options: GameOptions): Game {
     const result = buyCardInWorld(world, cardId)
     if (!result.ok) return false
     options.practice?.credit(world)
-    if (cardId === 'auto-aim') setSetting('aimMode', 'auto')
-    if (cardId === 'auto-fire') setSetting('fireMode', 'auto')
     return true
   }
 
   const sellCard = (cardId: string): boolean => {
     if (!sellCardInWorld(world, cardId)) return false
-    if (cardId === 'auto-aim') setSetting('aimMode', 'manual')
-    if (cardId === 'auto-fire') setSetting('fireMode', 'manual')
     return true
   }
 
@@ -381,9 +381,7 @@ export function createGame(options: GameOptions): Game {
       endless: options.endless?.state(world),
       skillSlots: [...player.skillSlots],
       knownSkills: SKILL_IDS.filter((id) => unlocked(player.attrs, id)).map((id) => toSkillView(player, id)),
-      settings: { ...settings,
-        aimMode: player.attrs.autoAim > 0 ? settings.aimMode : 'manual',
-        fireMode: player.attrs.autoFire > 0 ? settings.fireMode : 'manual' },
+      settings: { ...settings },
       player: {
         attrs: combatAttrs(player),
         hp: player.hp,
@@ -430,7 +428,6 @@ export function createGame(options: GameOptions): Game {
   const practiceAction = (action: PracticeAction): boolean => {
     if (!options.practice || uiMode !== 'menu' || world.gameOver || world.victory) return false
     if (!options.practice.action(world, action)) return false
-    if (action.type === 'card-level' && (action.id === 'auto-aim' || action.id === 'auto-fire')) setSetting(action.id === 'auto-aim' ? 'aimMode' : 'fireMode', action.level > 0 ? 'auto' : 'manual')
     options.input.reset(); options.pointer?.reset(); options.touch?.reset(); options.touch?.setPaused(true)
     lastTime = 0; accumulator = 0
     return true
@@ -448,7 +445,7 @@ export function createGame(options: GameOptions): Game {
     const next = level ?? Math.max(purchaseLevel(world.purchases, id), ...plan.targets.filter((t) => t.id === id).map((t) => t.level)) + 1
     return setPlan([...plan.targets, { id, level: next }])
   }
-  return { start, stop, dispose, restart, setUiMode, buyCard, sellCard, checkpoint,
+  return { autoSaveKey:()=>options.practice||!hasStarted||world.gameOver||world.victory?null:`${options.seed}:${restarts}:${options.endless?'endless':'dungeon'}:${options.endless?.floor()??roomIndex}`,start, stop, dispose, restart, setUiMode, buyCard, sellCard, checkpoint,
     plan: () => structuredClone(plan), queueUpgrade, setPlan, setAutoBuy: (enabled) => { plan.enabled = enabled; purchaseQueue.reset() },
     setQuickMode: (mode) => { plan.quickMode = mode; purchaseQueue.reset(); purchaseNotice = null }, purchaseNotice: () => purchaseNotice,
     setSaveName: (name) => { saveName = name },

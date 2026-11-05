@@ -1,7 +1,7 @@
 import { clientId } from '../storage/clientId'
 import { CARD_REGISTRY } from '../content/cards'
 import type { Game } from './game'
-import { DEFAULT_FAVORITES, orderPreset, moveTarget, removeTarget, readPreset, validateFavorites, validateQuickMode, validateTargets, type BuildPreset, type UpgradeTarget, type QuickMode } from './upgradePlans'
+import { appendPresetTargets, duplicatePresetTarget, presetCost, DEFAULT_FAVORITES, orderPreset, moveTarget, removeTarget, readPreset, validateFavorites, validateQuickMode, validateTargets, type BuildPreset, type UpgradeTarget, type QuickMode } from './upgradePlans'
 import type { PlanView, PlansHandlers, PresetView } from '../ui/sections/plans'
 interface PresetStore { version: 2; presets: PresetView[]; favorites: string[]; quickMode: QuickMode }
 export type PlanSession = Pick<Game, 'panelState' | 'plan' | 'setPlan' | 'setAutoBuy' | 'setQuickMode' | 'moveQueued' | 'removeQueued' | 'queueUpgrade'>
@@ -37,7 +37,8 @@ export function createPlanManager(options: { game: () => PlanSession | undefined
       }
       catch (error) { update(error instanceof Error ? error.message : '目标等级无效') }
     },
-    add: (id) => { try { const level = Math.max(0, ...current.targets.filter((t) => t.id === id).map((t) => t.level)) + 1; current = { ...current, targets: validateTargets([...current.targets, { id, level }]) }; update() } catch (error) { update(error instanceof Error ? error.message : '不能再购买此卡片') } },
+    add: (id,count=1,requirements=true) => {try {current={...current,targets:appendPresetTargets(current.targets,id,count,requirements)};update()}catch(error){update(error instanceof Error?error.message:'不能添加此卡片')}},
+    duplicate:(index)=>{try{current={...current,targets:duplicatePresetTarget(current.targets,index)};update()}catch(error){update(error instanceof Error?error.message:'不能重复此项')}},
     moveTarget: (index, direction) => { current = { ...current, targets: moveTarget(current.targets, index, direction) }; update() },
     favorite: (id) => { if (!CARD_REGISTRY.get(id)) return; store.favorites = store.favorites.includes(id) ? store.favorites.filter((c) => c !== id) : [...store.favorites, id]; current = { ...current, favorites: [...store.favorites] }; persist(); update() },
     mode: (mode) => { store.quickMode = mode; options.game()?.setQuickMode(mode); current = { ...current, quickMode: mode }; persist(); options.saved(); update() },
@@ -75,8 +76,8 @@ export function createPlanManager(options: { game: () => PlanSession | undefined
   }
   const state = (): PlanView => {
     const game = options.game(), cards = game?.panelState().cards, plan = game?.plan()
-    return { canUse: Boolean(game), cards: CARD_REGISTRY.all().map((c) => ({ id: c.id, name: c.name, level: cards?.find((v) => v.id === c.id)?.level ?? 0 })),
-      presets: store.presets, draft: current, editing: Boolean(editing), message, favorites: store.favorites, quickMode: plan?.quickMode ?? store.quickMode, enabled: plan?.enabled ?? false,
+    return { canUse: Boolean(game), cards: CARD_REGISTRY.all().map((c) => ({ id: c.id, name: c.name,category:c.category,tags:c.tags??[],firstPrice:c.priceFn(1),maxLevel:c.maxLevel, level: cards?.find((v) => v.id === c.id)?.level ?? 0 })),
+      draftCost:presetCost(current.targets),presets: store.presets, draft: current, editing: Boolean(editing), message, favorites: store.favorites, quickMode: plan?.quickMode ?? store.quickMode, enabled: plan?.enabled ?? false,
       queue: (plan?.targets ?? []).map((target) => { const card = cards!.find((c) => c.id === target.id)!; return { ...target, name: card.name, current: card.level, price: card.price,
         status: card.level >= target.level ? '目标已完成' : card.availability === 'locked' ? card.blockedReason ?? '等待前置升级' : card.availability === 'not-enough-shards' ? '等待足够棱晶' : '继续游戏后购买' } }),
     }

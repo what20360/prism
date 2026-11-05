@@ -1,6 +1,6 @@
 # 06 · 等待大厅、倒计时、结算与服务器运维
 
-适用v1.24，2026-11-05；数值存档版本6，实时协议prism-server-2。操作说明见[服务器指南](../server-guide.md)。
+适用v1.25，2026-11-05；数值存档版本7，实时协议prism-server-3。操作说明见[服务器指南](../server-guide.md)。
 
 ## 状态与所有权
 
@@ -12,13 +12,13 @@
 | 正式对局 | app/modes/coop或duel | 真实World、钱包、构筑、关卡、随机数和存档 |
 | 结算界面 | app/serverSession.showSettlement | 从权威结束状态生成DOM；玩家选择导航 |
 
-`isWaiting`根据合作started或1v1的preparing/round-over阶段计算，不能由客户端提交。RoomInfo和PlayState提供waiting、startCountdown（向上取整秒数）。成员进入后直接就绪，没有ready/cancel-ready网络命令。模式内部的ready方法保留用于原有模式测试与内部编排，不暴露手动准备UI。
+`isWaiting`根据合作started或1v1的preparing/round-over阶段计算，不能由客户端提交。RoomInfo和PlayState提供waiting、startCountdown（向上取整秒数）。房主默认准备，队员入房后手动ready/取消准备。未准备也可训练和试卡；房主/管理员开始前要求所有在线非房主已准备，取消准备会中止倒计时。HUD快捷按钮和房间页均可操作。
 
 ```mermaid
 stateDiagram-v2
   [*] --> Waiting: 入房
-  Waiting --> Countdown: 管理者开始
-  Countdown --> Waiting: 取消、加入或掉线
+  Waiting --> Countdown: 队员已准备，管理者开始
+  Countdown --> Waiting: 取消准备、加入或掉线
   Countdown --> Fighting: 300 tick结束
   Fighting --> Paused: 合作暂停
   Paused --> Fighting: 继续
@@ -42,7 +42,7 @@ stateDiagram-v2
 
 scheduleStart由权限检查后的服务器命令或本机终端调用。首次等待阶段设300tick；重复点击拒绝，不延长计时。tickRoom每固定步减少1，减到零时调用合作start或1v1 start，再清理训练世界、更新epoch。1v1不再额外叠加模式内部原3秒倒计时。暂停中的合作start只是继续，不重新获得训练退款资格。
 
-参与者成功加入、离开或掉线会取消倒计时；被拒绝的加入不得取消已有倒计时。房主或管理员可以cancel-start。倒计时期间仍可移动、测试和原价调整构筑，正式开始的边界由服务器单线程执行顺序决定。
+参与者成功加入、离开或掉线会取消倒计时；被拒绝的加入不得取消已有倒计时。房主或管理员可以cancel-start，队员可通过ready取消自己的准备而中止。倒计时期间仍可移动、测试和原价调整构筑，正式开始的边界由服务器单线程执行顺序决定。
 
 [progress.ts](../../src/core/progress.ts)的listBuildCards/saleValue/sellCard接受可信调用方传入refundRatio；默认仍为0.6，等待阶段服务器指定1。金额取购买账目最后一级paid，缺省才取对应旧价格规则的现有补齐值。全额退款不执行原“至少损失1”限制；正式对局沿用向下取整及至少损失1。客户端没有权利提交退款倍率。
 
@@ -75,3 +75,5 @@ admin只由Node本机stdin调用，没有HTTP/WS管理员路由；网络命令�
 ## 验证
 
 新增真实WebSocket测试覆盖五人等待大厅移动/开火、正式世界不变、逐级原价退款、正式暂停不能全额退款、300tick开局边界、加入/掉线取消、旧代次拒绝、新输入生效与超时、终端查询和管理及日志不泄露身份。配置/日志测试覆盖优先级、错误输入、目录、轮转、级别、脱敏和命令解析。原有模式与战斗测试继续保留。
+
+每关存档与新准备流程的配置、执行和测试详见[第七篇](07-growth-presets-and-autosave.md)。

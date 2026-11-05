@@ -3,6 +3,7 @@ import { ALL_CARDS, CARD_REGISTRY } from '../../src/content/cards'
 import { CARD_PURPOSES, RETIRED_CARDS } from '../../src/content/cardRoles'
 import { LEGACY_V1_REGISTRY, LEGACY_V2_REGISTRY } from '../../src/content/legacyCards'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../../src/content/legacyPlayer'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { ENEMIES } from '../../src/content/enemies'
 import { createWorld, createActor, getPlayer, allocateId } from '../../src/core/world'
@@ -19,7 +20,7 @@ import { readCheckpoint, CURRENT_BALANCE_VERSION } from '../../src/app/checkpoin
 import { readPreset } from '../../src/app/upgradePlans'
 import { createDuelMatch } from '../../src/app/modes/duel'
 function arena(registry = CARD_REGISTRY) {
-  const w = createWorld({ seed: 9, playerAttrs: PLAYER_BASE_ATTRS, registry, economy: DEFAULT_ECONOMY,
+  const w = createWorld({ seed: 9, playerAttrs: registry === CARD_REGISTRY ? PLAYER_BASE_ATTRS : LEGACY_PLAYER_BASE_ATTRS, registry, economy: DEFAULT_ECONOMY,
     room: { id: 'audit', kind: 'safe', bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], spawns: [], pickups: [], entry: { x: 300, y: 300 } } })
   w.shards = 100000; return w
 }

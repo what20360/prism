@@ -108,5 +108,5 @@ export const ARSENAL_DEFAULTS = { block: 0, physicalResist: 0, electricResist: 0
   arcEfficiency: 0, laserPower: 0, minePulseLevel: 0, mineBroodLevel: 0 } as const
 
 export function shieldCap(attrs: AttrSet): number {
-  return attrs.shield > 0 ? attrs.maxHp * attrs.shieldCapMult : 0
+  return Math.max(0, attrs.maxHp * attrs.shieldCapMult)
 }

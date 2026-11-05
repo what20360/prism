@@ -10,7 +10,7 @@ try {
  console.log(`PRISM ${server.info().version} · http://localhost:${server.port}`)
  for(const address of localAddresses(server.port))console.log(`局域网入口：${address}`)
  if(server.info().createPolicy==='key')console.log(`建房授权码（仅终端显示，不写入日志）：${server.creationKey}`)
- console.log(`数据目录：${config.dataDir}\n日志目录：${config.log.directory}\n输入help查询或管理服务器，Ctrl+C保存退出。`)
+ console.log(`数据目录：${config.dataDir}\n日志目录：${config.log.directory}\n自动存档：${config.autoSaveMode}${config.autoSaveMode==='interval'?' / '+config.autoSaveSeconds+'秒':''}\n输入help查询或管理服务器，Ctrl+C保存退出。`)
  const terminal=createInterface({input:process.stdin,output:process.stdout,terminal:Boolean(process.stdin.isTTY)})
  if(process.stdin.isTTY){terminal.setPrompt('prism> ');terminal.prompt()}
  let stopping=false,commands=Promise.resolve()

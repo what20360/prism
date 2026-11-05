@@ -160,7 +160,7 @@ describe('formula-driven growth cards', () => {
     expect(ALL_CARDS.filter((card) => card.maxLevel !== undefined).map((card) => card.id).sort())
       .toEqual(['auto-aim', 'auto-fire', 'grenade', 'mine-ignore', 'precision-stance', 'ricochet', 'weapon-electric', 'weapon-laser'])
     for (const card of ALL_CARDS.filter((card) => card.maxLevel === undefined)) {
-      const context = { ...PLAYER_BASE_ATTRS, shield: 12, weapon: card.id === 'arc-coil' ? 1 : card.id === 'laser-focus' ? 2 : card.id === 'sniper-specialty' ? 3 : 0 }
+      const context = { ...PLAYER_BASE_ATTRS, shield: 0, shieldCapMult: 0.1, weapon: card.id === 'arc-coil' ? 1 : card.id === 'laser-focus' ? 2 : card.id === 'sniper-specialty' ? 3 : 0 }
       const a = card.effectFn(30, context), b = card.effectFn(31, context)
       expect(b, card.id).not.toEqual(a)
       expect(card.summary?.(31), card.id).not.toBe(card.summary?.(30))
@@ -173,7 +173,7 @@ describe('formula-driven growth cards', () => {
     expect(card.maxLevel).toBe(1); expect(attrs.weapon).toBe(3)
     expect(attrs.bulletSpeed).toBe(2100); expect(attrs.range).toBeCloseTo(1120)
     const spec = CARD_REGISTRY.get('sniper-specialty')!, specialized = spec.effectFn(3, attrs)
-    expect(specialized.damage).toBe(attrs.damage * 8); expect(specialized.fireRate).toBe(attrs.fireRate / 8)
+    expect(specialized.damage).toBe(attrs.damage * 8); expect(specialized.fireRate).toBe(attrs.fireRate / 27)
     expect(spec.summary?.(3)).toContain('伤害 ×8'); expect(spec.summary?.(3)).toContain('每100弹速')
   })
   it('scales active skills through the same rules used by their generated descriptions', () => {

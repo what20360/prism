@@ -1,3 +1,5 @@
+import {createAutoSaveSchedule} from '../app/autoSave'
+import type {AutoSaveMode} from '../storage/config'
 import { createServer, type IncomingMessage } from 'node:http'
 import { sellCard } from '../core/progress'
 import { silentLogger, LOG_LEVELS, type ServerLogger, type LogLevel } from './logger'
@@ -12,7 +14,7 @@ import { readCoopSave, createCoopMatch } from '../app/modes/coop'
 import { createRoom, joinRoom, disconnectRoom, removeRoomMember, transferOwner, authorize, playState, tickRoom, storedRoom, restoreRoom, roomInfo, roomSummary, cleanRoomOptions, creationAllowed, isWaiting, matchWorld, scheduleStart, type Room } from './rooms'
 import { openStore, passwordHashAsync, passwordMatchesAsync, type Identity } from './store'
 import { createLanDiscovery, localAddresses } from './discovery'
-export interface ServerOptions {logger?:ServerLogger;port?:number;host?:string;dataDir:string;name?:string;createPolicy?:'open'|'key';createKey?:string;allowedOrigins?:string[];publicUrl?:string;maxRooms?:number;maxConnections?:number;staticDir?:string;discovery?:boolean;autoTick?:boolean;roomTtlMs?:number}
+export interface ServerOptions {autoSaveMode?:AutoSaveMode;autoSaveSeconds?:number;logger?:ServerLogger;port?:number;host?:string;dataDir:string;name?:string;createPolicy?:'open'|'key';createKey?:string;allowedOrigins?:string[];publicUrl?:string;maxRooms?:number;maxConnections?:number;staticDir?:string;discovery?:boolean;autoTick?:boolean;roomTtlMs?:number}
 interface Connection {id:number;receivedInputs:number;acceptedInputs:number;rejectedInputs:number;lastReject:number;bytesOut:number;ws:WebSocket;user?:Identity;roomId?:string;input:ReturnType<typeof createRemoteInput>;encoder:ReturnType<typeof createSyncEncoder>;lastSeen:number;windowAt:number;messages:number;bytes:number;lastImport:number;lastRoom:string;inputEpoch:number;queue:Promise<void>;joinAt:number;joinCount:number}
 export async function startPrismServer(options:ServerOptions) {
  const logger=options.logger??silentLogger,startedAt=Date.now();let connectionId=0,inputsReceived=0,inputsRejected=0,bytesSent=0
@@ -22,7 +24,10 @@ export async function startPrismServer(options:ServerOptions) {
  const localNames=new Set(['localhost','127.0.0.1','[::1]',...localAddresses(1).map(address=>new URL(address).hostname)]);if(options.publicUrl)localNames.add(new URL(options.publicUrl).hostname)
  let closing=false,port=0,lastBroadcast=0,lastPersist=0,accumulator=0,lastTick=performance.now(),persistError=''
  for(const item of store.data.rooms){const room=restoreRoom(item);rooms.set(room.id,room);for(const member of room.members)droppedAt.set(member.userId,Date.now())}
- const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.24'})
+ const autoSave=createAutoSaveSchedule(),autoMode=options.autoSaveMode??'room',autoSeconds=options.autoSaveSeconds??60
+ const progressKey=()=>[...rooms.values()].filter(r=>r.coop).map(r=>r.id+':'+r.epoch+':'+r.coop!.started()+':'+r.coop!.progress()).sort().join('|')||null
+ const saveProgress=async()=>{const key=progressKey();if(autoSave.due(key,autoMode,autoSeconds,Date.now())){await persist();if(!persistError&&key)autoSave.saved(key,Date.now())}}
+ const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.25'})
  const validHost=(req:IncomingMessage)=>{try{return localNames.has(new URL('http://'+req.headers.host).hostname)}catch{return false}}
  const validOrigin=(req:IncomingMessage)=>{const origin=req.headers.origin;if(!origin)return true;return origins.has(origin)||origin===`http://${req.headers.host}`||origin===`https://${req.headers.host}`}
  const discovery=options.discovery===false?undefined:createLanDiscovery(info,()=>port)
@@ -76,13 +81,14 @@ export async function startPrismServer(options:ServerOptions) {
    // Imports never grant arbitrary old ID bindings. Owner explicitly controls the imported host seat.
    if(save.world.coop!.members.length>1&&!room.password)throw new Error('导入多人存档前，请创建带密码的房间以保护待认领角色')
    const host=restored.hostId();room.coop=restored;room.options={...room.options,name,mode:save.config.mode,coop:save.config};room.members=restored.world().coop!.members.map(m=>m.id===host?{...member,actorId:host,ready:true}:{userId:'unclaimed:'+m.id,name:m.name,actorId:m.id,role:'player',connected:false,ready:false})
-   room.startTicks=0;room.waitingArena=undefined;room.roomIndex=restored.roomIndex();room.epoch++;c.lastImport=Date.now();changed(room);void persist();return
+   room.startTicks=0;room.waitingArena=undefined;room.roomIndex=restored.progress();room.epoch++;c.lastImport=Date.now();changed(room);void persist();return
   }
   if(cmd.kind==='rename'){room.options.name=cmd.name;room.coop?.rename(cmd.name)}
+  if(cmd.kind==='ready'){if(!isWaiting(room)||member.userId===room.ownerId)throw new Error('只有等待大厅的队员可以准备');member.ready=!member.ready;if(!member.ready)room.startTicks=0;room.coop?.ready(member.actorId,member.ready);log('info','room.ready',{roomId:room.id,userId:user.id,ready:member.ready})}
   if(cmd.kind==='cancel-start'){room.startTicks=0;log('info','room.countdown_cancelled',{roomId:room.id,userId:user.id,reason:'manager'})}
   if(cmd.kind==='start'){scheduleStart(room);log('info','room.start_requested',{roomId:room.id,userId:user.id,countdown:Math.ceil(room.startTicks/60)})}
   if(cmd.kind==='pause'){if(!room.coop||isWaiting(room))throw new Error('只能暂停正式合作对局');room.coop.pause()}
-  if(cmd.kind==='restart'){room.startTicks=0;room.waitingArena=undefined;if(room.coop)room.coop.restart();else{const mode=room.options.duelMode;room.duel=createRoom(user,{...room.options,password:'',duelMode:mode},Date.now()).duel};room.epoch++;room.roomIndex=0;room.duelRound=0;for(const m of room.members)m.ready=m.userId===room.ownerId&&Boolean(room.coop)}
+  if(cmd.kind==='restart'){room.startTicks=0;room.waitingArena=undefined;if(room.coop)room.coop.restart();else{const mode=room.options.duelMode;room.duel=createRoom(user,{...room.options,password:'',duelMode:mode},Date.now()).duel};room.epoch++;room.roomIndex=0;room.duelRound=0;for(const m of room.members)m.ready=m.userId===room.ownerId}
   if(cmd.kind==='manage'){
    const target=room.members.find(m=>m.userId===cmd.target)!
    if(cmd.action==='promote')target.role='moderator'
@@ -132,7 +138,7 @@ export async function startPrismServer(options:ServerOptions) {
  })
  const tick=(now=Date.now())=>{for(const room of rooms.values()){
   const inputs=new Map(room.members.filter(m=>m.connected).map(m=>{const c=byUser.get(m.userId);return [m.userId,{intent:c?.input.read(now)??{move:{x:0,y:0},fire:false},offers:c?.input.offersVisible(now)??false}]}))
-  if(tickRoom(room,inputs)){log('info','room.phase_changed',{roomId:room.id,waiting:isWaiting(room),epoch:room.epoch});for(const c of clients)if(c.roomId===room.id){c.input.reset();c.inputEpoch=room.epoch};changed(room)}
+  if(tickRoom(room,inputs)){log('info','room.phase_changed',{roomId:room.id,waiting:isWaiting(room),epoch:room.epoch});for(const c of clients)if(c.roomId===room.id){c.input.reset();c.inputEpoch=room.epoch};changed(room);void saveProgress()}
   for(const member of room.members)if(!member.connected&&now-(droppedAt.get(member.userId)??now)>60000){if(room.duel&&['countdown','fighting'].includes(room.duel.state().phase))room.duel.forfeit((member.actorId-1) as 0|1);if(room.ownerId===member.userId){const next=room.members.find(m=>m.connected&&m.role==='moderator')??room.members.find(m=>m.connected);if(next){transferOwner(room,next);changed(room)}}}
  }}
  const broadcast=(now=Date.now())=>{for(const c of clients){if(!c.user||!c.roomId||c.ws.readyState!==WebSocket.OPEN||c.ws.bufferedAmount>128*1024)continue;const room=rooms.get(c.roomId);if(!room)continue;const next=JSON.stringify(roomInfo(room));if(next!==c.lastRoom){send(c,{type:'room',room:JSON.parse(next) as RoomInfo});c.lastRoom=next};try{send(c,c.encoder.encode(playState(room,c.user.id),now))}catch(error){log('error','sync.failed',{connection:c.id,userId:c.user.id,roomId:room.id,error});send(c,{type:'error',message:'同步失败，请离开后重试'})}}}
@@ -140,7 +146,7 @@ export async function startPrismServer(options:ServerOptions) {
   const matches=[...byUser.entries()].filter(([id])=>id===query||id.startsWith(query));if(matches.length!==1)throw new Error(matches.length?'玩家ID前缀不唯一':'玩家不在线')
   const [userId,c]=matches[0]!;return {userId,name:c.user!.name,roomId:c.roomId,connection:c.id,received:c.receivedInputs,accepted:c.acceptedInputs,rejected:c.rejectedInputs,bytesOut:c.bytesOut,...c.input.inspect(Date.now())}
  }
- const status=()=>({version:info().version,uptimeSeconds:Math.floor((Date.now()-startedAt)/1000),rooms:rooms.size,connections:clients.size,players:byUser.size,inputsReceived,inputsRejected,bytesSent,persistence:persistError?'error':'ok',logLevel:logger.getLevel()})
+ const status=()=>({version:info().version,uptimeSeconds:Math.floor((Date.now()-startedAt)/1000),rooms:rooms.size,connections:clients.size,players:byUser.size,inputsReceived,inputsRejected,bytesSent,persistence:persistError?'error':'ok',autoSaveMode:autoMode,autoSaveSeconds:autoSeconds,logLevel:logger.getLevel()})
  const admin=async(line:string):Promise<{text:string;quit?:boolean}>=>{
   const cmd=parseConsoleCommand(line);log('info','console.command',{kind:cmd.name,...('roomId'in cmd?{roomId:cmd.roomId}:{}),...('userId'in cmd?{userId:cmd.userId}:{})})
   if(cmd.name==='help')return {text:CONSOLE_HELP}
@@ -157,7 +163,7 @@ export async function startPrismServer(options:ServerOptions) {
   if(cmd.name==='start')scheduleStart(room)
   if(cmd.name==='cancel')room.startTicks=0
   if(cmd.name==='pause'){if(!room.coop||isWaiting(room))throw new Error('只能暂停正式合作对局');room.coop.pause()}
-  if(cmd.name==='restart'){room.startTicks=0;room.waitingArena=undefined;if(room.coop)room.coop.restart();else room.duel=createRoom({id:room.ownerId,name:'operator',hash:'',created:0},{...room.options,password:''},Date.now()).duel;room.epoch++;room.roomIndex=0;room.duelRound=0}
+  if(cmd.name==='restart'){room.startTicks=0;room.waitingArena=undefined;if(room.coop)room.coop.restart();else room.duel=createRoom({id:room.ownerId,name:'operator',hash:'',created:0},{...room.options,password:''},Date.now()).duel;room.epoch++;room.roomIndex=0;room.duelRound=0;for(const m of room.members)m.ready=m.userId===room.ownerId}
   if(cmd.name==='close'){for(const peer of clients)if(peer.roomId===room.id){peer.roomId=undefined;peer.input.reset();roomEvent(peer);send(peer,{type:'notice',message:'服务器管理者已关闭房间'})}rooms.delete(room.id)}
   if(cmd.name==='unban'){const matches=room.banned.filter(id=>id===cmd.userId||id.startsWith(cmd.userId));if(matches.length!==1)throw new Error('封禁ID不存在或前缀不唯一');room.banned=room.banned.filter(id=>id!==matches[0])}
   if(cmd.name==='kick'||cmd.name==='ban'||cmd.name==='transfer'){
@@ -168,7 +174,7 @@ export async function startPrismServer(options:ServerOptions) {
   changed(room);await persist();return {text:'操作完成：'+cmd.name+' '+room.id}
  }
  const timers:ReturnType<typeof setInterval>[]=[]
- if(options.autoTick!==false)timers.push(setInterval(()=>{const now=performance.now();accumulator+=Math.min(250,now-lastTick);lastTick=now;let steps=0;while(accumulator>=1000/60&&steps++<15){tick();accumulator-=1000/60}if(now-lastBroadcast>=100){broadcast();lastBroadcast=now}if(now-lastPersist>=10000){void persist();lastPersist=now}},1000/60))
+ if(options.autoTick!==false)timers.push(setInterval(()=>{const now=performance.now();accumulator+=Math.min(250,now-lastTick);lastTick=now;let steps=0;while(accumulator>=1000/60&&steps++<15){tick();accumulator-=1000/60}if(now-lastBroadcast>=100){broadcast();lastBroadcast=now}if(now-lastPersist>=1000){void saveProgress();lastPersist=now}},1000/60))
  timers.push(setInterval(()=>{const now=Date.now();for(const c of clients){if(now-c.lastSeen>20000)c.ws.terminate();else c.ws.ping()};for(const [id,r]of rooms)if(!r.members.some(m=>m.connected)&&now-r.lastActive>(options.roomTtlMs??7*86400000))rooms.delete(id);lobby()},5000))
  try{await new Promise<void>((resolve,reject)=>{http.once('error',reject);http.listen(options.port??8787,options.host??'0.0.0.0',()=>{port=(http.address() as {port:number}).port;http.off('error',reject);resolve()})})}catch(error){timers.forEach(clearInterval);discovery?.close();wss.close();log('error','server.start_failed',{port:options.port??8787,error});await logger.flush();throw error};await persist();log('info','server.listening',{version:info().version,port,rooms:rooms.size})
  return {port,info,creationKey,rooms,tick,broadcast,admin,status,inspectPlayer,close:async()=>{if(closing)return;closing=true;log('info','server.stopping');timers.forEach(clearInterval);discovery?.close();for(const c of clients)c.ws.terminate();await new Promise<void>(resolve=>wss.close(()=>resolve()));await new Promise<void>(resolve=>http.close(()=>resolve()));await persist();log('info','server.stopped');await logger.flush()}}

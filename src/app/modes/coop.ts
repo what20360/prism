@@ -1,4 +1,4 @@
-import { CURRENT_BALANCE_VERSION, extendLegacyCombatAttrs, registryForSave, migrateWorldBuild, migrateOrderedTargets } from '../cardMigrations'
+import { basePlayerAttrsForSave, CURRENT_BALANCE_VERSION, extendLegacyCombatAttrs, registryForSave, migrateWorldBuild, migrateOrderedTargets } from '../cardMigrations'
 import { CARD_REGISTRY } from '../../content/cards'
 import { buildDungeon } from '../../content/dungeon'
 import { PLAYER_BASE_ATTRS } from '../../content/player'
@@ -33,10 +33,11 @@ export function validateCoopConfig(value:unknown):CoopConfig {
 }
 export function readCoopSave(text:string,allowEnded=false):CoopSave {
  if(new TextEncoder().encode(text).length>2*1024*1024)throw new Error('合作存档不能超过2 MiB')
- const s=record(JSON.parse(text));if(s.format!=='prism-coop-save'||s.version!==1||s.balanceVersion!==5&&s.balanceVersion!==CURRENT_BALANCE_VERSION)throw new Error('请选择当前版本的合作存档')
+ const s=record(JSON.parse(text));if(s.format!=='prism-coop-save'||s.version!==1||![5,6,CURRENT_BALANCE_VERSION].includes(s.balanceVersion as number))throw new Error('请选择当前版本的合作存档')
  s.config=validateCoopConfig(s.config);if(typeof s.name!=='string'||!s.name.trim()||s.name.length>40||typeof s.savedAt!=='string'||!Number.isFinite(Date.parse(s.savedAt))||typeof s.started!=='boolean')throw new Error('合作存档信息无效')
  extendLegacyCombatAttrs(s.world,s.balanceVersion)
  let w=restoreWorld(s.world,registryForSave(s.balanceVersion),DEFAULT_ECONOMY,Object.keys(PLAYER_BASE_ATTRS));if(!w.coop||!w.participants||!allowEnded&&(w.gameOver||w.victory))throw new Error('合作进度已经结束或数据不完整')
+ for(const [key,value]of Object.entries(basePlayerAttrsForSave(s.balanceVersion)))if(w.basePlayerAttrs[key as keyof typeof w.basePlayerAttrs]!==value)throw new Error('合作初始属性无效')
  const legacyOwned=new Map<number,readonly import('../../core/cards').Purchase[]>()
  if(s.balanceVersion!==CURRENT_BALANCE_VERSION){
   for(const member of w.coop.members){const migrated=migrateWorldBuild(w,s.balanceVersion,member.id);w=migrated.world;legacyOwned.set(member.id,migrated.owned)}
@@ -73,7 +74,7 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
   return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave)} }
  const checkpoint=(viewer=hostId):CoopSave=>({format:'prism-coop-save',version:1,balanceVersion:CURRENT_BALANCE_VERSION,name,savedAt:new Date().toISOString(),config,hostId:viewer,roomIndex,started,world:(()=>{const data=serializeWorld(world,true);for(const p of data.projectiles){delete p.trail;delete p.segments}data.floaters=data.floaters.slice(-80);data.effects=data.effects.slice(-80);return data})(),endless:endless?.checkpoint(),plans:structuredClone(plans)})
  return {
-  world:()=>world,config:()=>({...config}),hostId:()=>hostId,started:()=>started,roomIndex:()=>roomIndex,plan,
+  world:()=>world,config:()=>({...config}),hostId:()=>hostId,started:()=>started,roomIndex:()=>roomIndex,progress:()=>endless?.floor()??roomIndex,plan,
   notice:(id:number)=>notices[id]??null,showOffers:(id:number,visible:boolean)=>{offers[id]=visible},
   save:checkpoint,rename:(value:string)=>{if(!value.trim()||value.trim().length>40)return false;name=value.trim();return true},
   join:(memberName:string,id?:number)=>{

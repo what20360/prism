@@ -1,17 +1,25 @@
 import { createSaveStore, MAX_SAVE_BYTES, SAVE_SLOTS, type SaveSlot } from '../storage/saveStore'
-import type { ConfigStorage } from '../storage/config'
+import {createAutoSaveSchedule} from './autoSave'
+import type { ControlSettings, ConfigStorage } from '../storage/config'
 import type { SavesHandlers, SavesState } from '../ui/sections/saves'
 import { checkpointLabel, preserveSaveName, readCheckpoint, validateSaveName, type RunCheckpoint } from './checkpoints'
 const LABELS = { auto: '自动存档', 'slot-1': '存档1', 'slot-2': '存档2', 'slot-3': '存档3' }
-export function createSaveManager(options: { capture: () => RunCheckpoint | null; load: (saved: RunCheckpoint) => void; refresh: () => void; setCurrentName?: (name: string | undefined) => void; storage?: ConfigStorage }) {
+export function createSaveManager(options: { capture: () => RunCheckpoint | null; load: (saved: RunCheckpoint) => void; refresh: () => void; setCurrentName?: (name: string | undefined) => void; storage?: ConfigStorage;autoKey?:()=>string|null;settings?:()=>ControlSettings;now?:()=>number }) {
+  const schedule=createAutoSaveSchedule()
   const store = createSaveStore(options.storage); let message = '', currentSlot: SaveSlot | undefined
   const update = (text: string) => { message = text; options.refresh() }
   const read = (slot: SaveSlot) => { const raw = store.read(slot); if (!raw) throw new Error('该槽位没有存档'); return readCheckpoint(raw) }
   const previous = (slot: SaveSlot) => { try { return read(slot) } catch { return undefined } }
   const autoSave = () => {
-    const saved = options.capture()
-    if (!saved) return
-    if (!store.write('auto', JSON.stringify(preserveSaveName(saved, previous('auto'))))) message = '自动保存失败：浏览器存储不可用或空间不足，请导出备份。'
+    const settings=options.settings?.(),mode=settings?.autoSaveMode??'room',seconds=settings?.autoSaveSeconds??60,now=(options.now??Date.now)()
+    if(mode==='off')return
+    const key=options.autoKey?.()
+    if(options.autoKey&&!schedule.due(key??null,mode,seconds,now))return
+    const saved=options.capture();if(!saved)return
+    const resolved=key??`${saved.mode}:${saved.initialSeed}:${saved.restarts}:${saved.roomIndex}:${saved.endless?.floor??0}`
+    if(!schedule.due(resolved,mode,seconds,now))return
+    if(store.write('auto',JSON.stringify(preserveSaveName(saved,previous('auto')))))schedule.saved(resolved,now)
+    else message='自动保存失败：浏览器存储不可用或空间不足，请导出备份。'
   }
   const download = (saved: RunCheckpoint) => {
     const text = JSON.stringify(saved); readCheckpoint(text)

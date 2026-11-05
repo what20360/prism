@@ -34,10 +34,10 @@ export function createServerSession(options:Options) {
  const title=document.createElement('h1');title.textContent='服务器与局域网';content.append(title)
  const toast=document.createElement('p');toast.className='server__toast';toast.setAttribute('role','status');toast.hidden=true;options.root.append(toast);let toastUntil=0
  const status=document.createElement('p');status.className='server__status';status.setAttribute('role','status');content.append(status)
- const download=document.createElement('a');download.href='https://what20360.github.io/prism/server/PRISM_server.zip?v=1.24';download.textContent='下载服务器程序（Node.js 22+）';download.className='server__download';content.append(download)
+ const download=document.createElement('a');download.href='https://what20360.github.io/prism/server/PRISM_server.zip?v=1.25';download.textContent='下载服务器程序（Node.js 22+）';download.className='server__download';content.append(download)
  const note=document.createElement('p');note.className='settings__hint';note.textContent='连接服务器后选择房间。身份自动保存在此浏览器；房主只负责管理房间，战斗由服务器运行。';content.append(note)
  const stage=document.createElement('aside');stage.className='server-stage';stage.setAttribute('role','status');stage.hidden=true;options.root.append(stage)
- const startButton=document.createElement('button');startButton.className='server-start-button settings__option';startButton.textContent='开始对局（5秒倒计时）';startButton.hidden=true;startButton.onclick=()=>current('start');options.root.append(startButton)
+ const startButton=document.createElement('button');startButton.className='server-start-button settings__option';startButton.textContent='开始对局（5秒倒计时）';startButton.hidden=true;startButton.onclick=()=>current(room?.ownerId===identity?.userId?'start':'ready');options.root.append(startButton)
  const result=document.createElement('section');result.className='panel panel--result server-result';result.setAttribute('role','dialog');result.setAttribute('aria-label','联机对局结算');result.hidden=true;options.root.append(result)
  const setup=document.createElement('section');setup.className='server__setup practice__form';content.append(setup)
  const field=(label:string,input:HTMLElement,parent=setup)=>{const wrap=document.createElement('label');wrap.className='practice__field';wrap.append(document.createTextNode(label),input);parent.append(wrap);input.setAttribute('aria-label',label);return input}
@@ -81,8 +81,8 @@ export function createServerSession(options:Options) {
  const report=(error:unknown)=>message(error instanceof Error?error.message:'操作失败')
  function send(value:unknown):boolean {if(ws?.readyState!==WebSocket.OPEN||ws.bufferedAmount>128*1024)return false;ws.send(JSON.stringify(value));return true}
  function request(command:ServerCommand):Promise<unknown> {return new Promise((resolve,reject)=>{if(!connected){reject(new Error('请先连接服务器'));return};const requestId=clientId(),packet=JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId,command});pending.set(requestId,{packet,resolve,reject,at:Date.now(),generation});ws!.send(packet)})}
- function current(kind:'leave'|'cancel-start'|'start'|'pause'|'restart'|'export'|'close'):void {if(!room)return;const target=room;void request({kind,roomId:target.id,epoch:target.epoch}).then(value=>{if(kind==='export'&&value)saveFile('PRISM_合作_'+target.name.replace(/[\\/:*?"<>|]/g,'_')+'.json',value)}).catch(report)}
- const gameAction=(action:DuelAction):boolean=>{if(!room||!state||!connected)return false;void request({kind:'game',roomId:room.id,epoch:room.epoch,action}).then(()=>{if(action.kind==='buy'){if(action.id==='auto-aim')options.onSetting('aimMode','auto');if(action.id==='auto-fire')options.onSetting('fireMode','auto')}}).catch(report);return true}
+ function current(kind:'leave'|'ready'|'cancel-start'|'start'|'pause'|'restart'|'export'|'close'):void {if(!room)return;const target=room;void request({kind,roomId:target.id,epoch:target.epoch}).then(value=>{if(kind==='export'&&value)saveFile('PRISM_合作_'+target.name.replace(/[\\/:*?"<>|]/g,'_')+'.json',value)}).catch(report)}
+ const gameAction=(action:DuelAction):boolean=>{if(!room||!state||!connected)return false;void request({kind:'game',roomId:room.id,epoch:room.epoch,action}).catch(report);return true}
  function join(id:string):void {const code=id.trim().toUpperCase();void request({kind:'join',roomId:code,password:joinPassword.value,...(seat.value?{seat:Number(seat.value)}:{})}).then(()=>{joinPassword.value=''}).catch(report)}
  function updateVisibility():void {layer.hidden=!lobbyOpen;if(layer.hidden&&document.activeElement instanceof HTMLElement&&document.activeElement.closest('.server-lobby'))document.activeElement.blur();updateStage();roomPanel.hidden=!room;lobby.hidden=!connected||Boolean(room);roomButton.hidden=!room;connectButton.disabled=connected;identityImport.disabled=connected;address.disabled=connected;playerName.disabled=connected}
  function renderRooms(rooms:RoomSummary[]):void {list.replaceChildren();if(!rooms.length){const p=document.createElement('p');p.textContent='暂无公开房间，可以创建房间或输入房间ID。';list.append(p)}for(const r of rooms){const card=document.createElement('article');card.className='server__room-card';const title=document.createElement('strong');title.textContent=`${r.name} · ${r.id}`;const description=document.createElement('p');description.textContent=`${r.mode==='duel'?'1v1':r.mode==='endless'?'合作无尽':'合作闯关'} · ${r.count}/${r.capacity}人 · ${r.running?'进行中':'等待大厅 / 暂停'}${r.locked?' · 需要密码':''}`;card.append(title,description);button('加入 '+r.id,()=>join(r.id),card);list.append(card)}}
@@ -92,12 +92,13 @@ export function createServerSession(options:Options) {
   const h=document.createElement('h2');h.textContent=currentRoom.name+' · '+currentRoom.id;roomPanel.append(h)
   const hint=document.createElement('p');hint.textContent=`${currentRoom.waiting?currentRoom.startCountdown?'倒计时 '+currentRoom.startCountdown+'秒':'等待大厅 · 可测试构筑，原价退卡':currentRoom.running?'进行中':'已暂停 / 已结束'} · ${currentRoom.count}/${currentRoom.capacity}人 · ${currentRoom.mode==='duel'?'由管理者发起倒计时':currentRoom.config.pauseOnDisconnect?'掉线暂停已开启':'掉线后继续战斗'}${currentRoom.hidden?' · 未公开':''}`;roomPanel.append(hint)
   const team=document.createElement('div');roomPanel.append(team)
-  for(const m of currentRoom.members){const row=document.createElement('div');row.className='server__member';const label=document.createElement('span');label.textContent=`${m.name} · ${m.userId} · 角色#${m.actorId} · ${({owner:'房主',moderator:'管理员',player:'玩家'})[m.role]} · ${m.connected?currentRoom.waiting?'大厅就绪':'在线':'离线'}`;row.append(label)
+  for(const m of currentRoom.members){const row=document.createElement('div');row.className='server__member';const label=document.createElement('span');label.textContent=`${m.name} · ${m.userId} · 角色#${m.actorId} · ${({owner:'房主',moderator:'管理员',player:'玩家'})[m.role]} · ${m.connected?currentRoom.waiting?m.userId===currentRoom.ownerId?'房主':m.ready?'已准备':'未准备':'在线':'离线'}`;row.append(label)
    const manage=(action:'kick'|'ban'|'promote'|'demote'|'transfer')=>{void request({kind:'manage',roomId:currentRoom.id,epoch:currentRoom.epoch,target:m.userId,action}).catch(report)}
    if(manager&&m!==self&&m.role!=='owner'&&(self?.role==='owner'||m.role==='player')){button('移出 '+m.name,()=>manage('kick'),row);button('封禁 '+m.name,()=>manage('ban'),row);if(self?.role==='owner'){button(m.role==='moderator'?'撤销管理员 '+m.name:'设为管理员 '+m.name,()=>manage(m.role==='moderator'?'demote':'promote'),row);if(m.connected)button('转让房主给 '+m.name,()=>manage('transfer'),row)}}team.append(row)
   }
   if(manager){const rename=text('房间与存档名称',currentRoom.name,roomPanel);button('保存房间名称',()=>{void request({kind:'rename',roomId:currentRoom.id,epoch:currentRoom.epoch,name:rename.value}).catch(report)},roomPanel)}
   const actions=document.createElement('div');actions.className='practice__actions';roomPanel.append(actions)
+  if(self?.userId!==currentRoom.ownerId&&currentRoom.waiting)button(self?.ready?'取消准备':'准备',()=>current('ready'),actions)
   if(manager){if(currentRoom.startCountdown)button('取消开始倒计时',()=>current('cancel-start'),actions);else button(currentRoom.waiting?'开始对局（5秒倒计时）':'继续对局',()=>current('start'),actions);if(!currentRoom.waiting&&currentRoom.mode!=='duel')button('暂停全队',()=>current('pause'),actions)}
   if(manager)button('重新开始对局',()=>current('restart'),actions)
   button(currentRoom.waiting?'返回等待大厅':'返回战场',()=>{if(!state){message('等待首个游戏快照');return}lobbyOpen=false;resetInput();updateVisibility()},actions)
@@ -110,11 +111,14 @@ export function createServerSession(options:Options) {
   if(self?.role==='owner')button('关闭房间',()=>current('close'),actions)
  }
  function updateStage():void {
-  const self=room?.members.find(m=>m.userId===identity?.userId),manager=self?.role==='owner'||self?.role==='moderator'
+  const self=room?.members.find(m=>m.userId===identity?.userId)
   stage.hidden=lobbyOpen||menuOpen||resultOpen||!state||!room||!(state.waiting||state.paused)
-  stage.textContent=state?.startCountdown?`${state.startCountdown} 秒后开始 · 可继续测试和调整构筑`:state?.waiting?'等待大厅 · 自动就绪 · 测试不计收益 · 出售原价退款':state?.paused?'对局已暂停 · 请由管理者继续':''
+  stage.textContent=state?.startCountdown?`${state.startCountdown} 秒后开始 · 可继续测试和调整构筑`:state?.waiting?'等待大厅 · 队员准备后由房主开始 · 训练不计收益 · 原价退卡':state?.paused?'对局已暂停 · 请由管理者继续':''
   stage.classList.toggle('server-stage--countdown',Boolean(state?.startCountdown))
-  startButton.hidden=lobbyOpen||menuOpen||resultOpen||!state?.waiting||!manager||Boolean(state.startCountdown)
+  startButton.hidden=lobbyOpen||menuOpen||resultOpen||!state?.waiting||!self||Boolean(state.startCountdown&&self.userId===room?.ownerId)
+  const owner=self?.userId===room?.ownerId,unready=room?.members.filter(m=>m.connected&&m.userId!==room?.ownerId&&!m.ready).length??0
+  startButton.textContent=owner?`开始对局（5秒倒计时）${unready?' · 等待'+unready+'人准备':''}`:self?.ready?'取消准备':'准备'
+  startButton.disabled=Boolean(owner&&unready);startButton.title=owner&&unready?'需要所有在线队员准备完成':''
  }
  function showSettlement():void {
   if(!state||!room)return;resultOpen=true;lobbyOpen=false;menuOpen=false;menu.close();resetInput();result.replaceChildren()

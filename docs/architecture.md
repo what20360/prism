@@ -561,3 +561,7 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 ### v1.24 等待大厅与服务器运维
 
 取消网络手动准备，等待大厅使用独立训练World并原价退卡；由管理者发起5秒倒计时，正式开局清理训练状态。结算由玩家选择导航。服务端增加受校验的JSON配置、轮转日志、输入统计和仅限本机stdin的管理命令。实现与测试入口见[第六篇](technical/06-waiting-and-server-operations.md)。
+
+### v1.25 成长与存档策略
+
+当前采用数值版本7与实时协议prism-server-3，护盾仅由生命乘系数形成上限，默认每关存档，自动操作偏好与持卡授权分离，等待大厅恢复手动准备。卡片目录和可搜索点选的预设编辑使用共用基础分类。具体数据结构、执行路径和兼容约束见[第七篇](technical/07-growth-presets-and-autosave.md)。

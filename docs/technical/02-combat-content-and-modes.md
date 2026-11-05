@@ -2,7 +2,7 @@
 
 代码基线与日期同 [第一篇](01-architecture-and-simulation.md)：**2026-11-04 / `828c4a9e`**。本篇从“一个属性如何变成一次实际命中”展开，再介绍敌人、关卡及各模式。浏览器、存档和网络细节见 [第三篇](03-client-storage-network-and-development.md)。
 
-**当前规则：v1.24（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.25（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 内容定义如何进入核心
 
@@ -473,7 +473,7 @@ $$
 
 ### 15.1 席位与世界
 
-最多 5 个 CoopMember，每人对应一个 player Actor 和 participants[id] 钱包，新人各有 200。hostId 是承担房主视角的席位 ID，不保证永远是 1；任何成员保存的快照都可让该成员在载入后成为新房主。
+最多 5 个 CoopMember，每人对应一个 player Actor 和 participants[id] 钱包，新人各有 50。hostId 是承担房主视角的席位 ID，不保证永远是 1；任何成员保存的快照都可让该成员在载入后成为新房主。
 
 首次 start 要求在线成员全部准备、至少一人存活；只暂停再继续不要求重新走首次准备。restart 保留 ID、连接状态与房间规则，重建世界/钱包/构筑，其他队员需重新准备。
 

@@ -1,71 +1,66 @@
-import type { BuildPreset, UpgradeTarget, QuickMode } from '../../app/upgradePlans'
-export interface PresetView extends BuildPreset { readonly id: string }
+import type {BuildPreset,UpgradeTarget,QuickMode} from '../../app/upgradePlans'
+import {CARD_GROUPS,cardCategoryLabel} from '../../content/cardLayout'
+import {CARD_REGISTRY} from '../../content/cards'
+export interface PresetView extends BuildPreset {readonly id:string}
 export interface PlanView {
-  readonly canUse: boolean; readonly cards: readonly { id: string; name: string; level: number }[]
-  readonly presets: readonly PresetView[]; readonly draft: BuildPreset; readonly editing: boolean; readonly message: string
-  readonly queue: readonly { id: string; name: string; level: number; current: number; price: number; status: string }[]; readonly enabled: boolean
-  readonly favorites: readonly string[]; readonly quickMode: QuickMode
+ readonly canUse:boolean;readonly cards:readonly {id:string;name:string;level:number;category:string;tags:readonly string[];firstPrice:number;maxLevel?:number}[]
+ readonly draftCost:number;readonly presets:readonly PresetView[];readonly draft:BuildPreset;readonly editing:boolean;readonly message:string
+ readonly queue:readonly {id:string;name:string;level:number;current:number;price:number;status:string}[];readonly enabled:boolean
+ readonly favorites:readonly string[];readonly quickMode:QuickMode
 }
 export interface PlansHandlers {
-  name(value: string): void; target(index: number, level: number): void; add(id: string): void; moveTarget(index: number, direction: -1 | 1): void; favorite(id: string): void; mode(mode: QuickMode): void
-  save(): void; capture(): void; fresh(): void; edit(id: string): void; apply(id: string): void; export(id: string): void; import(file: File): void
-  toggle(enabled: boolean): void; move(index: number, direction: -1 | 1): void; remove(index: number): void; queue(id: string, level: number): void
+ name(value:string):void;target(index:number,level:number):void;add(id:string,count?:number,requirements?:boolean):void;duplicate(index:number):void;moveTarget(index:number,direction:-1|1):void;favorite(id:string):void;mode(mode:QuickMode):void
+ save():void;capture():void;fresh():void;edit(id:string):void;apply(id:string):void;export(id:string):void;import(file:File):void
+ toggle(enabled:boolean):void;move(index:number,direction:-1|1):void;remove(index:number):void;queue(id:string,level:number):void
 }
-export function renderPlansSection(state: PlanView, actions: PlansHandlers): HTMLElement {
-  const root = document.createElement('section'); root.className = 'plans-page'
-  const title = document.createElement('h2'); title.textContent = '升级预设与预购'
-  const note = document.createElement('p'); note.className = 'cards__intro'; note.textContent = '按列表从上到下购卡，同一卡片可重复，例如伤害 → 射程 → 攻速 → 伤害。每项升级至标注等级，已有等级跳过；前置或余额不足时在当前项等待。流派提示满三秒后才会自动购买，也可点击购买。'
-  const status = document.createElement('p'); status.className = 'save-status'; status.setAttribute('role', 'status'); status.textContent = state.message
-  root.append(title, note, status)
-  const button = (parent: HTMLElement, label: string, run: () => void, disabled = false) => { const b = document.createElement('button'); b.className = 'settings__option'; b.type = 'button'; b.textContent = label; b.onclick = run; b.disabled = disabled; parent.append(b); return b }
-  const select = (label: string, value: string | null, parent: HTMLElement, blank = false) => {
-    const wrap = document.createElement('label'); wrap.className = 'plan-field'; wrap.textContent = label
-    const s = document.createElement('select'); s.setAttribute('aria-label', label)
-    if (blank) { const o = document.createElement('option'); o.value = ''; o.textContent = '留空'; s.append(o) }
-    for (const card of state.cards) { const o = document.createElement('option'); o.value = card.id; o.textContent = card.name; s.append(o) }
-    s.value = value ?? ''; wrap.append(s); parent.append(wrap); return s
-  }
-  const heading = (text: string) => { const h = document.createElement('h3'); h.textContent = text; root.append(h) }
-  heading('预购队列')
-  button(root, `自动购买：${state.enabled ? '开启' : '关闭'}`, () => actions.toggle(!state.enabled), !state.canUse)
-  const list = document.createElement('ol'); list.className = 'plan-queue'
-  for (const [index, item] of state.queue.entries()) {
-    const row = document.createElement('li'), text = document.createElement('span'); text.textContent = `${item.name} Lv${item.current} → Lv${item.level} · 下一级 ${item.price} 棱晶 · ${index ? '排队中' : item.status}`; row.append(text)
-    button(row, `上移${item.name}`, () => actions.move(index, -1), index === 0); button(row, `下移${item.name}`, () => actions.move(index, 1), index === state.queue.length - 1); button(row, `移除${item.name}`, () => actions.remove(index)); list.append(row)
-  }
-  if (!state.queue.length) { const empty = document.createElement('p'); empty.className = 'settings__hint'; empty.textContent = '队列为空。可载入预设，或从升级卡片旁点击“预购”。'; root.append(empty) }
-  root.append(list)
-  heading('快捷购买方式')
-  for (const [mode, label] of [['favorites', '收藏卡片'], ['planned', '流派提示']] as const) { const b = button(root, label, () => actions.mode(mode)); b.setAttribute('aria-pressed', String(state.quickMode === mode)) }
-  const favoriteNote = document.createElement('p'); favoriteNote.className = 'settings__hint'; favoriteNote.textContent = '收藏卡片在升级页有独立分类，并可从屏幕边缘展开购买。流派提示按预购队列逐级出现；选择收藏方式时暂停流派自动购买。'; root.append(favoriteNote)
-  const favorites = document.createElement('div'); favorites.className = 'favorite-editor'
-  for (const card of state.cards) { const b = button(favorites, `${state.favorites.includes(card.id) ? '★' : '☆'} ${card.name}`, () => actions.favorite(card.id)); b.setAttribute('aria-label', `${state.favorites.includes(card.id) ? '取消收藏' : '收藏'}${card.name}`); b.setAttribute('aria-pressed', String(state.favorites.includes(card.id))) }
-  root.append(favorites)
-  heading('保存的预设')
-  const presets = document.createElement('div'); presets.className = 'preset-list'
-  for (const preset of state.presets) {
-    const card = document.createElement('article'); card.className = 'save-slot'; const name = document.createElement('h4'); name.textContent = preset.name
-    const summary = document.createElement('p'); summary.className = 'settings__hint'; summary.textContent = preset.targets.map((t) => `${state.cards.find((c) => c.id === t.id)?.name ?? t.id} Lv${t.level}`).join(' · ') || '空预设'
-    card.append(name, summary); button(card, `载入${preset.name}预购`, () => actions.apply(preset.id), !state.canUse); button(card, `编辑${preset.name}`, () => actions.edit(preset.id)); button(card, `导出${preset.name}`, () => actions.export(preset.id)); presets.append(card)
-  }
-  root.append(presets)
-  const importInput = document.createElement('input'); importInput.type = 'file'; importInput.accept = '.json,application/json'; importInput.hidden = true; importInput.setAttribute('aria-label', '导入升级预设文件'); importInput.onchange = () => { const file = importInput.files?.[0]; if (file) actions.import(file); importInput.value = '' }
-  button(root, '导入升级预设', () => importInput.click()); root.append(importInput); button(root, '新建预设', actions.fresh)
-  heading(state.editing ? '编辑预设' : '新预设')
-  const nameLabel = document.createElement('label'); nameLabel.className = 'plan-field'; nameLabel.textContent = '预设名称'
-  const name = document.createElement('input'); name.type = 'text'; name.maxLength = 40; name.value = state.draft.name; name.setAttribute('aria-label', '预设名称'); name.oninput = () => actions.name(name.value); nameLabel.append(name); root.append(nameLabel)
-  const targets = document.createElement('div')
-  for (const [index, target] of state.draft.targets.entries()) {
-    const row = document.createElement('label'); row.className = 'plan-field'; const label = state.cards.find((c) => c.id === target.id)?.name ?? target.id; row.textContent = label
-    row.prepend(document.createTextNode(`${index + 1}. `))
-    const level = document.createElement('input'); level.type = 'number'; level.min = '0'; level.step = '1'; level.value = String(target.level); level.setAttribute('aria-label', `第${index + 1}项${label}目标等级`); level.onchange = () => actions.target(index, Number(level.value)); row.append(level)
-    button(row, `上移第${index + 1}项`, () => actions.moveTarget(index, -1), index === 0); button(row, `下移第${index + 1}项`, () => actions.moveTarget(index, 1), index === state.draft.targets.length - 1)
-    button(row, `移除第${index + 1}项${label}`, () => actions.target(index, 0)); targets.append(row)
-  }
-  root.append(targets)
-  const add = document.createElement('div'); add.className = 'save-slot__actions'; const choice = select('添加预设卡片', state.cards[0]?.id ?? null, add)
-  button(add, '追加一次升级', () => actions.add(choice.value)); root.append(add)
-  button(root, '使用当前构筑', actions.capture, !state.canUse); button(root, state.editing ? '保存预设修改' : '保存新预设', actions.save)
-  return root
+const remember=(key:string,value:string)=>{try{sessionStorage.setItem('prism.preset.'+key,value)}catch{/* optional editor preference */}}
+const recall=(key:string,fallback:string)=>{try{return sessionStorage.getItem('prism.preset.'+key)??fallback}catch{return fallback}}
+export function renderPlansSection(state:PlanView,actions:PlansHandlers):HTMLElement {
+ const root=document.createElement('section');root.className='plans-page'
+ const text=(tag:string,value:string,parent:HTMLElement=root,cls='')=>{const node=document.createElement(tag);node.textContent=value;node.className=cls;parent.append(node);return node}
+ const button=(parent:HTMLElement,label:string,run:()=>void,disabled=false)=>{const node=document.createElement('button');node.type='button';node.className='settings__option';node.textContent=label;node.onclick=run;node.disabled=disabled;parent.append(node);return node}
+ text('h2','升级预设与预购');text('p','点选卡片按顺序追加，可搜索名称或基础标签。同一张卡可以反复加入；列表上方先购买，已有等级会跳过。',root,'cards__intro')
+ const status=text('p',state.message,root,'save-status');status.setAttribute('role','status')
+ const toolbar=text('div','',root,'preset-toolbar');button(toolbar,'新建预设',actions.fresh);button(toolbar,'使用当前构筑',actions.capture,!state.canUse)
+ const upload=document.createElement('input');upload.type='file';upload.accept='.json,application/json';upload.hidden=true;upload.setAttribute('aria-label','导入升级预设文件');upload.onchange=()=>{const file=upload.files?.[0];if(file)actions.import(file);upload.value=''};toolbar.append(upload);button(toolbar,'导入升级预设',()=>upload.click())
+ const collection=document.createElement('details');collection.className='preset-library';root.append(collection);text('summary',`保存的预设 · ${state.presets.length}`,collection)
+ for(const preset of state.presets){const row=text('article','',collection,'save-slot');text('h4',preset.name,row);text('p',preset.targets.slice(0,8).map(t=>`${state.cards.find(c=>c.id===t.id)?.name??t.id} Lv${t.level}`).join(' → ')+(preset.targets.length>8?' …':''),row,'settings__hint');button(row,`载入${preset.name}预购`,()=>actions.apply(preset.id),!state.canUse);button(row,`编辑${preset.name}`,()=>actions.edit(preset.id));button(row,`导出${preset.name}`,()=>actions.export(preset.id))}
+ text('h3',state.editing?'编辑预设':'新预设')
+ const nameLabel=text('label','预设名称',root,'plan-field'),name=document.createElement('input');name.type='text';name.maxLength=40;name.value=state.draft.name;name.setAttribute('aria-label','预设名称');name.oninput=()=>actions.name(name.value);nameLabel.append(name)
+ const savebar=text('div','',root,'preset-toolbar');text('span',`${state.draft.targets.length} 项 · 从零购买预计 ${Math.ceil(state.draftCost)} 棱晶`,savebar);button(savebar,state.editing?'保存预设修改':'保存新预设',actions.save)
+ const editor=text('div','',root,'preset-editor'),catalog=text('section','',editor,'preset-catalog'),sequence=text('section','',editor,'preset-sequence')
+ catalog.setAttribute('aria-label','预设卡片目录');sequence.setAttribute('aria-label','预设购卡顺序')
+ text('h4','选择卡片',catalog)
+ const search=document.createElement('input');search.type='search';search.placeholder='搜索名称、标签或分类';search.value=recall('query','');search.setAttribute('aria-label','搜索预设卡片');catalog.append(search)
+ const category=document.createElement('select');category.setAttribute('aria-label','预设卡片分类');for(const [value,label]of [['all','全部分类'],...CARD_GROUPS.map(g=>[g.id,g.label])]){const option=document.createElement('option');option.value=value!;option.textContent=label!;category.append(option)}category.value=recall('category','all');if(!category.value)category.value='all';catalog.append(category)
+ const check=(label:string,key:string,initial:boolean)=>{const wrap=text('label','',catalog,'preset-check'),input=document.createElement('input');input.type='checkbox';input.checked=recall(key,String(initial))==='true';input.setAttribute('aria-label',label);wrap.append(input,document.createTextNode(label));return input}
+ const favorites=check('仅显示收藏','favorites',false),requirements=check('自动补齐卡片前置','requirements',true)
+ requirements.onchange=()=>remember('requirements',String(requirements.checked))
+ const batchLabel=text('label','连续追加次数',catalog,'plan-field'),batch=document.createElement('input');batch.type='number';batch.min='1';batch.max='50';batch.step='1';batch.value=recall('count','1');batch.setAttribute('aria-label','连续追加次数');batch.onchange=()=>{batch.value=String(Math.max(1,Math.min(50,Math.round(Number(batch.value)||1))));remember('count',batch.value)};batchLabel.append(batch)
+ const choices=text('div','',catalog,'preset-card-list');choices.onscroll=()=>remember('scroll',String(choices.scrollTop))
+ const renderCatalog=()=>{
+  choices.replaceChildren();const query=search.value.trim().toLocaleLowerCase(),seen=new Map(state.draft.targets.map(t=>[t.id,t.level]))
+  const cards=state.cards.filter(c=>(category.value==='all'||c.category===category.value)&&(!favorites.checked||state.favorites.includes(c.id))&&`${c.name} ${c.tags.join(' ')} ${cardCategoryLabel(c.category)}`.toLocaleLowerCase().includes(query))
+  for(const c of cards){const next=(seen.get(c.id)??0)+1,full=c.maxLevel!==undefined&&next>c.maxLevel,b=button(choices,'',()=>actions.add(c.id,Number(batch.value)||1,requirements.checked),full);b.className='preset-card';b.setAttribute('aria-label',`追加${c.name}`);text('strong',c.name,b);text('span',`${c.tags.join(' · ')} · ${full?'已达最高等级':`下一项 Lv${next} · ${CARD_REGISTRY.get(c.id)!.priceFn(next)} 棱晶`}`,b)}
+  if(!cards.length)text('p','没有符合筛选的卡片。',choices,'settings__hint')
+ }
+ search.oninput=()=>{remember('query',search.value);renderCatalog()};category.onchange=()=>{remember('category',category.value);renderCatalog()};favorites.onchange=()=>{remember('favorites',String(favorites.checked));renderCatalog()};renderCatalog()
+ queueMicrotask(()=>{if(root.isConnected)choices.scrollTop=Number(recall('scroll','0'))||0})
+ text('h4','购卡优先顺序',sequence);text('p','↑↓调整先后；“再加一级”在此处插入同卡下一等级，并顺延后续等级。',sequence,'settings__hint')
+ const list=text('ol','',sequence,'preset-steps')
+ for(const [index,target]of state.draft.targets.entries()){
+  const card=state.cards.find(c=>c.id===target.id)!,row=text('li','',list,'preset-step');text('strong',`${index+1}. ${card.name}`,row)
+  const level=document.createElement('input');level.type='number';level.min='1';level.step='1';level.value=String(target.level);level.setAttribute('aria-label',`第${index+1}项${card.name}目标等级`);level.onchange=()=>actions.target(index,Number(level.value));row.append(level)
+  const controls=text('div','',row,'preset-step__actions');button(controls,`上移第${index+1}项`,()=>actions.moveTarget(index,-1),index===0);button(controls,`下移第${index+1}项`,()=>actions.moveTarget(index,1),index===state.draft.targets.length-1);button(controls,`再加一级第${index+1}项`,()=>actions.duplicate(index),card.maxLevel!==undefined);button(controls,`移除第${index+1}项${card.name}`,()=>actions.target(index,0))
+ }
+ if(!state.draft.targets.length)text('p','从卡片目录点选，建立第一步。',sequence,'settings__hint')
+ text('h3','预购队列');button(root,`自动购买：${state.enabled?'开启':'关闭'}`,()=>actions.toggle(!state.enabled),!state.canUse)
+ const queue=text('ol','',root,'plan-queue');for(const [index,item]of state.queue.entries()){const row=text('li','',queue);text('span',`${item.name} Lv${item.current} → Lv${item.level} · 下一级 ${item.price} 棱晶 · ${index?'排队中':item.status}`,row);button(row,`上移${item.name}`,()=>actions.move(index,-1),index===0);button(row,`下移${item.name}`,()=>actions.move(index,1),index===state.queue.length-1);button(row,`移除${item.name}`,()=>actions.remove(index))}
+ if(!state.queue.length)text('p','队列为空，可载入预设或在升级面板选择预购。',root,'settings__hint')
+ text('h3','快捷购买方式');for(const [mode,label]of [['favorites','收藏卡片'],['planned','流派提示']] as const){const b=button(root,label,()=>actions.mode(mode));b.setAttribute('aria-pressed',String(state.quickMode===mode))}
+ text('p','流派提示按队列依次出现；自动购买需提示满3秒。选择收藏方式时暂停流派自动购买。',root,'settings__hint')
+ const favoriteEditor=document.createElement('details');root.append(favoriteEditor);text('summary',`编辑收藏 · ${state.favorites.length}`,favoriteEditor)
+ const favoriteList=text('div','',favoriteEditor,'favorite-editor');for(const card of state.cards){const active=state.favorites.includes(card.id),b=button(favoriteList,`${active?'★':'☆'} ${card.name}`,()=>actions.favorite(card.id));b.setAttribute('aria-label',`${active?'取消收藏':'收藏'}${card.name}`);b.setAttribute('aria-pressed',String(active))}
+ return root
 }
-export type { UpgradeTarget }
+export type {UpgradeTarget}

@@ -26,7 +26,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#game')
 if (!canvas) throw new Error('missing #game canvas')
 const renderer = createCanvasRenderer(canvas), input = createKeyboardInput(window), pointer = createPointerInput(canvas)
 const settingsStore = createSettingsStore(), audio = createAudioEngine()
-let preferences = settingsStore.load(), game: Game | undefined, sessionCounter = 0
+let preferences = settingsStore.load(), game: Game | undefined, sessionCounter = 0, activeRunId=0
 const ui: { menu?: Menu; result?: ResultPanel } = {}
 let network: ReturnType<typeof createServerSession> | undefined
 const touch = createTouchControls(document.body, () => network ? network.toggleMenu() : game?.setUiMode('menu'))
@@ -48,7 +48,7 @@ const showMode = (mode: UiMode) => {
   else { home.hide(); ui.menu?.close() }
 }
 const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode = 'play', seed?: number, checkpoint?: RunCheckpoint, difficulty: DungeonDifficulty = 1) => {
-  saves.autoSave()
+  saves.autoSave();activeRunId++
   game?.dispose(); input.reset(); pointer.reset(); touch.reset(); ui.result?.hide(); ui.menu?.close(); home.hide()
   const mode = kind === 'practice' ? createPracticeMode() : undefined, endless = kind === 'endless' ? createEndlessMode() : undefined
   const worldSeed = seed ?? (kind === 'dungeon' ? crypto.getRandomValues(new Uint32Array(1))[0]! : 20261029 + ++sessionCounter * 997)
@@ -56,6 +56,7 @@ const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode 
   game = createGame({ rooms: mode ? [mode.room()] : endless ? [endless.room()] : selectedDifficulty ? buildDungeon({ seed: worldSeed, difficulty: selectedDifficulty }) : buildDungeon(), roomsPerFloor: ROOMS_PER_FLOOR, seed: worldSeed, difficulty: selectedDifficulty,
     economy: DEFAULT_ECONOMY, registry: CARD_REGISTRY, playerAttrs: PLAYER_BASE_ATTRS, input, pointer, touch, renderer,
     initialSettings: preferences, initialUiMode, practice: mode, endless, checkpoint, onSettingsChange: saveSettings,
+    onRoomChange:()=>saves.autoSave(),
     onSnapshot: (snapshot, paused) => { touch.update(snapshot, paused); audio.update(snapshot, paused) },
     onUiModeChange: showMode,
     onRunEnd: (summary) => { ui.menu?.close(); testButton.hidden = true; ui.result?.show(summary) },
@@ -64,7 +65,7 @@ const launch = (kind: 'dungeon' | 'practice' | 'endless', initialUiMode: UiMode 
   game.start()
   saves.autoSave()
 }
-const saves = createSaveManager({ capture: () => game?.checkpoint() ?? null, setCurrentName: (name) => game?.setSaveName(name), load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
+const saves = createSaveManager({autoKey:()=>{const key=game?.autoSaveKey();return key?activeRunId+':'+key:null},settings:()=>preferences,capture: () => game?.checkpoint() ?? null, setCurrentName: (name) => game?.setSaveName(name), load: (saved) => launch(saved.mode, 'menu', saved.initialSeed, saved), refresh: () => { home?.refresh(); ui.menu?.refresh() } })
 const plans = createPlanManager({ game: () => network ? network.build() : game?.session().canResume ? game : undefined, refresh: () => { home?.refresh(); ui.menu?.refresh(); network?.refresh(); quickBuy?.refresh() }, saved: () => { if (!network) saves.autoSave() } })
 const quickBuy = createQuickBuy(document.body, {
   active: () => network ? network.active() : Boolean(game?.session().canResume) && game?.debug().uiMode === 'play', mode: plans.quickMode, favorites: plans.favorites,
@@ -82,7 +83,7 @@ const home = createHomeMenu(document.body, {
   getState: () => {
     const session = game?.session(), attrs = session?.canResume ? game!.panelState().player.attrs : PLAYER_BASE_ATTRS
     return { canResume: session?.canResume ?? false, practice: session?.practice ?? false, endless: session?.endless ?? false, attrs,
-      settings: { ...preferences, aimMode: attrs.autoAim > 0 ? preferences.aimMode : 'manual', fireMode: attrs.autoFire > 0 ? preferences.fireMode : 'manual' } }
+      settings: { ...preferences } }
   },
   onDungeon: (seed, difficulty) => launch('dungeon', 'play', seed, undefined, difficulty), onPractice: () => launch('practice'), onEndless: (seed) => launch('endless', 'play', seed), onResume: () => { if (game?.session().canResume) game.setUiMode('play') }, onSetting,
 })
@@ -99,7 +100,7 @@ ui.menu = createMenu(document.body, {
 })
 ui.result = createResultPanel(document.body, { onRestart: () => game?.restart(), onHome: returnHome })
 launch('dungeon', 'home')
-const saveTimer = window.setInterval(saves.autoSave, 10000)
+const saveTimer = window.setInterval(saves.autoSave, 1000)
 const saveOnHide = () => { if (document.hidden) saves.autoSave() }
 window.addEventListener('pagehide', saves.autoSave); document.addEventListener('visibilitychange', saveOnHide)
 if (import.meta.env.DEV) {

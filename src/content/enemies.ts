@@ -20,7 +20,7 @@ const ZERO_ATTRS: AttrSet = {
 
   armor: 0,
   shield: 0,
-  shieldCapMult: 1,
+  shieldCapMult: 0,
   shieldRegen: 0,
 
   damage: 0,
@@ -123,7 +123,7 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
     hasCore: true,
     attrs: enemyAttrs({
       maxHp: 280,
-      armor: 65, block: 3, shield: 45, shieldRegen: 4,
+      armor: 65, block: 3, shield: 45, shieldCapMult: 45 / 280, shieldRegen: 4,
       speed: 0,
       radius: 56,
       damage: 18,
@@ -157,6 +157,10 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   weaver: { name: '盘丝母巢', tier: 'boss', behavior: 'weaver', contactDamage: 10, hasCore: true, attackType: 'physical',
     attrs: enemyAttrs({ maxHp: 3600, armor: 65, block: 4, speed: 150, radius: 62, damage: 14, fireRate: 0, bulletSpeed: 320,
       range: 1500, bulletSize: 9, multishot: 13, mineLimit: 6, mineDamage: 26, mineHp: 70 }) },
+  bulwark: {name:'铁壁卫士',tier:'elite',behavior:'chase',contactDamage:12,hasCore:false,attackType:'physical',
+    attrs:enemyAttrs({maxHp:140,armor:40,block:4,shield:20,shieldCapMult:20/140,shieldRegen:1,speed:125,radius:46,damage:12})},
+  'arc-rider': {name:'电弧游骑',tier:'normal',behavior:'skirmish',contactDamage:0,hasCore:false,attackType:'electric',
+    attrs:enemyAttrs({maxHp:54,armor:5,speed:155,radius:34,damage:9,fireRate:0.65,range:650,weapon:1,pierce:2,burstCount:2})},
   bomber: { name: '自爆体', tier: 'normal', behavior: 'bomber', contactDamage: 0, hasCore: false, attackType: 'heat', traits: ['volatile'],
     attrs: enemyAttrs({ maxHp: 42, speed: 230, radius: 32, damage: 16, bulletSpeed: 330, range: 850 }) },
   stalker: { name: '游猎射手', tier: 'normal', behavior: 'skirmish', contactDamage: 7, hasCore: false, attackType: 'physical',

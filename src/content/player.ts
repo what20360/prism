@@ -11,7 +11,7 @@ export const PLAYER_BASE_ATTRS: AttrSet = {
 
   armor: 0,
   shield: 0,
-  shieldCapMult: 1,
+  shieldCapMult: 0,
   shieldRegen: 0,
 
   damage: 10,

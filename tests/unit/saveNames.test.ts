@@ -13,7 +13,7 @@ function setup() {
     world: serializeWorld(createWorld({ seed: 8, room: buildDungeon()[0]!, playerAttrs: PLAYER_BASE_ATTRS, registry: CARD_REGISTRY, economy: DEFAULT_ECONOMY })) }
   const manager = createSaveManager({ capture: () => current, setCurrentName: (name) => { current = { ...current, name } }, load: (saved) => { current = saved }, refresh: () => {},
     storage: { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { if (fail) throw new Error('quota'); values.set(key, value) } } })
-  return { manager, values, capture: () => current, fail: () => { fail = true } }
+  return { manager, values, capture: () => current, advance: () => { current = { ...current, roomIndex: current.roomIndex + 1 } }, fail: () => { fail = true } }
 }
 function file(text: string): File { return { size: new TextEncoder().encode(text).length, text: async () => text } as File }
 const key = (slot: string) => `prism.save.v1.${slot}`
@@ -34,8 +34,8 @@ describe('portable save names', () => {
     expect(readCheckpoint(JSON.stringify(readCheckpoint(values.get(key('slot-2'))!))).name).toBe('绝境备用')
   })
   it('retains the automatic slot name when updating its progress', () => {
-    const { manager, values, capture } = setup(); manager.autoSave(); manager.handlers.onRename('auto', '正在探索')
-    capture().world.shards = 135; manager.autoSave()
+    const { manager, values, capture, advance } = setup(); manager.autoSave(); manager.handlers.onRename('auto', '正在探索')
+    capture().world.shards = 135; advance(); manager.autoSave()
     expect(readCheckpoint(values.get(key('auto'))!).name).toBe('正在探索'); expect(readCheckpoint(values.get(key('auto'))!).world.shards).toBe(135)
   })
   it('keeps existing bytes when naming, import validation or storage writes fail', async () => {

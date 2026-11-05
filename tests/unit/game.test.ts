@@ -97,7 +97,7 @@ describe('game lifecycle', () => {
     game.dispose()
   })
   it('only spends on a preorder while playing and waits for funds', () => {
-    const { game } = idleGame(); game.start(); advance(1000); advance(1200); game.setUiMode('menu')
+    const initial = idleGame().game, fresh = initial.checkpoint()!; fresh.world.shards = 0; initial.dispose(); const { game } = idleGame({ checkpoint: fresh }); game.start(); advance(1000); advance(1200); game.setUiMode('menu')
     expect(game.queueUpgrade('gun-damage')).toBe(true); expect(game.queueUpgrade('gun-range', 2)).toBe(true)
     advance(1400); expect(game.panelState().player.attrs.damage).toBe(10)
     game.setUiMode('play'); advance(1500); advance(1700)
@@ -109,21 +109,35 @@ describe('game lifecycle', () => {
   it('does not bypass prerequisites and can reorder blocked preorders', () => {
     const { game } = idleGame({ rooms: [{ id: 'funded', kind: 'safe', bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], entry: { x: 500, y: 500 }, spawns: [], pickups: [{ kind: 'shard', pos: { x: 500, y: 500 }, value: 100 }] }] })
     game.queueUpgrade('ricochet'); game.queueUpgrade('gun-pierce'); game.start(); advance(1000); advance(1200)
-    expect(game.debug().purchases).toBe(0); expect(game.debug().shards).toBe(100)
+    expect(game.debug().purchases).toBe(0); expect(game.debug().shards).toBe(150)
     game.moveQueued(1, -1); advance(1400)
     for (let now = 1600; now <= 8000; now += 200) advance(now)
-    expect(game.panelState().player.attrs.ricochet).toBe(1); expect(game.debug().shards).toBe(54); expect(game.plan().targets).toHaveLength(0)
+    expect(game.panelState().player.attrs.ricochet).toBe(1); expect(game.debug().shards).toBe(104); expect(game.plan().targets).toHaveLength(0)
     expect(game.setPlan([{ id: 'unknown', level: 1 }])).toBe(false); expect(game.queueUpgrade('ricochet', 2)).toBe(false)
     game.dispose()
   })
   it('grants the dungeon starting budget once and retains difficulty and seed on restart', () => {
     const { game } = idleGame({ difficulty: 7, seed: 8765 })
-    expect(game.debug().shards).toBe(200); game.buyCard('gun-damage'); expect(game.debug().shards).toBe(190)
+    expect(game.debug().shards).toBe(50); game.buyCard('gun-damage'); expect(game.debug().shards).toBe(40)
     const saved = readCheckpoint(JSON.stringify(game.checkpoint())); game.dispose()
     const loaded = idleGame({ checkpoint: saved, difficulty: saved.difficulty, seed: saved.initialSeed }).game
-    expect(loaded.debug().shards).toBe(190); expect(loaded.panelState().dungeon?.difficulty).toBe(7)
-    loaded.restart(); expect(loaded.debug().shards).toBe(200)
+    expect(loaded.debug().shards).toBe(40); expect(loaded.panelState().dungeon?.difficulty).toBe(7)
+    loaded.restart(); expect(loaded.debug().shards).toBe(50)
     expect(readCheckpoint(JSON.stringify(loaded.checkpoint())).world.seed).toBe(8765); loaded.dispose()
+  })
+  it('starts endless runs with 50 shards and only grants them again on restart', () => {
+    const { game } = idleGame({ endless: createEndlessMode(), seed: 128 })
+    expect(game.debug().shards).toBe(50); expect(game.buyCard('gun-damage')).toBe(true)
+    const saved = readCheckpoint(JSON.stringify(game.checkpoint())); game.dispose()
+    const loaded = idleGame({ checkpoint: saved, endless: createEndlessMode(), seed: saved.initialSeed }).game
+    expect(loaded.debug().shards).toBe(40); loaded.restart(); expect(loaded.debug().shards).toBe(50); loaded.dispose()
+  })
+  it('notifies autosave immediately after entering a new room and exposes a stable cheap key', () => {
+    const changed = vi.fn(), room = { id: 'first', kind: 'safe' as const, bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], spawns: [], pickups: [], entry: { x: 1600, y: 120 } }
+    const { game } = idleGame({ rooms: [room, { ...room, id: 'second', entry: { x: 500, y: 500 } }], onRoomChange: changed })
+    const before = game.autoSaveKey(); game.start(); advance(1000); advance(1200)
+    expect(changed).toHaveBeenCalledTimes(1); expect(game.checkpoint()!.roomIndex).toBe(1); expect(game.autoSaveKey()).not.toBe(before)
+    advance(1400); expect(changed).toHaveBeenCalledTimes(1); game.dispose()
   })
   it('restores a live run and its paused purchase plan without catching up or regenerating resources', () => {
     const { game } = idleGame(); game.start(); advance(1000); advance(1200); game.buyCard('gun-damage'); game.queueUpgrade('gun-range', 2); game.setAutoBuy(false)
@@ -182,7 +196,7 @@ describe('game lifecycle', () => {
 
   it('applies desktop automatic aim and fire switches immediately without reopening a page', () => {
     let snapshot: Snapshot | undefined
-    const { game } = idleGame({ practice: createPracticeMode(), pointer: { position: () => ({ x: -5000, y: 5000 }), firing: () => false, reset() {}, dispose() {} },
+    const { game } = idleGame({ initialSettings: { aimMode: 'auto', fireMode: 'auto' }, practice: createPracticeMode(), pointer: { position: () => ({ x: -5000, y: 5000 }), firing: () => false, reset() {}, dispose() {} },
       renderer: { draw: (s) => { snapshot = s }, viewToWorld: (x, y) => ({ x, y }), dispose() {} } })
     game.setUiMode('menu')
     for (const id of ['auto-aim', 'auto-fire']) expect(game.practiceAction({ type: 'card-level', id, level: 1 })).toBe(true)
@@ -195,6 +209,18 @@ describe('game lifecycle', () => {
     game.dispose()
   })
 
+  it('keeps automatic preferences independent of buying, selling, and granting the cards', () => {
+    const { game } = idleGame({ practice: createPracticeMode() })
+    game.setSetting('aimMode', 'auto'); game.setSetting('fireMode', 'auto')
+    expect(game.panelState().settings).toMatchObject({ aimMode: 'auto', fireMode: 'auto' })
+    expect(game.panelState().player.attrs).toMatchObject({ autoAim: 0, autoFire: 0 })
+    for (const id of ['auto-aim', 'auto-fire']) expect(game.buyCard(id)).toBe(true)
+    expect(game.panelState().player.attrs).toMatchObject({ autoAim: 1, autoFire: 1 })
+    for (const id of ['auto-aim', 'auto-fire']) expect(game.sellCard(id)).toBe(true)
+    expect(game.panelState().settings).toMatchObject({ aimMode: 'auto', fireMode: 'auto' })
+    expect(game.panelState().player.attrs).toMatchObject({ autoAim: 0, autoFire: 0 })
+    game.setSetting('fireMode', 'manual'); game.buyCard('auto-fire'); expect(game.panelState().settings.fireMode).toBe('manual'); game.dispose()
+  })
   it('preserves a disabled magnet preference across purchases, practice grants and restarts', () => {
     const { game } = idleGame({ practice: createPracticeMode(), initialSettings: { aimMode: 'manual', fireMode: 'manual', autoPickup: false } })
     game.setUiMode('menu')

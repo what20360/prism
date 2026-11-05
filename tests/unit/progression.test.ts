@@ -369,7 +369,7 @@ describe('card info', () => {
     expect(deflect?.summary).toContain('力场半径')
 
     const damage = states.find((state) => state.id === 'gun-damage')
-    expect(damage?.summary).toBe('伤害 +2（每级 +2） · 可回收')
+    expect(damage?.summary).toBe('伤害 +2（每级 +2）')
     expect(damage?.requires).toEqual([])
   })
 })
@@ -383,8 +383,9 @@ describe('shield cards', () => {
     buyCard(world, 'shield')
 
     expect(player.shield).toBe(before)
-    expect(player.attrs.shield).toBe(12)
-    expect(player.attrs.shieldRegen).toBe(2)
+    expect(player.attrs.shield).toBe(0)
+    expect(player.attrs.shieldCapMult).toBeCloseTo(0.1)
+    expect(player.attrs.shieldRegen).toBe(1)
   })
 
   it('never lets the shield exceed its cap when the card is bought', () => {

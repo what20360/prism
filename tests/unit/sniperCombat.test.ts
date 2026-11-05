@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CARD_REGISTRY } from '../../src/content/cards'
 import { LEGACY_V5_REGISTRY } from '../../src/content/legacyCardsV5'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../../src/content/legacyPlayer'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { createWorld, createActor, getPlayer, type World } from '../../src/core/world'
 import { resolveAttrs } from '../../src/core/cards'
@@ -22,7 +23,7 @@ import { WEAVER_RULES } from '../../src/core/weaverRules'
 import { weaponPalette } from '../../src/render/canvas2d/weaponPalette'
 
 function arena(registry = CARD_REGISTRY): World {
- const w = createWorld({ seed: 17, registry, economy: DEFAULT_ECONOMY, playerAttrs: PLAYER_BASE_ATTRS,
+ const w = createWorld({ seed: 17, registry, economy: DEFAULT_ECONOMY, playerAttrs: registry === CARD_REGISTRY ? PLAYER_BASE_ATTRS : LEGACY_PLAYER_BASE_ATTRS,
   room: { id: 'test', kind: 'safe', bounds: { x: 0, y: 0, width: 100000, height: 100000 }, walls: [], spawns: [], pickups: [], entry: { x: 5000, y: 5000 } } })
  w.shards = 1e8; return w
 }
@@ -168,10 +169,11 @@ describe('balance v6 save and preset migration', () => {
   expect(validateFavorites(['shield-steal', 'precision-stance', 'gun-damage'])).toEqual(['precision-stance', 'gun-damage'])
  })
  it('migrates each cooperative participant independently, including offline members at the final boss', () => {
-  const m = createCoopMatch(), id = m.join('队友'), w = { ...m.world(), registry: LEGACY_V5_REGISTRY }
+  const m = createCoopMatch(), id = m.join('队友'), w = { ...m.world(), registry: LEGACY_V5_REGISTRY, basePlayerAttrs: { ...LEGACY_PLAYER_BASE_ATTRS } }
+  for (const actorId of [1, id]) w.actors.get(actorId)!.attrs = { ...LEGACY_PLAYER_BASE_ATTRS }
   for (const actorId of [1, id]) { w.participants![actorId]!.shards = 10000; buyCard(w, 'precision-stance', actorId); buyCard(w, 'precision-stance', actorId) }
   const saved = m.save(); saved.roomIndex = 25
-  const raw = { ...saved, balanceVersion: 5 }; stripNewAttrs(raw.world)
+  const raw = { ...saved, world: serializeWorld(w, true), balanceVersion: 5 }; stripNewAttrs(raw.world)
   const loaded = readCoopSave(JSON.stringify(raw))
   expect(loaded.balanceVersion).toBe(CURRENT_BALANCE_VERSION)
   for (const actorId of [1, id]) expect(loaded.world.participants![actorId]!.purchases.find(p => p.id === 'sniper-specialty')!.level).toBe(1)

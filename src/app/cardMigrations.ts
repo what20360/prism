@@ -1,3 +1,6 @@
+import { PLAYER_BASE_ATTRS } from '../content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../content/legacyPlayer'
+import { LEGACY_V6_REGISTRY } from '../content/legacyCardsV6'
 import { COMBAT_DEFAULTS } from '../core/attrs'
 import { progressOf } from '../core/world'
 import { CARD_ECONOMY } from '../core/rules'
@@ -13,7 +16,7 @@ import { reapplyAttrs } from '../core/progress'
 import { shieldCap, type AttrSet } from '../core/attrs'
 import type { World } from '../core/world'
 import type { UpgradeTarget } from './upgradePlans'
-export const CURRENT_BALANCE_VERSION = 6
+export const CURRENT_BALANCE_VERSION = 7
 export function canonicalCardId(id: string): string { return Object.hasOwn(RETIRED_CARDS, id) ? RETIRED_CARDS[id]! : id }
 export function migrateFavoriteIds(value: unknown): string[] {
   const ids = array(value, Math.max(CARD_REGISTRY.all().length, LEGACY_V2_REGISTRY.all().length)).map((id) => {
@@ -52,8 +55,10 @@ export function migrateOrderedTargets(value: unknown, owned: readonly Purchase[]
 function matches(actual: AttrSet, expected: AttrSet): boolean {
   return (Object.keys(expected) as (keyof AttrSet)[]).every((key) => Math.abs(actual[key] - expected[key]) <= 1e-7 * Math.max(1, Math.abs(expected[key])))
 }
+export function basePlayerAttrsForSave(version:unknown):AttrSet {return version===CURRENT_BALANCE_VERSION?PLAYER_BASE_ATTRS:LEGACY_PLAYER_BASE_ATTRS}
 export function registryForSave(version: unknown): CardRegistry {
   if (version === CURRENT_BALANCE_VERSION) return CARD_REGISTRY
+  if (version === 6) return LEGACY_V6_REGISTRY
   if (version === 5) return LEGACY_V5_REGISTRY
   if (version === 4) return LEGACY_V4_REGISTRY
   if (version === 3) return LEGACY_V3_REGISTRY
@@ -65,7 +70,7 @@ export function migrateWorldBuild(world: World, version: unknown, actorId?: numb
   const player = actorId === undefined ? [...world.actors.values()].find((a) => a.team === 'player')! : world.actors.get(actorId)!
   const progress = progressOf(world, actorId)
   const candidates = version === undefined ? [LEGACY_V2_REGISTRY, LEGACY_V1_REGISTRY] : [registryForSave(version)]
-  const registry = candidates.find((r) => matches(player.attrs, resolveAttrs(world.basePlayerAttrs, progress.purchases, r)))
+  const registry = candidates.find((r) => matches(player.attrs, resolveAttrs(basePlayerAttrsForSave(version), progress.purchases, r)))
   if (!registry) throw new Error('卡片与角色属性不匹配')
   const owned = structuredClone(progress.purchases)
   if (registry === CARD_REGISTRY) return { world, legacy: false, owned }
@@ -83,9 +88,9 @@ export function migrateWorldBuild(world: World, version: unknown, actorId?: numb
       next.paid!.push(paid); next.level++; merged.set(id, next)
     }
   }
-  const purchases = [...merged.values()], attrs = resolveAttrs(world.basePlayerAttrs, purchases, CARD_REGISTRY)
+  const purchases = [...merged.values()], attrs = resolveAttrs(PLAYER_BASE_ATTRS, purchases, CARD_REGISTRY)
   if (!isFiniteBuild(attrs) || purchases.some((p) => !Number.isFinite(CARD_REGISTRY.get(p.id)!.priceFn(p.level)))) throw new Error('旧构筑超出当前可计算范围')
-  const migrated: World = { ...world, registry: CARD_REGISTRY }, hp = player.hp, shield = player.shield
+  const migrated: World = { ...world, basePlayerAttrs:{...PLAYER_BASE_ATTRS}, registry: CARD_REGISTRY }, hp = player.hp, shield = player.shield
   progressOf(migrated, actorId).purchases = purchases
   reapplyAttrs(migrated, player, actorId)
   player.hp = Math.min(hp, player.attrs.maxHp); player.shield = Math.min(shield, shieldCap(player.attrs))

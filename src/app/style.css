@@ -688,3 +688,10 @@ body { background: #050a13; color: #c2d3e3; }
 .server-stage[hidden],.server-start-button[hidden],.server-result[hidden] {display:none!important}
 .server-result {z-index:80;gap:14px}
 .server-result button {padding:12px 24px;border-radius:9px;border:1px solid #486873;background:#132c39;color:#c5efe7;cursor:pointer;font:15px system-ui}
+
+.preset-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 18px}
+.preset-library{border:1px solid #29475a;border-radius:10px;padding:12px;margin:12px 0 22px}.preset-library summary,.plans-page>details>summary{cursor:pointer;color:#aadfd6;padding:8px 0}
+.preset-editor{display:grid;grid-template-columns:minmax(230px,.8fr) minmax(280px,1.2fr);gap:22px;align-items:start;margin:18px 0 28px}.preset-editor h4{margin:0 0 12px;color:#b5e8dd}.preset-catalog>input,.preset-catalog>select{width:100%;box-sizing:border-box;margin-bottom:10px}.preset-check{display:flex;gap:8px;align-items:center;font-size:13px;color:#a6bfcc;margin:8px 0}.preset-check input{width:auto}
+.preset-card-list{max-height:540px;overflow:auto;display:grid;gap:7px;padding-right:5px}.preset-card{display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px;border:1px solid #365267;background:#102334;border-radius:9px;color:#d0ebe8;cursor:pointer}.preset-card span{font-size:11px;color:#92aebb}.preset-card:hover{border-color:#88cfbd;background:#15333e}.preset-card:disabled{opacity:.5;cursor:default}
+.preset-steps{list-style:none;padding:0;display:grid;gap:10px}.preset-step{border:1px solid #345261;border-radius:10px;background:#10202e;padding:12px;display:grid;grid-template-columns:1fr 85px;gap:10px;align-items:center}.preset-step input{width:100%;box-sizing:border-box}.preset-step__actions{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap}.preset-step__actions button{padding:6px 10px;font-size:11px}
+@media(max-width:720px){.preset-editor{grid-template-columns:1fr}.preset-card-list{max-height:320px;grid-template-columns:repeat(2,minmax(0,1fr))}.preset-card{padding:10px}.preset-card strong{font-size:13px}.preset-step{grid-template-columns:1fr 75px}}

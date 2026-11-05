@@ -4,6 +4,7 @@ import { LEGACY_V4_REGISTRY } from '../../src/content/legacyCardsV4'
 import { LEGACY_V1_REGISTRY, LEGACY_V2_REGISTRY } from '../../src/content/legacyCards'
 import { LEGACY_V3_REGISTRY } from '../../src/content/legacyCardsV3'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../../src/content/legacyPlayer'
 import { DEFAULT_ECONOMY } from '../../src/content/economy'
 import { createWorld, getPlayer } from '../../src/core/world'
 import { serializeWorld, restoreWorld } from '../../src/core/serialization'
@@ -20,7 +21,7 @@ describe('1.5 price growth and historical payment records', () => {
     }
   })
   it.each([true, false])('preserves old paid records (explicit=%s), uses new future prices and refunds the old real payment', (explicit) => {
-    const w = createWorld({ seed: 42, registry: LEGACY_V4_REGISTRY, economy: DEFAULT_ECONOMY, playerAttrs: PLAYER_BASE_ATTRS,
+    const w = createWorld({ seed: 42, registry: LEGACY_V4_REGISTRY, economy: DEFAULT_ECONOMY, playerAttrs: LEGACY_PLAYER_BASE_ATTRS,
       room: { id: 'save', kind: 'safe', bounds: { x: 0, y: 0, width: 3200, height: 1800 }, walls: [], spawns: [], pickups: [], entry: { x: 500, y: 500 } } })
     w.shards = 10000; for (let i = 0; i < 3; i++) buyCard(w, 'gun-damage')
     if (!explicit) delete w.purchases[0]!.paid

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ENEMIES } from '../../src/content/enemies'
 import { PLAYER_BASE_ATTRS } from '../../src/content/player'
+import { LEGACY_PLAYER_BASE_ATTRS } from '../../src/content/legacyPlayer'
 import { LEGACY_V1_REGISTRY } from '../../src/content/legacyCards'
 import { resolveAttrs } from '../../src/core/cards'
 import { CARD_REGISTRY } from '../../src/content/cards'
@@ -15,7 +16,7 @@ import { buyCard } from '../../src/core/progress'
 import { createEndlessMode } from '../../src/app/modes/endless'
 import { readCheckpoint, CURRENT_BALANCE_VERSION, type RunCheckpoint } from '../../src/app/checkpoints'
 import { createSaveStore, MAX_SAVE_BYTES } from '../../src/storage/saveStore'
-function world() { return createWorld({ seed: 123, room: buildDungeon()[0]!, playerAttrs: PLAYER_BASE_ATTRS, registry: CARD_REGISTRY, economy: DEFAULT_ECONOMY }) }
+function world(legacy = false) { return createWorld({ seed: 123, room: buildDungeon()[0]!, playerAttrs: legacy ? LEGACY_PLAYER_BASE_ATTRS : PLAYER_BASE_ATTRS, registry: legacy ? LEGACY_V1_REGISTRY : CARD_REGISTRY, economy: DEFAULT_ECONOMY }) }
 function checkpoint(): RunCheckpoint { return { format: 'prism-save', version: 1, balanceVersion: CURRENT_BALANCE_VERSION, savedAt: '2026-10-31T00:00:00.000Z', mode: 'dungeon', initialSeed: 123, restarts: 0, roomIndex: 0, world: serializeWorld(world()) } }
 describe('complete run saves', () => {
   it('round-trips the deterministic world including live bullets, mines, paid cards, locks and RNG', () => {
@@ -61,9 +62,9 @@ describe('complete run saves', () => {
     b.waves!.countdown--; expect(hashWorld(a)).not.toBe(hashWorld(b))
   })
   it('migrates legacy suspension saves without rerolling the world, renaming or rewriting live bullets', () => {
-    const a = world(), player = getPlayer(a); a.shards = 10000
+    const a = world(true), player = getPlayer(a); a.shards = 10000
     for (const id of ['gun-range', 'homing', 'suspension', 'burst', 'suspension']) buyCard(a, id)
-    const current = { ...player.attrs }, legacy = LEGACY_V1_REGISTRY
+    const current = resolveAttrs(PLAYER_BASE_ATTRS, a.purchases, CARD_REGISTRY), legacy = LEGACY_V1_REGISTRY
     player.attrs = resolveAttrs(a.basePlayerAttrs, a.purchases, legacy); emitProjectile(a, player, 0)
     const saved = { ...checkpoint(), balanceVersion: 1, name: '飞剑旧局', world: serializeWorld(a) }, before = JSON.stringify(saved), loaded = readCheckpoint(before)
     expect(loaded.balanceVersion).toBe(CURRENT_BALANCE_VERSION); expect(loaded.name).toBe(saved.name); expect(loaded.savedAt).toBe(saved.savedAt)
@@ -73,7 +74,7 @@ describe('complete run saves', () => {
     expect(readCheckpoint(JSON.stringify(loaded))).toEqual(loaded); expect(JSON.stringify(saved)).toBe(before)
   })
   it('rejects corrupt legacy attributes and refuses legacy formulas in current-version saves', () => {
-    const a = world(); a.shards = 100; buyCard(a, 'suspension')
+    const a = world(true); a.shards = 100; buyCard(a, 'suspension')
     const attrs = getPlayer(a).attrs; attrs.bulletSpeed = PLAYER_BASE_ATTRS.bulletSpeed / 1.6; attrs.range = PLAYER_BASE_ATTRS.range
     const old = { ...checkpoint(), balanceVersion: 1, world: serializeWorld(a) }
     expect(() => readCheckpoint(JSON.stringify(old))).not.toThrow()

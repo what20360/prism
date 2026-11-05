@@ -2,6 +2,9 @@ import type { AttrKey, AttrSet } from './attrs'
 
 export type CardCategory =
   | 'weapon'
+  | 'damage'
+  | 'trajectory'
+  | 'utility'
   | 'gun'
   | 'mine'
   | 'defense'

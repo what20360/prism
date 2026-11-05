@@ -11,5 +11,6 @@
   "maxRooms": 8,
   "maxConnections": 32,
   "roomTtlDays": 7,
+  "autoSave": {"mode": "room", "seconds": 60},
   "log": {"directory": "logs", "level": "info", "maxFileMiB": 5, "keep": 5}
 }

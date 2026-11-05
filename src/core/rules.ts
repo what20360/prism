@@ -35,4 +35,4 @@ export function mineSlowMultiplier(multiplier: number, ignoreBullets: boolean): 
 }
 
 export const COMBAT_RULES = { outOfCombatTicks: 180 } as const
-export const SNIPER_RULES = { impactPerSpeed: 0.01, damageMultiplier: 2, fireRateMultiplier: 0.5, speedMultiplier: 0.7, travelMultiplier: 1.1 } as const
+export const SNIPER_RULES = { impactPerSpeed: 0.01, damageMultiplier: 2, fireRateMultiplier: 1 / 3, speedMultiplier: 0.7, travelMultiplier: 1.1 } as const
