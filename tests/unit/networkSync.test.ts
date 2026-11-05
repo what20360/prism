@@ -9,7 +9,7 @@ import { toSnapshot } from '../../src/core/snapshot'
 import { DEFAULT_COOP as CONFIG } from '../../src/app/modes/coop'
 import type { Identity } from '../../src/server/store'
 const user:Identity={id:'owner',hash:'unused',name:'房主',created:0}
-function setup(){const r=createRoom(user,{name:'测试',mode:'dungeon',duelMode:'budget',coop:CONFIG,hidden:false,password:''},0);for(let i=1;i<5;i++)joinRoom(r,{...user,id:'player'+i,name:'队员'+i},'');return r}
+function setup(){const r=createRoom(user,{name:'测试',mode:'dungeon',duelMode:'budget',coop:CONFIG,hidden:false,password:''},0);for(let i=1;i<5;i++)joinRoom(r,{...user,id:'player'+i,name:'队员'+i},'');for(const m of r.members)r.coop!.ready(m.actorId,true);r.coop!.start();return r}
 const wire=<T>(value:T):T=>JSON.parse(JSON.stringify(value))
 describe('display-only state replication',()=>{
  it('round trips private state, nullable mine fuses, energy traces and actors without leaking World internals',()=>{

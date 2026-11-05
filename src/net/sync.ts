@@ -43,12 +43,12 @@ export function createSyncEncoder() {
  }}
 }
 function unpack(p:Packed):PlayState {
- const {attrs,purchases,plan,notice,knownSkills,restrictions,paused,label,mode,duel,...scene}=p.meta
+ const {waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,restrictions,paused,label,mode,duel,...scene}=p.meta
  const entities=Object.fromEntries(GROUPS.map((name,g)=>[name,p.groups[g]!.map(row=>Object.fromEntries(SCHEMAS[g]!.flatMap((field,i)=>row[i]===null?[]:[[field,row[i]]])))]))
  // Fields with meaningful null (lock timers/name/exit) are retained where required.
  for(let i=0;i<p.groups[0]!.length;i++){const row=p.groups[0]![i]!,a=(entities.actors as Record<string,Json>[])[i]!;for(const field of ['name','bombTicks','windupTicks'] as const)a[field]=row[ACTOR.indexOf(field)]??null}
  for(let i=0;i<p.groups[2]!.length;i++)(entities.mines as Record<string,Json>[])[i]!.fuseTicks=p.groups[2]![i]![MINE.indexOf('fuseTicks')]??null
- return {attrs,purchases,plan,notice,knownSkills,...(restrictions?{restrictions}:{}),paused,label,mode,...(duel?{duel}:{}),snapshot:{...scene,...entities,projectiles:(entities.projectiles as Record<string,Json>[]).map(p=>({...p,trail:[]}))}} as unknown as PlayState
+ return {waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,...(restrictions?{restrictions}:{}),paused,label,mode,...(duel?{duel}:{}),snapshot:{...scene,...entities,projectiles:(entities.projectiles as Record<string,Json>[]).map(p=>({...p,trail:[]}))}} as unknown as PlayState
 }
 export function createSyncDecoder() {
  let previous:Packed|undefined,serial=0

@@ -681,3 +681,10 @@ body { background: #050a13; color: #c2d3e3; }
 .server-lobby p { line-height:1.7; }
 .server__toast { position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;max-width:min(620px,90vw);padding:12px 20px;border:1px solid #a78a60;background:#172839ee;color:#ffe5b3;border-radius:10px;pointer-events:none; }
 .server__download { display:inline-block;margin:0 0 16px;color:#94e8d8; }
+
+.server-stage {position:fixed;top:60px;left:50%;transform:translateX(-50%);max-width:min(620px,90vw);z-index:36;padding:12px 20px;border:1px solid #517c84;border-radius:12px;background:#101f32ef;color:#c4f2e7;text-align:center;pointer-events:none;font:14px/1.6 system-ui}
+.server-stage--countdown {border-color:#e3b56c;color:#ffe0a8;font-size:20px;font-weight:700;box-shadow:0 0 30px #e3b56c22}
+.server-start-button {position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:37;background:#193c40;color:#c5fff0;padding:12px 20px}
+.server-stage[hidden],.server-start-button[hidden],.server-result[hidden] {display:none!important}
+.server-result {z-index:80;gap:14px}
+.server-result button {padding:12px 24px;border-radius:9px;border:1px solid #486873;background:#132c39;color:#c5efe7;cursor:pointer;font:15px system-ui}

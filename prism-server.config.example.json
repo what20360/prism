@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "port": 8787,
+  "host": "0.0.0.0",
+  "name": "PRISM 私人服务器",
+  "dataDir": ".prism-server",
+  "staticDir": "dist",
+  "createPolicy": "key",
+  "discovery": "auto",
+  "allowedOrigins": ["https://what20360.github.io"],
+  "maxRooms": 8,
+  "maxConnections": 32,
+  "roomTtlDays": 7,
+  "log": {"directory": "logs", "level": "info", "maxFileMiB": 5, "keep": 5}
+}

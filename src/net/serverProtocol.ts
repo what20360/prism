@@ -8,21 +8,21 @@ import type { PurchasePlan } from '../app/upgradePlans'
 import type { PurchaseNotice } from '../app/purchaseQueue'
 import { record, integer } from '../core/serialization'
 import { cleanAction, cleanIntent } from './control'
-export const SERVER_PROTOCOL = 'prism-server-1'
+export const SERVER_PROTOCOL = 'prism-server-2'
 export const NETWORK_INTERVAL = 100
 export type RoomMode = 'dungeon' | 'endless' | 'duel'
 export type RoomRole = 'owner' | 'moderator' | 'player'
 export interface RoomOptions { name: string; mode: RoomMode; duelMode: DuelMode; coop: CoopConfig; hidden: boolean; password: string }
 export interface RoomMember { userId: string; name: string; actorId: number; role: RoomRole; connected: boolean; ready: boolean }
 export interface RoomSummary { id: string; name: string; mode: RoomMode; duelMode: DuelMode; count: number; capacity: number; locked: boolean; running: boolean }
-export interface RoomInfo extends RoomSummary { epoch: number; members: RoomMember[]; ownerId: string; hidden: boolean; config: CoopConfig }
+export interface RoomInfo extends RoomSummary { waiting: boolean; startCountdown: number; epoch: number; members: RoomMember[]; ownerId: string; hidden: boolean; config: CoopConfig }
 export interface PlayState {
- snapshot: Snapshot; attrs: AttrSet; purchases: Purchase[]; plan: PurchasePlan; notice: PurchaseNotice | null
+ waiting: boolean; startCountdown: number; snapshot: Snapshot; attrs: AttrSet; purchases: Purchase[]; plan: PurchasePlan; notice: PurchaseNotice | null
  knownSkills: SkillView[]; restrictions?: Record<string,string>; paused: boolean; label: string; mode: RoomMode
  duel?: Omit<DuelState,'plans'|'notices'>
 }
 export type ServerCommand = {kind:'rename';roomId:string;epoch:number;name:string} | { kind: 'list' } | { kind: 'create'; options: RoomOptions; key: string } | { kind: 'join'; roomId: string; password: string; seat?: number } |
- { kind: 'leave' | 'ready' | 'start' | 'pause' | 'restart' | 'export' | 'resync' | 'close'; roomId: string; epoch: number } |
+ { kind: 'leave' | 'cancel-start' | 'start' | 'pause' | 'restart' | 'export' | 'resync' | 'close'; roomId: string; epoch: number } |
  { kind: 'game'; roomId: string; epoch: number; action: DuelAction } |
  { kind: 'manage'; roomId: string; epoch: number; target: string; action: 'kick' | 'ban' | 'promote' | 'demote' | 'transfer' } |
  { kind: 'import'; roomId: string; epoch: number; save: unknown }
@@ -56,7 +56,7 @@ export function decodeClient(text:string):ClientPacket {
  const base={roomId:shortText(c.roomId,12),epoch:integer(c.epoch)}
  let command:ServerCommand
  if(kind==='rename')command={...base,kind,name:shortText(c.name)}
- else if(['leave','ready','start','pause','restart','export','resync','close'].includes(String(kind)))command={...base,kind:kind as 'leave'}
+ else if(['leave','cancel-start','start','pause','restart','export','resync','close'].includes(String(kind)))command={...base,kind:kind as 'leave'}
  else if(kind==='game')command={...base,kind,action:cleanAction(c.action)}
  else if(kind==='import')command={...base,kind,save:c.save}
  else if(kind==='manage'&&['kick','ban','promote','demote','transfer'].includes(String(c.action)))command={...base,kind,target:shortText(c.target,80),action:c.action as 'kick'}

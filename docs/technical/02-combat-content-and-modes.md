@@ -2,7 +2,7 @@
 
 代码基线与日期同 [第一篇](01-architecture-and-simulation.md)：**2026-11-04 / `828c4a9e`**。本篇从“一个属性如何变成一次实际命中”展开，再介绍敌人、关卡及各模式。浏览器、存档和网络细节见 [第三篇](03-client-storage-network-and-development.md)。
 
-**当前规则：v1.23（2026-11-04）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.24（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 内容定义如何进入核心
 

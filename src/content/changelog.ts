@@ -1,6 +1,12 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.24',date:'2026-11-05',title:'等待大厅与服务器诊断',items:[
+    '取消联机手动准备，入房即进入可移动、开火和测试构筑的等待大厅；大厅原价退卡，训练不产生正式收益，也不影响关卡随机数。',
+    '管理者发起5秒统一倒计时，期间可继续调整构筑；可取消，有人加入或掉线也会取消。正式开局保留构筑，清理训练弹丸、地雷和冷却。',
+    '联机战败与胜利显示结算界面，保留现场，由玩家选择查看战场、返回房间，管理者可重开回等待大厅。',
+    '服务器加入日志轮转、输入诊断、终端查询和管理命令、JSON配置文件；实时协议升为prism-server-2，需要同时更新客户端和服务器。',
+  ]},
   {version:'1.23',date:'2026-11-04',title:'服务器大厅与差量同步',items:[
     '移除手工连接代码及WebRTC直连，统一使用服务器地址、房间列表与房间ID；服务器同时支持1–5人合作闯关、无尽及三种1v1规则。',
     '服务器保持60Hz模拟，以10Hz发送显示差量和压缩数据，不再广播完整存档；客户端插值并重建子弹尾迹，背压与关键帧控制同步队列。',

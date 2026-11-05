@@ -9,6 +9,7 @@ import {SERVER_PROTOCOL,decodeClient,socketAddress,httpAddress,type ServerComman
 import {DEFAULT_COOP,createCoopMatch} from '../../src/app/modes/coop'
 import {createSyncDecoder} from '../../src/net/sync'
 import {passwordHash,passwordMatches,openStore} from '../../src/server/store'
+import {createLogger} from '../../src/server/logger'
 import {createLanDiscovery,DISCOVERY_PORT} from '../../src/server/discovery'
 const cleanup:(()=>Promise<unknown>)[]=[]
 afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close()})
@@ -27,8 +28,66 @@ async function client(url:string,identity?:{userId:string;token:string;serverId:
 }
 const options=(extra:Partial<RoomOptions>={}):RoomOptions=>({name:'朋友的房间',mode:'dungeon',duelMode:'budget',coop:{...DEFAULT_COOP,pauseOnDisconnect:false},password:'',hidden:false,...extra})
 async function create(c:Awaited<ReturnType<typeof client>>,o=options()){const ack=await c.command({kind:'create',options:o,key:'private-create-key'});expect(ack.ok,ack.message as string).toBe(true);return (await c.wait(p=>p.type==='room'&&Boolean(p.room))).room as RoomInfo}
-const scoped=(room:RoomInfo,kind:'start'|'ready'|'pause'|'restart'|'leave'|'export'|'close')=>({kind,roomId:room.id,epoch:room.epoch})
+const scoped=(room:RoomInfo,kind:'start'|'cancel-start'|'pause'|'restart'|'leave'|'export'|'close')=>({kind,roomId:room.id,epoch:room.epoch})
 describe('authoritative server rooms over real WebSockets',()=>{
+ it('lets five automatically ready players move and fire in the waiting arena without changing the saved match',async()=>{
+  const {s,url}=await server(),clients=await Promise.all(Array.from({length:5},()=>client(url))),room=await create(clients[0]!)
+  for(const c of clients.slice(1))await c.command({kind:'join',roomId:room.id,password:''})
+  const r=s.rooms.get(room.id)!,saved=JSON.stringify(r.coop!.save().world)
+  s.broadcast();const states=await Promise.all(clients.map(async c=>createSyncDecoder().apply(await c.wait(p=>p.type==='sync'))!))
+  for(const state of states){expect(state.waiting).toBe(true);expect(state.paused).toBe(false);expect(state.snapshot.actors.filter(a=>a.local)).toHaveLength(1)}
+  for(const c of clients){c.ws.send(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:room.id,epoch:room.epoch,sequence:1,intent:{move:{x:1,y:0},aim:{x:0,y:-1},fire:true},offers:true}));await c.command({kind:'list'})}
+  const before=r.waitingArena!.world.actors.get(r.members[0]!.actorId)!.pos.x
+  for(let i=0;i<20;i++)s.tick()
+  expect(r.waitingArena!.world.actors.get(r.members[0]!.actorId)!.pos.x).toBeGreaterThan(before);expect(r.waitingArena!.world.projectiles.length).toBeGreaterThan(0)
+  const shooter=r.waitingArena!.world.actors.get(r.members[0]!.actorId)!,target=Array.from(r.waitingArena!.world.actors.values()).find(a=>a.team==='enemy'&&a.pos.x===1000)!;shooter.pos={x:target.pos.x,y:target.pos.y+300};shooter.fireCooldownTicks=0;target.hp=1
+  clients[0]!.ws.send(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:room.id,epoch:room.epoch,sequence:2,intent:{move:{x:0,y:0},aim:{x:0,y:-1},fire:true},offers:true}));await clients[0]!.command({kind:'list'});for(let i=0;i<45;i++)s.tick()
+  expect(r.waitingArena!.world.stats.kills).toBeGreaterThan(0);expect(r.waitingArena!.world.pickups).toHaveLength(0)
+  expect(JSON.stringify(r.coop!.save().world)).toBe(saved);expect(s.inspectPlayer(clients[0]!.identity.userId)).toMatchObject({accepted:2,move:{x:0,y:0},fire:true})
+  s.broadcast();const ready=(await clients[0]!.wait(p=>p.type==='room'&&Boolean((p.room as RoomInfo)?.members.length===5))).room as RoomInfo;expect(ready.members.every(m=>m.ready)).toBe(true)
+ })
+ it('refunds the actual last-level price only in the waiting arena, including during the five-second countdown',async()=>{
+  const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!,wallet=()=>r.coop!.world().participants![1]!.shards
+  const action=(kind:'buy'|'sell')=>a.command({kind:'game',roomId:r.id,epoch:r.epoch,action:{kind,id:'gun-damage'}})
+  const initial=wallet();await action('buy');await action('buy');const afterBuying=wallet(),paid=r.coop!.world().participants![1]!.purchases[0]!.paid![1]!
+  await action('sell');expect(wallet()).toBe(afterBuying+paid)
+  await a.command(scoped(room,'start'));expect(r.startTicks).toBe(300);expect(r.coop!.started()).toBe(false)
+  await action('sell');expect(wallet()).toBe(initial)
+  await action('buy');const remaining=wallet();for(let i=0;i<299;i++)s.tick();expect(r.coop!.started()).toBe(false);expect(r.startTicks).toBe(1)
+  s.tick();expect(r.coop!.started()).toBe(true);expect(r.coop!.world().tick).toBe(0);expect(r.coop!.world().projectiles).toHaveLength(0);expect(wallet()).toBe(remaining)
+  await a.command({kind:'pause',roomId:r.id,epoch:r.epoch});const cost=r.coop!.world().participants![1]!.purchases[0]!.paid![0]!
+  await action('sell');expect(wallet()).toBe(remaining+Math.floor(cost*.6));expect(wallet()).toBeLessThan(initial)
+ })
+ it('cancels countdowns on demand, joining and disconnecting, and refuses manual ready commands',async()=>{
+  const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a),r=s.rooms.get(room.id)!
+  await a.command(scoped(room,'start'));await a.command({kind:'cancel-start',roomId:r.id,epoch:r.epoch});expect(r.startTicks).toBe(0)
+  await a.command(scoped(room,'start'));await b.command({kind:'join',roomId:r.id,password:''});expect(r.startTicks).toBe(0)
+  await a.command(scoped(room,'start'));await b.close();await a.command({kind:'list'});expect(r.startTicks).toBe(0)
+  expect(()=>decodeClient(JSON.stringify({protocol:SERVER_PROTOCOL,type:'command',requestId:'old-ready',command:{kind:'ready',roomId:r.id,epoch:r.epoch}}))).toThrow()
+ })
+ it('clears training inputs at match start, accepts new movement/fire and expires unattended input',async()=>{
+  const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!
+  const input=async(epoch:number,sequence:number)=>{a.ws.send(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:r.id,epoch,sequence,intent:{move:{x:1,y:0},aim:{x:0,y:-1},fire:true},offers:true}));await a.command({kind:'list'})}
+  await input(r.epoch,1);await a.command(scoped(room,'start'));for(let i=0;i<300;i++)s.tick()
+  const actor=r.coop!.world().actors.get(1)!,before=actor.pos.x;s.tick();expect(actor.pos.x).toBe(before);expect(r.coop!.world().projectiles).toHaveLength(0)
+  await input(room.epoch,100);s.tick();expect(actor.pos.x).toBe(before);expect(s.inspectPlayer(a.identity.userId).rejected).toBe(1)
+  await input(r.epoch,1);s.tick();expect(actor.pos.x).toBeGreaterThan(before);expect(r.coop!.world().projectiles.length).toBeGreaterThan(0)
+  s.tick(Date.now()+1000);expect(actor.intent.fire).toBe(false);expect(actor.intent.move).toEqual({x:0,y:0})
+ })
+ it('provides operator diagnostics and room commands without leaking login secrets into logs',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'prism-logs-'));cleanup.push(()=>rm(dir,{recursive:true,force:true}));const logger=await createLogger({directory:dir,level:'debug',terminal:()=>{}});cleanup.push(()=>logger.close())
+  const {s,url}=await server({logger}),a=await client(url),b=await client(url),room=await create(a)
+  await b.command({kind:'join',roomId:room.id,password:''});expect((await s.admin('help')).text).toContain('input <玩家ID>');expect(JSON.parse((await s.admin('status')).text).players).toBe(2)
+  expect((await s.admin('rooms')).text).toContain(room.id);expect((await s.admin('players '+room.id)).text).toContain(b.identity.userId)
+  await s.admin('start '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(300);await s.admin('cancel '+room.id);expect(s.rooms.get(room.id)!.startTicks).toBe(0)
+  await s.admin('transfer '+room.id+' '+b.identity.userId);expect(s.rooms.get(room.id)!.ownerId).toBe(b.identity.userId)
+  await s.admin('ban '+room.id+' '+a.identity.userId);expect((await a.command({kind:'join',roomId:room.id,password:''})).ok).toBe(false)
+  await s.admin('unban '+room.id+' '+a.identity.userId);expect((await a.command({kind:'join',roomId:room.id,password:''})).ok).toBe(true)
+  await s.admin('log info');expect(logger.getLevel()).toBe('info');await s.admin('save');expect(JSON.parse((await s.admin('input '+b.identity.userId)).text)).toMatchObject({received:0,ageMs:null})
+  await expect(s.admin('close nonexistent')).rejects.toThrow();await s.admin('restart '+room.id);expect(s.rooms.get(room.id)!.coop!.started()).toBe(false)
+  await s.admin('close '+room.id);expect(s.rooms.has(room.id)).toBe(false);expect((await s.admin('stop')).quit).toBe(true)
+  await logger.flush();const text=await readFile(join(dir,'server.log'),'utf8');expect(text).toContain('client.authenticated');expect(text).toContain('room.created');expect(text).not.toContain(a.identity.token);expect(text).not.toContain('private-create-key')
+ })
  it('enforces the room limit after concurrent asynchronous password hashing',async()=>{
   const {s,url}=await server({maxRooms:1}),a=await client(url),b=await client(url)
   const responses=await Promise.all([a,b].map(c=>c.command({kind:'create',options:options({password:'friends'}),key:'private-create-key'})))
@@ -102,8 +161,8 @@ describe('authoritative server rooms over real WebSockets',()=>{
  })
  it('runs all three duel modes on the server and does not send the opponent’s purchase plan',async()=>{
   for(const duelMode of ['fixed','budget','resource'] as const){const {s,url}=await server(),a=await client(url),b=await client(url),room=await create(a,options({mode:'duel',duelMode}))
-   await b.command({kind:'join',roomId:room.id,password:''});await a.command(scoped(room,'ready'));await b.command(scoped(room,'ready'))
-   for(let i=0;i<181;i++)s.tick();s.broadcast();const decoded=createSyncDecoder().apply(await b.wait(p=>p.type==='sync'))!
+   await b.command({kind:'join',roomId:room.id,password:''});await a.command(scoped(room,'start'))
+   for(let i=0;i<301;i++)s.tick();s.broadcast();const decoded=createSyncDecoder().apply(await b.wait(p=>p.type==='sync'))!
    expect(decoded.mode).toBe('duel');expect(decoded.duel!.phase).toBe('fighting');expect(decoded.snapshot.actors[0]!.id).toBe(2);expect(decoded.duel).not.toHaveProperty('plans')
    expect((await b.command({kind:'game',roomId:room.id,epoch:s.rooms.get(room.id)!.epoch,action:{kind:'buy',id:'gun-damage'}})).ok).toBe(duelMode!=='fixed')
   }
@@ -130,7 +189,7 @@ describe('connection and identity primitives',()=>{
   for(const url of ['https://user:pass@example.com','ftp://example.com','https://example.com/secret','https://example.com/?token=secret'])expect(()=>socketAddress(url)).toThrow()
  })
  it('rejects prototype payloads, extra authority packets, invalid versions and non-finite inputs',()=>{
-  expect(()=>decodeClient('{"protocol":"prism-server-1","__proto__":{}}')).toThrow()
+  expect(()=>decodeClient('{"protocol":"prism-server-2","__proto__":{}}')).toThrow()
   for(const value of [{protocol:'old',type:'hello',name:'a'},{protocol:SERVER_PROTOCOL,type:'state',hp:100},{protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:{move:{x:Infinity,y:0}}}])expect(()=>decodeClient(JSON.stringify(value))).toThrow()
  })
  it('stores bearer token hashes and salted room-password hashes, preserving identities on reopen',async()=>{

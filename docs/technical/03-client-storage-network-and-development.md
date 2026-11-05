@@ -2,7 +2,7 @@
 
 依据 **2026-11-04 核对的代码基线 `828c4a9e`**。架构、World 与 tick 顺序见 [第一篇](01-architecture-and-simulation.md)，武器与模式机制见 [第二篇](02-combat-content-and-modes.md)。本篇重点解释外层如何驱动核心，以及文件/网络数据如何安全地变成运行时对象。
 
-**当前规则：v1.23（2026-11-04）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.24（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 浏览器启动与会话生命周期
 
@@ -296,7 +296,7 @@ createCoopMatch(saved) 恢复时：原在线角色先取实际生命；只把 ho
 | 客户端协调 | game、keyboard、pointer、readIntent、config | 重开/暂停、输入去粘连、控制偏好与本机意图 |
 | 架构/回放 | core-isolation、determinism | 依赖倒流、同输入状态分歧 |
 
-当前包含 **36 个测试文件、418 项测试**。数量只反映现有覆盖；Node真实WebSocket测试和本机UDP协议测试不能替代五台实机、跨网段发现、手机双指操作、后台节流、音频解锁或多人长局带宽验收。
+当前包含 **38 个测试文件、446 项测试**。数量只反映现有覆盖；Node真实WebSocket测试和本机UDP协议测试不能替代五台实机、跨网段发现、手机双指操作、后台节流、音频解锁或多人长局带宽验收。
 
 推荐验证顺序：先跑改动相关单测 → typecheck/lint/build → 必要时完整 suite → 对 UI/网络改动做浏览器行为检查。文档修改还应验证链接、引用符号、流程顺序；只让 tsc 通过不会发现一句错误的技术说明。
 

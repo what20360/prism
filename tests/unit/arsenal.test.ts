@@ -216,7 +216,7 @@ describe('arsenal persistence and network', () => {
   it('syncs energy traces, typed hits and neutral volatile traits for both seats', () => {
     const match = createDuelMatch(90, 'resource'); match.action(0, { kind: 'buy', id: 'weapon-laser' }); const w = match.world()
     createActor(w, { ...ENEMIES.bomber!, team: 'neutral', pos: { x: 1000, y: 300 } }); fireLaserPulse(w, w.actors.get(1)!, 0)
-    const view={snapshot:toSnapshot(w,2),attrs:w.actors.get(2)!.attrs,purchases:[],plan:{enabled:false,targets:[]},notice:null,knownSkills:[],paused:false,label:'test',mode:'duel' as const}
+    const view={waiting:false,startCountdown:0,snapshot:toSnapshot(w,2),attrs:w.actors.get(2)!.attrs,purchases:[],plan:{enabled:false,targets:[]},notice:null,knownSkills:[],paused:false,label:'test',mode:'duel' as const}
     const packet=createSyncDecoder().apply(JSON.parse(JSON.stringify(createSyncEncoder().encode(view,0))))!
     expect(packet.snapshot.traces?.[0]?.damageType).toBe('heat');expect(packet.snapshot.traces?.[0]?.rangeRatio).toBeCloseTo(view.snapshot.traces![0]!.rangeRatio,3); expect(toSnapshot(w, 2).traces?.[0]?.team).toBe('enemy')
   })

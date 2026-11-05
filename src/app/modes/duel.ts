@@ -15,7 +15,7 @@ import { validateTargets, moveTarget, removeTarget, type PurchasePlan } from '..
 import { createPurchaseQueue, type PurchaseNotice } from '../purchaseQueue'
 import { withMonsterTraits } from '../../content/monsterTraits'
 export interface DuelMatch {
-  world(): World; state(): DuelState; ready(seat: 0 | 1): void; tick(host: Intent, guest: Intent): void; forfeit(seat: 0 | 1): void
+  start(): boolean; world(): World; state(): DuelState; ready(seat: 0 | 1): void; tick(host: Intent, guest: Intent): void; forfeit(seat: 0 | 1): void
   action(seat: 0 | 1, action: DuelAction): boolean
   showOffers(seat: 0 | 1, visible: boolean): void
 }
@@ -76,6 +76,7 @@ export function createDuelMatch(seed: number, mode: DuelMode = 'fixed'): DuelMat
     }
   }
   return {
+    start: () => { if (phase !== 'preparing' && phase !== 'round-over') return false; ready = [true,true]; round++; winner=null; remaining=DUEL_RULES.roundTicks; countdown=0; phase='fighting'; return true },
     world: () => world,
     state: () => ({ mode, round, phase, wins: [...wins], ready: [...ready], countdown, remaining, winner, plans: structuredClone(plans), notices: structuredClone(notices) }),
     showOffers: (seat, visible) => { offersVisible[seat] = visible; if (!visible) { queues[seat].reset(); notices[seat] = null } },

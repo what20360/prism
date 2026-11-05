@@ -13,6 +13,7 @@ export function createRemoteInput() {
       sequence = packet.sequence; receivedAt = now; offers = packet.offers === true
       intent = { ...packet.intent, skills: [...new Set([...(intent.skills ?? []), ...(packet.intent.skills ?? [])])], lockTarget: packet.intent.lockTarget === undefined ? intent.lockTarget : packet.intent.lockTarget }; return true
     },
+    inspect: (now: number) => ({sequence,ageMs:Number.isFinite(receivedAt)?Math.max(0,now-receivedAt):null,expired:now-receivedAt>350,move:{...intent.move},fire:intent.fire===true,offers}),
     read: (now: number): Intent => { if (now - receivedAt > 350) return IDLE_INPUT; const value = intent; intent = { ...intent, skills: [], lockTarget: undefined }; return value },
     offersVisible: (now: number) => offers && now - receivedAt <= 350,
     reset: () => { intent = IDLE_INPUT; receivedAt = -Infinity; sequence = -1 },

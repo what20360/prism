@@ -36,7 +36,7 @@ export function listCardStates(world: World, actorId?: number): CardState[] {
   return listBuildCards(world.registry, player.attrs, progress, world.cardRestrictions)
 }
 
-export function listBuildCards(registry: CardRegistry, attrs: AttrSet, progress: { shards: number; purchases: readonly Purchase[] }, restrictions?: Record<string, string>): CardState[] {
+export function listBuildCards(registry: CardRegistry, attrs: AttrSet, progress: { shards: number; purchases: readonly Purchase[] }, restrictions?: Record<string, string>, refundRatio: number = CARD_ECONOMY.refundRatio): CardState[] {
   return registry.all().map((card) => {
     const level = purchaseLevel(progress.purchases, card.id)
     const price = card.priceFn(level + 1)
@@ -58,7 +58,7 @@ export function listBuildCards(registry: CardRegistry, attrs: AttrSet, progress:
       availability,
       summary: card.summary ? card.summary(maxed ? level : level + 1) : null,
       requires: card.requires ?? [],
-      refund: card.resellable && level > 0 ? buildSaleValue(registry, progress.purchases, card.id) : null,
+      refund: card.resellable && level > 0 ? buildSaleValue(registry, progress.purchases, card.id, refundRatio) : null,
       tags: card.tags ?? [],
       priority: card.priority,
       saleBlocked: null,
@@ -101,24 +101,24 @@ export function buyCard(world: World, cardId: string, actorId?: number): BuyResu
   return { ok: true }
 }
 
-export function saleValue(world: World, cardId: string, actorId?: number): number {
-  return buildSaleValue(world.registry, progressOf(world, actorId).purchases, cardId)
+export function saleValue(world: World, cardId: string, actorId?: number, refundRatio: number = CARD_ECONOMY.refundRatio): number {
+  return buildSaleValue(world.registry, progressOf(world, actorId).purchases, cardId, refundRatio)
 }
-function buildSaleValue(registry: CardRegistry, purchases: readonly Purchase[], cardId: string): number {
+function buildSaleValue(registry: CardRegistry, purchases: readonly Purchase[], cardId: string, refundRatio: number): number {
   const purchase = purchases.find((item) => item.id === cardId)
   const card = registry.get(cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return 0
   const paid = purchase.paid?.[purchase.level - 1] ?? card.priceFn(purchase.level)
-  return Number.isFinite(paid) ? Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0
+  return Number.isFinite(paid) ? refundRatio === 1 ? Math.max(0, paid) : Math.max(0, Math.min(paid - 1, Math.floor(paid * CARD_ECONOMY.refundRatio))) : 0
 }
 
-export function sellCard(world: World, cardId: string, actorId?: number): boolean {
+export function sellCard(world: World, cardId: string, actorId?: number, refundRatio: number = CARD_ECONOMY.refundRatio): boolean {
   const progress = progressOf(world, actorId)
   const card = world.registry.get(cardId)
   const purchase = progress.purchases.find((item) => item.id === cardId)
   if (!card?.resellable || !purchase || purchase.level < 1) return false
   const nextLevel = purchase.level - 1
-  progress.shards += saleValue(world, cardId, actorId)
+  progress.shards += saleValue(world, cardId, actorId, refundRatio)
   purchase.level = nextLevel
   purchase.paid?.pop()
   if (nextLevel === 0) progress.purchases = progress.purchases.filter((item) => item !== purchase)

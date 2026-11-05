@@ -6,6 +6,7 @@ import type { CardState } from '../../core/progress'
 import { formatRequirements } from '../cardInfo'
 
 export interface CardsSectionState {
+  readonly refundRatio?: number
   readonly shards: number
   readonly cards: readonly CardState[]
   readonly practice?: PracticeState
@@ -139,7 +140,7 @@ export function renderCardsSection(
 ): HTMLElement {
   const wrapper = element('div', 'cards')
   wrapper.append(element('p', 'menu__hint', state.practice?.config.freeCards ? '测试场 · 自由购卡' : `可用棱晶 ${Math.floor(state.shards)}`))
-  wrapper.append(element('p', 'cards__intro', `所有卡片都可逐级出售，返还实付价格的 ${fmt(CARD_ECONOMY.refundRatio * 100)}%；前置仅限制购买，出售不会连带撤销其他卡片。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
+  wrapper.append(element('p', 'cards__intro', `所有卡片都可逐级出售，返还实付价格的 ${fmt((state.refundRatio ?? CARD_ECONOMY.refundRatio) * 100)}%；前置仅限制购买，出售不会连带撤销其他卡片。成长卡不限等级，纯功能开关仅解锁一次。优先级数值越小越先生效，同值按固定顺序处理。`))
 
   const filter = document.createElement('select'); filter.setAttribute('aria-label','卡片筛选')
   for(const [value,label] of [['all','全部卡片'],['buyable','仅显示可购买'],['favorites','仅显示已收藏'],['owned','仅显示已购买'],['unowned','仅显示未购买']]) { const option = document.createElement('option'); option.value=value!; option.textContent=label!; filter.append(option) }

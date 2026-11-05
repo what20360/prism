@@ -8,7 +8,7 @@ import type { Renderer } from '../render/canvas2d/renderer'
 import { DEFAULT_SETTINGS, type ControlSettings } from '../storage/config'
 /** Authors input from the viewer's snapshot; remote clients never author positions. */
 export function readDuelIntent(snapshot: Snapshot, input: IntentSource, pointer: PointerSource, touch: TouchSource, renderer: Renderer, settings: ControlSettings = DEFAULT_SETTINGS): Intent {
-  const actor = snapshot.actors.find((a) => a.team === 'player')
+  const actor = snapshot.actors.find((a) => a.local === true) ?? snapshot.actors.find((a) => a.team === 'player')
   if (!actor?.alive) return { move: { x: 0, y: 0 }, fire: false }
   const keys = input.read(), fingers = touch.read(), mouse = pointer.position(), focus = { x: actor.x, y: actor.y, vision: actor.vision }
   const point = mouse ? renderer.viewToWorld(mouse.x, mouse.y, focus) : undefined

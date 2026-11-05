@@ -6,3 +6,6 @@ dist-offline
 .openai
 .prism-server
 coverage
+
+prism-server.config.json
+*.log

@@ -7,3 +7,6 @@ dist-offline/
 
 dist-server/
 .prism-server/
+
+prism-server.config.json
+*.log

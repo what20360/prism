@@ -557,3 +557,7 @@ CI 顺序：`typecheck → lint → unit → content → replay`。
 ### v1.23 服务器与显示同步
 
 当前联网实现以[第五篇技术手册](technical/05-server-and-replication.md)为准。src/server负责Node.js网络、ID与权限、持久化、房间调度和UDP发现；浏览器只使用src/app/serverSession与src/net/sync，不再恢复远程World或承担房主模拟。此前关于手工信令、RTC通道及房主权威的段落仅为历史设计。
+
+### v1.24 等待大厅与服务器运维
+
+取消网络手动准备，等待大厅使用独立训练World并原价退卡；由管理者发起5秒倒计时，正式开局清理训练状态。结算由玩家选择导航。服务端增加受校验的JSON配置、轮转日志、输入统计和仅限本机stdin的管理命令。实现与测试入口见[第六篇](technical/06-waiting-and-server-operations.md)。
