@@ -1,6 +1,6 @@
 # 07 · 成长、预设目录、每关存档与准备
 
-适用v1.25，2026-11-05；数值版本7、存档外壳v1、实时协议 `prism-server-3`。本文与前六篇共同描述当前实现，使用说明见[服务器指南](../server-guide.md)。
+适用v1.26，2026-11-05；数值版本7、存档外壳v1、实时协议 `prism-server-3`。本文与前六篇共同描述当前实现，使用说明见[服务器指南](../server-guide.md)。
 
 ## 1. 内容数据与执行优先级
 
@@ -90,3 +90,17 @@ ServerSession场边快捷按钮：房主为开始，在线队员未准备时禁�
 新增[balanceV7.test.ts](../../tests/unit/balanceV7.test.ts)、[roomAutoSave.test.ts](../../tests/unit/roomAutoSave.test.ts)、[presetEditor.test.ts](../../tests/unit/presetEditor.test.ts)，并扩展game/coop/server/serverSession/serverConfig测试。覆盖冻结旧档与离线席位、盾上限与固定回复、狙击÷3、目录标签、种子敌人、新局经济、偏好与持卡分离、每关写入、失败重试、真实WebSocket准备/倒计时、DOM快捷按钮和编辑目录。
 
 WebSocket测试是本机真实socket，UI测试是Happy DOM；不等同于五设备外网或真实触屏浏览器网络验收。构建和GitHub Actions继续验证客户端、服务器包与Pages发布。
+
+## 10. 按武器筛选的角色属性与雷达
+
+[attributeModel.ts](../../src/ui/attributeModel.ts)是只读展示模型，输出AttributeGroup→AttributeBlock→AttributeRow及AttributeRadar→RadarAxis。每个相关属性族作为block保序；关键或偏离标准基础的block默认可见，其他基础块进入“更多基础属性”。未选择的机制与其他武器属性不进入模型，即使展开也不混入。狙击上限、追踪、电容、聚焦、子雷和技能各有激活门控。
+
+attributeReference通过当前内容管线给标准基础角色只装备当前武器；它只是比较参考，不写回World，模式、购卡、临时增益和脱战速度都可以产生偏离。标记不宣称所有变化都来自购卡。菜单继续传入PlayerView，单人/测试/合作/1v1复用，不需要额外网络字段或存档升级。
+
+weaponMetrics用共享core/rules派生激光脉冲、真实射程、持续时间、含持续攻击的完整周期频率；电弧展示基础首击，不提前假定目标数量或剩余穿透奖励；狙击满速命中估算保留速度基础伤害乘区。移除原先笼统的理论DPS，避免不同武器被不成立的齐射公式比较。
+
+[attributeRadar.ts](../../src/ui/attributeRadar.ts)用原生SVG绘制六轴网格、基础虚线、当前实线和节点。每轴单独以v/(v+s)归一化，s为50%半径参考值；一般为当前武器标准基础值，基础为零的护盾、护甲减伤、吸血用50、0.5、0.1。基线自身为零的轴仍画零，不把虚线强制画成正六边形。缩放只限制图形半径，不限制属性成长，原始数值和单位保留。
+
+两张常驻图分别为武器、生存机动；有雷场升级时增加第三张。图内标签、SVG标题/描述、可展开的精确数值/参考表兼顾读屏与颜色识别；更高数值并不等于综合战力，不输出伤害评分。样式在app/style.css，窄屏单列，不另引图表依赖。更多属性和各图数据表的展开状态保存在sessionStorage。
+
+[attributeSheet.test.ts](../../tests/unit/attributeSheet.test.ts)覆盖四武器门控、狙击一弹、未解锁机制、变化属性族提升、邻接关系、盾与持续周期公式、零射速、六轴/单位/归一化、极大数值、DOM可访问说明和展开状态；展示不改原始attrs。

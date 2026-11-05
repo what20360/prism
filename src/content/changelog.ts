@@ -1,6 +1,12 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.26',date:'2026-11-05',title:'角色属性与构筑雷达',items:[
+    '角色属性按当前武器和已解锁机制展示，隐藏无关能量武器、未启用技能和特殊属性；狙击一弹上限仅在实际生效时显示。',
+    '关键与变化的属性块优先，同类参数相邻；次要基础参数可展开，显示基础参考、单位和机制说明，包含临时技能与脱战状态。',
+    '新增武器、生存与机动两张雷达图；雷场升级后显示第三张。各轴独立缩放，展示当前与基础参考，支持展开精确数值和标尺，不输出综合战力或伪DPS。',
+    '电弧展示首击、树预算和传导，激光展示脉冲及完整持续攻击周期；窄屏单列，SVG自适应，展开状态在本次会话保留。',
+  ]},
   {version:'1.25',date:'2026-11-05',title:'构筑编辑与成长调校',items:[
     '自动存档默认每关一次，可切换定时或关闭；自动瞄准、射击与磁吸偏好可在购买前设置，持卡后才生效，买卖不覆盖偏好。',
     '预设改为可搜索、分类和收藏筛选的点选目录，支持批量追加、自动补齐前置、在指定位置再加一级及总价预览，保留有序购卡和导入导出。',

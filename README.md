@@ -223,3 +223,5 @@ npm run server
 服务器终端输入 `help` 查看命令，`status`、`rooms`、`players`、`input <玩家ID>` 查询运行与输入状态。配置和轮转日志见[服务器指南](docs/server-guide.md)，实现见[等待大厅与运维](docs/technical/06-waiting-and-server-operations.md)。
 
 当前成长、准备、预设目录与迁移实现见[第七篇技术手册](docs/technical/07-growth-presets-and-autosave.md)。
+
+角色属性页按当前武器显示关键与变化参数，次要基础属性可展开；提供武器、生存机动及按需雷场雷达。实线/虚线分别为当前值和标准基础参考，各轴独立缩放，精确值与标尺可展开查看。

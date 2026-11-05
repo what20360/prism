@@ -2,7 +2,7 @@
 
 依据 **2026-11-04 核对的代码基线 `828c4a9e`**。架构、World 与 tick 顺序见 [第一篇](01-architecture-and-simulation.md)，武器与模式机制见 [第二篇](02-combat-content-and-modes.md)。本篇重点解释外层如何驱动核心，以及文件/网络数据如何安全地变成运行时对象。
 
-**当前规则：v1.25（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.26（2026-11-05）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 ## 1. 浏览器启动与会话生命周期
 
