@@ -82,5 +82,5 @@ export function createHomeMenu(root: HTMLElement, handlers: HomeHandlers): HomeM
   }
   const onKey = (event: KeyboardEvent) => { if (!overlay.hidden && event.code === 'Escape' && page !== 'hub') { select('hub'); event.preventDefault() } }
   window.addEventListener('keydown', onKey)
-  return { show: () => { page = 'hub'; overlay.hidden = false; render() }, hide: () => { overlay.hidden = true }, refresh: () => { if (!overlay.hidden) render() }, dispose: () => { window.removeEventListener('keydown', onKey); overlay.remove() } }
+  return { show: () => { page = 'hub'; overlay.hidden = false; render() }, hide: () => { overlay.hidden = true }, refresh: () => { if (!overlay.hidden) {const scroll=content.scrollTop;render();content.scrollTop=scroll} }, dispose: () => { window.removeEventListener('keydown', onKey); overlay.remove() } }
 }

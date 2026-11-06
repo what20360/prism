@@ -26,11 +26,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let quality:ControlSettings['quality']='balanced'
   const compact=()=>width<760||height<500
   let width = 1, height = 1
+  let safe={left:0,right:0,top:0,bottom:0}
+  const hudSize=()=>({width:Math.max(1,width-safe.left-safe.right),height:Math.max(1,height-safe.top-safe.bottom)})
   let lastScene: Snapshot | undefined
   let camera: Camera = { x: 0, y: 0, width: 1920, height: 1080 }
   const resize = () => {
     width = canvas.clientWidth || window.innerWidth
     height = canvas.clientHeight || window.innerHeight
+    const style=getComputedStyle(canvas),inset=(edge:string)=>Math.max(0,parseFloat(style.getPropertyValue('--safe-'+edge))||0)
+    safe={left:inset('left'),right:inset('right'),top:inset('top'),bottom:inset('bottom')}
     const dpr = Math.min(quality==='low'?1:quality==='high'?2:1.5, window.devicePixelRatio || 1)
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -270,6 +274,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.globalAlpha = 1
   }
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
+    const {width,height}=hudSize()
     if(compact()){
       const p=s.actors.find(a=>a.local===true)??s.actors.find(a=>a.team==='player')
       if(p){text(`HP ${Math.ceil(p.hp)}/${Math.round(p.maxHp)}${p.shield>0?' 盾'+Math.ceil(p.shield):''}`,12,27,13,p.hp<p.maxHp*.3?RED:CYAN);ctx.fillStyle='#203245';ctx.fillRect(12,35,142,4);ctx.fillStyle=CYAN;ctx.fillRect(12,35,142*clamp(p.hp/p.maxHp,0,1),4)
@@ -331,6 +336,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.textAlign = 'left'
   }
   const drawPractice = (debug: RenderDebug) => {
+    const {width}=hudSize()
     const state = debug.practice
     if (!state) return
     if (compact()) { text(`伤害 ${Number(state.damage.toFixed(1))} · DPS ${state.recentDps.toFixed(1)}`, width>height?width-215:12, width>height?82:112, 10, CYAN); return }
@@ -341,6 +347,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     text(`平均DPS  ${state.averageDps.toFixed(1)}`, 30, 228, 12, '#90a9bb')
   }
   const drawTarget = (s: Snapshot) => {
+    const {width,height}=hudSize()
     const target = s.actors.find((a) => a.locked && a.alive)
     if (!target) return
     if(compact()){
@@ -477,9 +484,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const vignette = ctx.createRadialGradient(width / 2, height / 2, width * 0.2, width / 2, height / 2, Math.max(width, height) * 0.7)
     vignette.addColorStop(0, 'rgba(2,5,12,0)'); vignette.addColorStop(1, 'rgba(2,5,12,0.52)')
     ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height)
+    ctx.save();ctx.translate(safe.left,safe.top)
     drawHud(s, debug)
     drawPractice(debug)
     drawTarget(s)
+    ctx.restore()
   }
   return {configure:(settings)=>{quality=settings.quality??'balanced';resize()}, draw, viewToWorld: (x, y, focus) => {
     // Pointer conversion uses this simulation tick's camera, not the previous rendered frame.
