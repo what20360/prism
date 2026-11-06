@@ -152,7 +152,8 @@ describe('game lifecycle', () => {
   it('boots and restarts endless mode with the same seed, first floor and no test privileges', () => {
     const { game } = idleGame({ endless: createEndlessMode(), seed: 4321 })
     const state = game.panelState().endless
-    expect(state).toMatchObject({ seed: 4321, floor: 1, open: false, alive: 0, pending: 6 })
+    expect(state).toMatchObject({ seed: 4321, floor: 1, open: false, alive: 0, pending: state!.initialCount })
+    expect(state!.initialCount).toBeGreaterThan(0)
     expect(game.session().endless).toBe(true); expect(game.session().practice).toBe(false)
     game.setUiMode('menu'); expect(game.practiceAction({ type: 'card-level', id: 'gun-damage', level: 10 })).toBe(false)
     game.restart()

@@ -64,7 +64,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   const numbers = (r: RecordData, names: string, min = 0) => { for (const key of names.split(' ')) finite(r[key], min) }
   const spawn = (value: unknown) => {
     const s = record(value); vector(s.pos); validateAttrs(s.attrs, attrKeys)
-    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer', 'weaver', 'silk-worker', 'silk-bomber']);
+    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer', 'weaver', 'silk-worker', 'silk-bomber', 'charger', 'relay']);
     if (s.attackType !== undefined) oneOf(s.attackType, ['physical', 'electric', 'heat'])
     if (s.traits !== undefined) { const traits = array(s.traits, 6); for (const t of traits) oneOf(t, ['bark', 'swift', 'bulwark', 'storm', 'cinder', 'volatile']); if (new Set(traits).size !== traits.length) throw new Error('重复词条') } finite(s.contactDamage, 0); bool(s.hasCore)
     if (s.name !== undefined) text(s.name)
@@ -77,6 +77,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   rect(room.bounds); vector(room.entry); for (const wall of array(room.walls, 500)) rect(wall)
   if (room.design !== undefined) {
     const design = record(room.design); text(design.id, 80); text(design.title, 80); oneOf(design.theme, ['prism', 'silk'])
+    if (design.encounter !== undefined) oneOf(design.encounter,['flank','escort','volatile','arc'])
     if (design.core !== undefined) rect(design.core)
     if (design.corridorWidth !== undefined) finite(design.corridorWidth, 100, 2000)
     const patrol = array(design.patrol, 64); if (!patrol.length) throw new Error('关卡巡游点为空')
@@ -106,6 +107,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
       for (const key of ['pursuing', 'dashUsed', 'task']) bool(s[key]); integer(s.expiresAt)
       if (a.behavior !== (s.role === 'worker' ? 'silk-worker' : 'silk-bomber')) throw new Error('蜘蛛状态归属错误')
     }
+    if(a.charge!==undefined){const c=record(a.charge);if(a.behavior!=='charger')throw new Error('冲刺状态归属错误');oneOf(c.phase,['windup','dash','recovery','cooldown']);integer(c.ticks,0,150);finite(c.angle);vector(c.last)}
     for (const key of ['shockTicks', 'bombTicks', 'windupTicks', 'laserTicks', 'laserTimer']) if (a[key] !== undefined) integer(a[key], 0, 1000000)
     if (a.windupAngle !== undefined) finite(a.windupAngle)
     if (a.burn !== undefined) { const b = record(a.burn); integer(b.sourceId, 1); oneOf(b.sourceTeam, ['player', 'enemy', 'neutral']); finite(b.raw, 0); integer(b.remaining, 1, 3); integer(b.timer, 0, 20); if (b.rewardMultiplier !== undefined) finite(b.rewardMultiplier, 0, 1) }

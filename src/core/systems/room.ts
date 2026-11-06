@@ -14,7 +14,7 @@ export function updateRoom(world: World): void {
   if (world.room.phase === 'entered') return
 
   for (const actor of world.actors.values()) {
-    if (actor.alive && actor.team === 'enemy') return
+    if (actor.alive && actor.team === 'enemy' && actor.behavior !== 'relay') return
   }
 
   if (world.waves?.remaining.length) {
@@ -26,6 +26,7 @@ export function updateRoom(world: World): void {
     return
   }
 
+  for (const [id,actor] of world.actors) if(actor.behavior==='relay'&&actor.team==='enemy') world.actors.delete(id)
   world.roomCleared = true
   world.room.phase = 'cleared'
 

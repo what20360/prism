@@ -8,6 +8,7 @@ import { killDropProbability, rollLootAmount, spawnLoot } from '../loot'
 import { hasLineOfSight } from '../navigation'
 import { releaseDeathBurst } from './hostileBursts'
 import { WEAVER_RULES } from '../weaverRules'
+import { ENCOUNTER_RULES, supportingRelay } from './encounter'
 import type { DamageType, EffectKind, Actor, FloaterKind, World } from '../world'
 import { tryGetPlayer, progressOf } from '../world'
 import type { Team } from '../types'
@@ -49,7 +50,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
   if (event.shieldDisruptTicks && (target.team === 'player' || world.participants?.[target.id])) { target.shieldDisabledTicks = Math.max(target.shieldDisabledTicks ?? 0, event.shieldDisruptTicks); target.shield = 0; target.outOfCombatTicks = 0 }
   const attrs = combatAttrs(target), type = event.damageType ?? 'physical'
   const resistance = type === 'electric' ? attrs.electricResist : type === 'heat' ? attrs.heatResist : attrs.physicalResist
-  const actual = resolveDamage(event.raw, attrs.armor, event.penetration, attrs.block*Math.max(0,event.blockScale??1), resistance)
+  const actual = resolveDamage(event.raw, attrs.armor+(supportingRelay(world,target)?ENCOUNTER_RULES.relayArmor:0), event.penetration, attrs.block*Math.max(0,event.blockScale??1), resistance)
   if (actual <= 0) { target.damageFlashTicks = DAMAGE_FLASH_TICKS; pushEffect(world, 'block', target.pos.x, target.pos.y, target.radius + 8); return }
 
   const hpBefore = target.hp
@@ -65,6 +66,12 @@ export function applyDamage(world: World, event: DamageEvent): void {
 
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
+  // Devices are tactical objectives, not renewable damage or kill income.
+  if(target.behavior==='relay'){
+    pushFloater(world,'damage',effectiveDamage,target.pos.x,target.pos.y);pushEffect(world,'hit',target.pos.x,target.pos.y,26)
+    if(target.hp<=0){target.alive=false;target.burn=undefined;pushEffect(world,'death',target.pos.x,target.pos.y,target.radius*2)}
+    return
+  }
 
   if (world.coop) {
     const source = world.actors.get(event.sourceId)

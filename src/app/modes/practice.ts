@@ -57,10 +57,14 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       if (config.scenario === 'targets') spawns.push({ pos, attrs: { ...PLAYER_BASE_ATTRS, maxHp: config.hp, armor: config.armor, block: config.block ?? 0,
         speed: 0, fireRate: 0, damage: 0, autoFire: 0 }, tier: 'normal', behavior: 'turret', contactDamage: 0, hasCore: i % 2 === 1, name: `${i % 2 ? '核心靶机' : '训练靶机'} ${i + 1}` })
       else {
-        const types = ['drifter', 'turret', 'bomber', 'stalker', 'lancer', 'warden', 'bulwark', 'arc-rider']; const id = config.enemy === 'mixed' ? types[i % types.length]! : config.enemy === 'bark' ? 'drifter' : config.enemy!
+        const types = ['drifter', 'turret', 'bomber', 'stalker', 'lancer', 'warden', 'bulwark', 'arc-rider','charger']; const id = config.enemy === 'mixed' ? types[i % types.length]! : config.enemy === 'bark' ? 'drifter' : config.enemy!
         const type = ENEMIES[id]!
         spawns.push({ ...type, pos, name: config.enemy === 'bark' ? '树皮·游荡者' : type.name, traits: config.enemy === 'bark' ? ['bark'] : type.traits, attrs: { ...type.attrs, maxHp: config.hp, armor: config.armor, block: config.enemy === 'bark' ? Math.max(6, config.block ?? 0) : config.block ?? type.attrs.block } })
       }
+    }
+    if(config.scenario==='combat'&&config.enemy==='relay'){
+      const guard=ENEMIES.drifter!,anchor=spawns[0]!.pos
+      spawns.push({...guard,pos:{x:anchor.x+180,y:anchor.y},name:'继电演练守卫',attrs:{...guard.attrs,maxHp:config.hp,armor:config.armor,block:config.block??0,speed:0}})
     }
     if (authored) return { ...authored, id: 'practice-silk', kind: 'combat', pickups: [], spawns }
     return { id: 'practice', kind: 'combat', pickups: [], bounds: { x: 0, y: 0, width: 3200, height: 1800 },

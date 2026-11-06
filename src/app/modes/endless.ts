@@ -1,4 +1,5 @@
 import { ENEMIES } from '../../content/enemies'
+import { endlessEncounter, encounterEnemy, RELAY_ANCHORS, type EncounterId } from '../../content/encounters'
 import { withMonsterTraits, clampMonsterStats } from '../../content/monsterTraits'
 import { applyRoom, type RoomSpec } from '../../core/dungeon'
 import { circleIntersectsRect, distance } from '../../core/collision'
@@ -27,8 +28,8 @@ export function endlessFactor(rng: Rng, open: boolean): number {
   const value = (1 - 1 / ENDLESS_RULES.tailAlpha) / (1 - nextFloat(rng)) ** (1 / ENDLESS_RULES.tailAlpha)
   return open ? value : Math.max(ENDLESS_RULES.finiteMin, Math.min(ENDLESS_RULES.finiteMax, value))
 }
-export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0): EnemySpawnSpec {
-  const typeRoll = nextFloat(rng), type = ENEMIES[typeRoll < 0.3 ? 'drifter' : typeRoll < 0.46 ? 'turret' : typeRoll < 0.64 ? 'stalker' : typeRoll < 0.8 ? 'bomber' : typeRoll < 0.86 ? 'bulwark' : typeRoll < 0.92 ? 'arc-rider' : typeRoll < 0.97 ? 'warden' : 'lancer']!
+export function rollEndlessEnemy(floor: number, rng: Rng, open = floor % 5 === 0, preferred?:string): EnemySpawnSpec {
+  const typeRoll = nextFloat(rng), type = ENEMIES[preferred??(typeRoll < 0.3 ? 'drifter' : typeRoll < 0.46 ? 'turret' : typeRoll < 0.64 ? 'stalker' : typeRoll < 0.8 ? 'bomber' : typeRoll < 0.86 ? 'bulwark' : typeRoll < 0.92 ? 'arc-rider' : typeRoll < 0.97 ? 'warden' : 'lancer')]!
   const factor = endlessFactor(rng, open), elite = type.hasCore || type.tier==='elite'
   const stat = (base: number, growth: number, exponent = 1, bias = 1): number => {
     const mean = finite(base * growth ** (floor - 1))
@@ -76,33 +77,42 @@ export function createEndlessMode(): EndlessMode {
   const room = (): RoomSpec => ({ id: 'endless', kind: 'combat', bounds: ARENA, walls: [], entry: ENTRY, spawns: [], pickups: [] })
   let currentEntry: Vec2 = ENTRY, currentPatrol: readonly Vec2[] = []
   const getEntry = () => currentEntry
-  const freePosition = (walls: RoomSpec['walls'], radius: number, avoid: Vec2): Vec2 => {
+  const freePosition = (walls: RoomSpec['walls'], radius: number, avoid: readonly Vec2[], occupied: readonly {pos:Vec2;radius:number}[]=[], side=0): Vec2 => {
+    const valid=(pos:Vec2)=>distance(pos,getEntry())>=550&&avoid.every(p=>distance(pos,p)>=650)&&!walls.some(wall=>circleIntersectsRect(pos.x,pos.y,radius+8,wall))&&occupied.every(o=>distance(pos,o.pos)>=radius+o.radius+20)
     for (let i = 0; i < 160; i++) {
-      const pos = { x: 100 + nextFloat(rng) * 3000, y: 300 + nextFloat(rng) * 1100 }
-      if (distance(pos, getEntry()) < 550 || distance(pos, avoid) < 650 || walls.some((wall) => circleIntersectsRect(pos.x, pos.y, radius + 8, wall))) continue
-      return pos
+      const x=side===0?100+nextFloat(rng)*3000:side<0?100+nextFloat(rng)*1400:1700+nextFloat(rng)*1400
+      const pos = { x, y: 300 + nextFloat(rng) * 1100 }
+      if(valid(pos))return pos
     }
-    for (const pos of [...currentPatrol, { x: 1600, y: 400 }, { x: 1600, y: 1000 }, { x: 400, y: 400 }, { x: 2800, y: 400 }]) {
-      if (distance(pos, avoid) >= 650 && !walls.some((wall) => circleIntersectsRect(pos.x, pos.y, radius + 8, wall))) return pos
-    }
+    for (const pos of [...currentPatrol, { x: 1600, y: 400 }, { x: 1600, y: 1000 }, { x: 400, y: 400 }, { x: 2800, y: 400 }]) if(valid(pos))return pos
+    // Never place a unit inside solid geometry, even in a densely packed authored room.
+    for(const pos of currentPatrol)if(!walls.some(w=>circleIntersectsRect(pos.x,pos.y,radius+8,w)))return pos
     return { x: 1600, y: 400 }
   }
+
   const enter = (world: World) => {
     rng = createRng((seed ^ Math.imul(floor, 0x9e3779b1)) >>> 0)
     population = Math.ceil(endlessCount(floor) * (world.coop ? 1+0.7*(Math.max(1,world.coop.members.filter(m=>m.connected).length)-1) : 1)); if(world.coop)world.coop.roomPartySize=Math.max(1,world.coop.members.filter(m=>m.connected).length); respawned = 0; queue = []
-    const selected = pickLevelSet(rng, 'endless', floor < 5 ? 'combat' : undefined)
+    const selected = pickLevelSet(rng, 'endless', floor < 5 ? 'combat' : undefined), encounter=endlessEncounter(seed,floor)
+    const allowed=['drifter','turret','stalker','bomber',...(floor>=2?['arc-rider','charger']:[]),...(floor>=3?['bulwark','lancer','warden']:[])]
     currentEntry = selected.entry; currentPatrol = selected.design?.patrol ?? []
-    const geometry = { ...selected, kind: 'combat' as const, id: `endless-${floor}` }, walls = geometry.walls
+    const geometry = { ...selected, design:selected.design?{...selected.design,encounter}:undefined, kind: 'combat' as const, id: `endless-${floor}` }, walls = geometry.walls
+    let chargers=0
+    const occupied:{pos:Vec2;radius:number}[]=[]
     const spawns = Array.from({ length: population }, (_, index) => {
-      const spec = rollEndlessEnemy(floor, rng)
+      let type=encounterEnemy(encounter,Math.max(0,index-(selected.design?.id==='relay-station'?2:0)),allowed);if(type==='charger'&&chargers>=2)type='drifter';if(type==='charger')chargers++
+      const spec = rollEndlessEnemy(floor, rng, floor%5===0, type)
+      if(selected.design?.id==='relay-station'&&index<2){const relay=ENEMIES.relay!,pos=RELAY_ANCHORS[index]!;occupied.push({pos,radius:relay.attrs.radius});return {...relay,attrs:{...relay.attrs,maxHp:Math.min(spec.attrs.maxHp,90*1.18**(floor-1))},pos,rewardMultiplier:0}}
       if (index === 0 && selected.design?.id === 'silk-den') {
         const q = selected.spawns[0]!, g = ENDLESS_RULES.growth, open = floor % 5 === 0
         const attrs = { ...q.attrs, maxHp: Math.min(finite(spec.attrs.maxHp * (open ? 8 : 2)), open ? Number.MAX_VALUE : finite(50 * g.maxHp ** (floor - 1) * ENDLESS_RULES.finiteMax)),
           damage: spec.attrs.damage, armor: spec.attrs.armor, block: spec.attrs.block, speed: Math.min(spec.attrs.speed || 150, floor % 5 === 0 ? Number.MAX_VALUE : finite(185 * g.speed ** (floor - 1) * ENDLESS_RULES.finiteMax) / 1.3), bulletSpeed: spec.attrs.bulletSpeed,
           range: spec.attrs.range, mineDamage: finite(spec.attrs.damage * 1.8), mineHp: Math.max(10, spec.attrs.maxHp * 0.2) }
-        return { ...q, attrs, rewardMultiplier: 1 }
+        occupied.push({pos:q.pos,radius:attrs.radius});return { ...q, attrs, rewardMultiplier: 1 }
       }
-      return { ...spec, pos: freePosition(walls, spec.attrs.radius, geometry.entry), rewardMultiplier: 1 }
+      let pos=freePosition(walls,spec.attrs.radius,[geometry.entry],occupied,index%2? -1:1)
+      if(selected.design?.id==='relay-station'&&index>=2&&index<6){const anchor=RELAY_ANCHORS[(index-2)%2]!;for(let attempt=0;attempt<40;attempt++){const p={x:anchor.x+(nextFloat(rng)-.5)*520,y:anchor.y+(nextFloat(rng)-.5)*520};if(distance(p,geometry.entry)>650&&!walls.some(w=>circleIntersectsRect(p.x,p.y,spec.attrs.radius+8,w))&&occupied.every(o=>distance(p,o.pos)>spec.attrs.radius+o.radius+20)){pos=p;break}}}
+      occupied.push({pos,radius:spec.attrs.radius});return { ...spec, pos, rewardMultiplier: 1 }
     })
     const scale = finite(1.13 ** (floor - 1))
     const pickups = createRoomPickups(rng, geometry).map((pickup) => ({ ...pickup, value: pickup.kind === 'shard' ? finite(pickup.value * scale) : pickup.value }))
@@ -119,21 +129,26 @@ export function createEndlessMode(): EndlessMode {
       const open = floor % 5 === 0
       for (const [id, actor] of world.actors) if (actor.team === 'enemy' && !actor.alive) {
         world.actors.delete(id)
-        if (open && !actor.spider) queue.push(world.tick + ENDLESS_RULES.respawnTicks)
+        if (open && !actor.spider && actor.behavior!=='relay') queue.push(world.tick + ENDLESS_RULES.respawnTicks)
       }
       if (!open) return
       const due = queue.filter((tick) => tick <= world.tick); queue = queue.filter((tick) => tick > world.tick)
       for (let i = 0; i < due.length; i++) {
-        const spec = rollEndlessEnemy(floor, rng, true)
+        const encounter=world.room.design?.encounter as EncounterId|undefined
+        const allowed=['drifter','turret','stalker','bomber','arc-rider','charger','bulwark','lancer','warden']
+        let type=encounter?encounterEnemy(encounter,respawned,allowed):undefined
+        if(type==='charger'&&[...world.actors.values()].filter(a=>a.alive&&a.behavior==='charger').length>=2)type='drifter'
+        const spec = rollEndlessEnemy(floor, rng, true,type)
         respawned += 1
-        spawnEnemy(world, { ...spec, pos: freePosition(world.room.walls, spec.attrs.radius, getPlayer(world).pos), rewardMultiplier: endlessReward(respawned, population) })
+        const players=[...world.actors.values()].filter(a=>a.alive&&a.team==='player').map(a=>a.pos),occupied=[...world.actors.values()].filter(a=>a.alive).map(a=>({pos:a.pos,radius:a.radius}))
+        spawnEnemy(world, { ...spec, pos: freePosition(world.room.walls,spec.attrs.radius,players.length?players:[getPlayer(world).pos],occupied), rewardMultiplier: endlessReward(respawned, population) })
       }
       world.room.exit = exitForRoom(world, true); world.roomCleared = false
       if (world.room.phase !== 'entered') world.room.phase = 'combat'
     },
-    state: (world) => ({ seed, floor, open: floor % 5 === 0, initialCount: population,
-      alive: [...world.actors.values()].filter((actor) => actor.team === 'enemy' && actor.alive).length,
-      pending: world.pendingSpawns.length + queue.length, respawned, nextReward: endlessReward(respawned + 1, population),
+    state: (world) => ({ seed, floor, open: floor % 5 === 0, initialCount: population-(world.room.design?.id==='relay-station'?2:0),
+      alive: [...world.actors.values()].filter((actor) => actor.team === 'enemy' && actor.alive && actor.behavior!=='relay').length,
+      pending: world.pendingSpawns.filter(s=>s.behavior!=='relay').length + queue.length, respawned, nextReward: endlessReward(respawned + 1, population),
       rngState: rng.state, spawnQueue: [...queue] }),
   }
 }

@@ -8,6 +8,7 @@ type Entry = { term: string; text: string }
 const CHAPTERS: readonly { id: string; title: string; entries: readonly Entry[] }[] = [
   { id: 'start', title: '快速上手', entries: [
     { term: '种子与难度', text: '闯关有七档难度，闯关与无尽开局各有 50 棱晶。1档保持基础战斗数值与单波，敌人数随深入增加；2–7档进一步增加怪物数值、数量和波次，7档适合熟练后挑战。可输入世界种子或随机；重开保留种子与难度。' },
+    {term:'主题遭遇',text:'普通房间会出现夹击、重甲护送、引爆或电弧编队；场景和敌人共同决定安全路线与优先目标。裂隙突击者会先标出固定冲刺方向，随后直线冲锋并短暂硬直。继电站内的装置用连线标记被保护的敌人，摧毁装置移除额外护甲；清除所有守军也可通过，攻击装置不产生棱晶或击杀掉落。'},
     { term: '波次推进', text: '清完当前波后，下一波出生点会预警 1.5 秒。全部波次结束才打开出口；最终Boss只在最后一波出现。房间资源仅在进入时生成一次，不随波次重刷；存档保留待刷波次与倒计时。' },
     { term: '选择模式', text: '主菜单选择“开始闯关”进入地牢，输入世界种子可启动“无尽模式”；“测试模式”用于自由比较构筑。“服务器与局域网”支持合作闯关、无尽与1v1；存档、升级预设、帮助与设置也可在主菜单查看。' },
     { term: '第一步 · 移动', text: 'WASD / 方向键移动；手机轻推移动摇杆慢走，推远全速移动。离开入口后才开始刷怪。' },
@@ -35,7 +36,7 @@ const CHAPTERS: readonly { id: string; title: string; entries: readonly Entry[] 
     {term:'合作存档',text:'服务器默认每关保存一次合作进度，也可配置定时或关闭；身份、席位和管理变更、正常退出仍会保存，重启后房间暂停、原ID重新连接可恢复角色、钱包、构筑与复活读秒。房间页可导出备份；导入时仅创建者在房内。旧多人存档需密码房保护，其他角色凭密码和角色编号认领；已绑定的席位不能凭编号接管。'},
   ] },
   { id: 'practice', title: '测试模式', entries: [
-    { term: '场景配置', text: '右上“测试控制”可选择固定靶机或敌人演练、开阔或掩体场地，并设置 1–12 个目标、生命、护甲与格挡。固定靶机被击败后恢复；混合敌群包含铁壁卫士与电弧游骑，敌人演练还可选混合敌群、树皮、自爆体、游猎射手、灼线哨兵与Boss。' },
+    { term: '场景配置', text: '右上“测试控制”可选择固定靶机或敌人演练、开阔或掩体场地，并设置 1–12 个目标、生命、护甲与格挡。固定靶机被击败后恢复；混合敌群包含铁壁卫士与电弧游骑，敌人演练还可选混合敌群、树皮、自爆体、游猎射手、灼线哨兵、裂隙突击者、护甲继电器与Boss。' },
     { term: '自由构筑', text: '默认开启玩家无敌与自由购卡。升级面板可直接设定非负整数卡片等级，0 为移除；成长卡不限等级，纯功能开关仅解锁一次，可绕过前置比较组合。关闭自由购卡后，场景重置为 1000 棱晶，购买使用正常价格。' },
     { term: '伤害统计', text: '总伤害只记录实际扣除的生命与护盾，不计溢出。近 3 秒 DPS 为最近 180 个逻辑 tick 的伤害除以 3；平均 DPS 为重置统计后的总伤害除以战斗时间。暂停与主菜单期间不计时。' },
     { term: '重置与恢复', text: '应用配置或重置场景会保留卡片与技能槽，并重置目标、生命、冷却和统计；可以单独重置统计、清除弹幕地雷或恢复生命冷却。“重置构筑与场景”清空卡片。' },
@@ -70,7 +71,7 @@ const CHAPTERS: readonly { id: string; title: string; entries: readonly Entry[] 
   ] },
   { id: 'monsters', title: '敌人与词条', entries: [
     { term: '原型与成长', text: '敌人由原型、难度/层数与随机词条共同生成。下列为原型基线，实战数值以锁定面板为准；无尽清场层在叠加词条后检查属性上界，开放层允许稀有强敌。' },
-    ...Object.values(ENEMIES).map((enemy) => ({ term: enemy.name, text: `生命 ${fmt(enemy.attrs.maxHp)} · 护甲 ${fmt(enemy.attrs.armor)} · 格挡 ${fmt(enemy.attrs.block)} · 伤害 ${fmt(enemy.attrs.damage)} · 移速 ${fmt(enemy.attrs.speed)} · 攻速 ${fmt(enemy.attrs.fireRate)}/秒。${enemy.behavior === 'bomber' ? `接近后预警 ${fmt(ARSENAL_RULES.bombFuse / 60)} 秒自爆，死亡释放环形弹幕。` : enemy.behavior === 'lancer' ? '预警蓄能后发射直线激光。' : enemy.behavior === 'skirmish' ? '保持距离、横向走位并射击。' : enemy.behavior === 'chase' ? '绕障追击并造成接触伤害。' : enemy.behavior === 'boss' ? '旋转弹幕，半血强化并周期清弹。' : '持续射击，以掩体阻挡弹道。'}` })),
+    ...Object.values(ENEMIES).map((enemy) => ({ term: enemy.name, text: `生命 ${fmt(enemy.attrs.maxHp)} · 护甲 ${fmt(enemy.attrs.armor)} · 格挡 ${fmt(enemy.attrs.block)} · 伤害 ${fmt(enemy.attrs.damage)} · 移速 ${fmt(enemy.attrs.speed)} · 攻速 ${fmt(enemy.attrs.fireRate)}/秒。${enemy.behavior === 'relay' ? '为视线内最近的至多两名非首领敌人增加护甲，摧毁装置解除加成；装置不产出资源。' : enemy.behavior === 'charger' ? '锁定方向预警0.9秒，随后直线冲刺并进入硬直，墙体可阻挡。' : enemy.behavior === 'weaver' ? '在盘丝洞布雷并召唤蜘蛛，半血时改变攻击方式。' : enemy.behavior === 'bomber' ? `接近后预警 ${fmt(ARSENAL_RULES.bombFuse / 60)} 秒自爆，死亡释放环形弹幕。` : enemy.behavior === 'lancer' ? '预警蓄能后发射直线激光。' : enemy.behavior === 'skirmish' ? '保持距离、横向走位并射击。' : enemy.behavior === 'chase' ? '绕障追击并造成接触伤害。' : enemy.behavior === 'boss' ? '旋转弹幕，半血强化并周期清弹。' : '持续射击，以掩体阻挡弹道。'}` })),
     { term: '树皮 / 重甲', text: '树皮提高固定格挡和生命，降低移速且怕热；重甲提高护甲与物理抗性，降低移速。用重击突破格挡，按目标弱点切换武器。' },
     { term: '迅捷 / 元素', text: '迅捷提高移动与射击速度。雷涌具有电抗性、怕热，攻击附带电伤减速；炽热具有热抗性、怕电，攻击附带热伤燃烧。词条可以组合，实际抗性在锁定卡显示；雷涌和炽热并存时以热伤攻击，抗性继续叠加。' },
     { term: '裂核', text: '非Boss敌人可具有此条。接近玩家时停止移动并开始自爆倒计时，范围圈表示危险区；自爆和被击杀都会从自身释放环形弹幕。掩体可以挡住自爆直伤，弹幕仍需躲避。' },

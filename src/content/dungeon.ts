@@ -7,6 +7,7 @@ import { resolveSpawnPosition, circleIntersectsRect } from '../core/collision'
 import { dungeonProfile, dungeonDifficulty, type DungeonDifficulty } from './difficulties'
 import { ENEMIES } from './enemies'
 import { withMonsterTraits } from './monsterTraits'
+import { chooseEncounter, encounterEnemy, RELAY_ANCHORS, type EncounterId } from './encounters'
 import { STANDARD_WALLS as WALL_SETS, pickLevelSet, silkDenRoom, safeRoom } from './levelSets'
 
 const ENTRY: Vec2 = { x: 1600, y: 1560 }
@@ -100,28 +101,32 @@ export const ROOMS_PER_FLOOR = 5
 export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
 export function dungeonEnemyPalette(difficulty:DungeonDifficulty,depth:number):string[] {
  const types=['drifter','turret','stalker','bomber']
- if(difficulty>=2||depth>=0.8)types.push('arc-rider')
+ if(difficulty>=2||depth>=0.8)types.push('arc-rider','charger')
  if(difficulty>=3||depth>=1.2)types.push('bulwark')
  if(difficulty>=4||depth>=2)types.push('lancer','warden')
  return types
 }
-function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = [], entry: Vec2 = ENTRY): EnemySpawnSpec[] {
+function populateWave(original: readonly EnemySpawnSpec[], count: number, depth: number, difficulty: DungeonDifficulty, walls: readonly Rect[], rng: Rng, reserved: readonly EnemySpawnSpec[] = [], entry: Vec2 = ENTRY, encounter?:EncounterId, relays=false): EnemySpawnSpec[] {
   const profile = dungeonProfile(difficulty, depth), placed: EnemySpawnSpec[] = []
   for (let i = 0; i < count; i++) {
     const originalSource = original[i % original.length]!
     const options = dungeonEnemyPalette(difficulty,depth)
-    const source = originalSource.tier !== 'boss' && !(originalSource.tier==='elite'&&i===0) && nextFloat(rng) < 0.78 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
+    let source = relays && i < RELAY_ANCHORS.length ? spawn('relay',RELAY_ANCHORS[i]!) : encounter ? spawn(encounterEnemy(encounter,i-(relays?2:0),options),originalSource.pos) : originalSource.tier !== 'boss' && !(originalSource.tier==='elite'&&i===0) && nextFloat(rng) < 0.78 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
+    if(source.behavior==='charger'&&placed.filter(s=>s.behavior==='charger').length>=2)source=spawn('drifter',originalSource.pos)
     const factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
     const attrs = { ...source.attrs, maxHp: source.attrs.maxHp * profile.hp * factor, damage: source.attrs.damage * profile.damage * factor,
       armor: source.attrs.armor + profile.armor, block: source.attrs.block + 0.7 * (difficulty - 1) * (1 + depth / 3), speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,
       fireRate: source.attrs.fireRate * profile.fireRate }
     let pos = source.pos
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const candidate = resolveSpawnPosition({ x: nextInt(rng, 180, 3020), y: nextInt(rng, 180, 1340) }, attrs.radius + 4, walls, ARENA)
+    for (let attempt = 0; attempt < (source.behavior==='relay'?0:80); attempt++) {
+      const anchor=relays&&i>=2&&i<6?RELAY_ANCHORS[(i-2)%2]:undefined
+      const side=i%2===0?1:-1
+      const candidate = resolveSpawnPosition({ x: anchor ? anchor.x+nextInt(rng,-300,301) : side<0?nextInt(rng,180,1500):nextInt(rng,1700,3020), y: anchor ? anchor.y+nextInt(rng,-280,281) : nextInt(rng,180,1340) }, attrs.radius + 4, walls, ARENA)
       if (!walls.some((w) => circleIntersectsRect(candidate.x, candidate.y, attrs.radius + 4, w)) && Math.hypot(candidate.x - entry.x, candidate.y - entry.y) > 360 && [...reserved, ...placed].every((s) => Math.hypot(candidate.x - s.pos.x, candidate.y - s.pos.y) > s.attrs.radius + attrs.radius + 35)) { pos = candidate; break }
     }
     pos = resolveSpawnPosition(pos, attrs.radius + 4, walls, ARENA)
-    placed.push(withMonsterTraits({ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor }, rng, difficulty - 1 + depth))
+    const spec={ ...source, attrs, pos, contactDamage: source.contactDamage * profile.damage * factor }
+    placed.push(source.behavior==='relay'?spec:withMonsterTraits(spec,rng,difficulty-1+depth))
   }
   return placed
 }
@@ -129,6 +134,7 @@ function populateWave(original: readonly EnemySpawnSpec[], count: number, depth:
 export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
   if (!options) return legacyDungeon()
   const difficulty = dungeonDifficulty(options.difficulty), rng = createRng(options.seed)
+  const recent:EncounterId[]=[]
   return legacyDungeon().map((room, index) => {
     if (room.kind === 'safe') return room
     const depth = index / ROOMS_PER_FLOOR, profile = dungeonProfile(difficulty, depth)
@@ -141,7 +147,8 @@ export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
       waves.push([{ ...boss, attrs }])
       return { ...room, spawns: waves[0]!, ...(waves.length > 1 ? { waves: waves.slice(1) } : {}) }
     }
-    const selected = pickLevelSet(rng, 'dungeon', 'combat'), walls = selected.walls
+    const selected = pickLevelSet(rng, 'dungeon', 'combat'), walls = selected.walls, encounter=chooseEncounter(rng,recent)
+    recent.push(encounter)
     const count = Math.ceil(room.spawns.length * profile.count), waves: EnemySpawnSpec[][] = []
     for (let wave = 0; wave < profile.waves; wave++) {
       if (room.kind === 'boss' && difficulty > 1) {
@@ -151,8 +158,8 @@ export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
           const adds = populateWave(combatSpawns(4, 3), Math.ceil((difficulty - 1) * 0.7), depth, difficulty, walls, rng, boss)
           waves.push([...boss, ...adds])
         } else waves.push(populateWave(guardSpawns(4), Math.ceil(3 * profile.count), depth, difficulty, walls, rng))
-      } else waves.push(populateWave(room.spawns, count, depth, difficulty, walls, rng))
+      } else waves.push(populateWave(room.spawns, count, depth, difficulty, walls, rng,[],room.entry,encounter,wave===0&&selected.design?.id==='relay-station'))
     }
-    return { ...room, design: selected.design, walls, spawns: waves[0]!, waves: waves.slice(1) }
+    return { ...room, design: selected.design?{...selected.design,encounter}:undefined, walls, spawns: waves[0]!, waves: waves.slice(1) }
   })
 }

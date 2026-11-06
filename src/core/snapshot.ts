@@ -1,3 +1,4 @@
+import { ENCOUNTER_RULES, relayAssignments } from './systems/encounter'
 import { combatAttrs, isOutOfCombat } from './combat'
 import { skillRemaining, skillTotal, unlocked } from './systems/skills'
 import type { Actor, SkillId, Pickup, DamageType, MonsterTrait, EnergyTrace, RoomDesign } from './world'
@@ -28,6 +29,7 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly supportRelayId?:number
   readonly channeling?:boolean
   readonly stowed: boolean
   readonly shieldDisabledSeconds: number
@@ -180,15 +182,17 @@ export interface Snapshot {
 
 export function toSnapshot(world: World, viewerId?: number): Snapshot {
   const actors: ActorView[] = []
+  const relays=relayAssignments(world)
   const player = viewerId === undefined ? [...world.actors.values()].find((a) => a.team === 'player' && a.alive) : world.actors.get(viewerId)
   const viewTeam = (team: Team): Team => player?.team === 'enemy' && team !== 'neutral' ? team === 'player' ? 'enemy' : 'player' : team
   for (const actor of [...world.actors.values()].sort((a,b)=>Number(b.id===viewerId)-Number(a.id===viewerId))) {
-    const attrs = combatAttrs(actor)
+    const attrs = combatAttrs(actor), relay=relays.get(actor.id)
     actors.push({
+      supportRelayId:relay?.id,
       channeling:actor.alive&&attrs.weapon===1&&actor.intent.fire===true,stowed: isOutOfCombat(actor), shieldDisabledSeconds: (actor.shieldDisabledTicks ?? 0) / TICK_RATE,
       block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
       weapon: attrs.weapon, damageType: actor.attackType ?? (attrs.weapon === 1 ? 'electric' : attrs.weapon === 2 ? 'heat' : 'physical'),
-      traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.windupTicks ?? null, windupAngle: actor.windupAngle ?? actor.aimAngle,
+      traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.charge?.phase==='windup'?actor.charge.ticks:actor.windupTicks ?? null, windupAngle: actor.charge?.phase==='windup'?actor.charge.angle:actor.windupAngle ?? actor.aimAngle,
       shocked: (actor.shockTicks ?? 0) > 0, burning: actor.burn !== undefined,
       id: actor.id,
       local: viewerId === undefined ? actor.team === 'player' : actor.id === viewerId,
@@ -204,7 +208,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       coreRadius: actor.hasCore ? actor.radius * actor.attrs.coreRadiusMult : 0,
       hp: actor.hp,
       maxHp: attrs.maxHp,
-      armor: attrs.armor,
+      armor: attrs.armor+(relay?ENCOUNTER_RULES.relayArmor:0),
       damage: attrs.damage,
       fireRate: attrs.fireRate,
       movementSpeed: attrs.speed,
@@ -233,7 +237,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       locked: player?.lockTargetId === actor.id,
       manualLocked: player?.manualLockId === actor.id,
       enraged: actor.rageTicks > 0,
-      dashing: actor.dashTicks > 0,
+      dashing: actor.dashTicks > 0||actor.charge?.phase==='dash',
     })
   }
 

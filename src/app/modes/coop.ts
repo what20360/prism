@@ -6,7 +6,7 @@ import { DEFAULT_ECONOMY } from '../../content/economy'
 import { dungeonDifficulty, DUNGEON_START_SHARDS, type DungeonDifficulty } from '../../content/difficulties'
 import { createActor, createWorld, type World, type CoopResourceMode, type EnemySpawnSpec } from '../../core/world'
 import { applyRoom } from '../../core/dungeon'
-import { resolveSpawnPosition } from '../../core/collision'
+import { circleIntersectsRect, distance, resolveSpawnPosition } from '../../core/collision'
 import { nextFloat } from '../../core/rng'
 import { step } from '../../core/simulation'
 import type { Intent } from '../../core/controller'
@@ -70,7 +70,25 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
  const teamPosition=(id:number)=>resolveSpawnPosition({x:world.room.entry.x+Math.cos(id*2.4)*70,y:world.room.entry.y+Math.sin(id*2.4)*70},world.actors.get(id)!.radius,world.room.walls,world.room.bounds)
  const rally=()=>{for(const m of world.coop!.members){const a=world.actors.get(m.id)!;a.pos=teamPosition(m.id);a.lockTargetId=null;a.manualLockId=null;a.burstRemaining=0;a.laserTicks=0;a.burn=undefined;a.rageTicks=0;a.dashTicks=0;a.shockTicks=0;a.deflectWindowTicks=0;a.intent={move:{x:0,y:0},fire:false};if(a.alive){a.iframesTicks=120;a.shield=Math.min(a.shield,shieldCap(a.attrs))} }}
  const scaleRoom=(index:number)=>{const room=rooms[index]!,count=Math.max(1,world.coop!.members.filter(m=>m.connected).length);world.coop!.roomPartySize=count
-  const wave=(source:readonly EnemySpawnSpec[])=>{const result=[...source];const normal=source.filter(s=>s.tier!=='boss');const extra=normal.length?Math.ceil(normal.length*coopPopulation(count))-normal.length:(count-1)*2;for(let i=0;i<extra&&result.length<200;i++){const base=normal[i%normal.length]??source[0];if(!base)break;const anchor=room.design?.patrol[(i+2)%room.design.patrol.length]??base.pos;const attrs=base.tier==='boss'?{...base.attrs,maxHp:Math.max(20,base.attrs.maxHp*0.025),radius:30,armor:base.attrs.armor*0.2,block:0,speed:180,fireRate:0}:base.attrs;const pos=resolveSpawnPosition({x:anchor.x+(nextFloat(world.rng)-0.5)*130,y:anchor.y+(nextFloat(world.rng)-0.5)*130},attrs.radius,room.walls,room.bounds);result.push({...base,attrs,pos,...(base.tier==='boss'?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'巢室护卫',contactDamage:attrs.damage*0.5}:{})})}return result}
+  const wave=(source:readonly EnemySpawnSpec[])=>{
+   const result=[...source],normal=source.filter(s=>s.tier!=='boss'&&s.behavior!=='relay'&&s.behavior!=='charger')
+   const extra=normal.length?Math.ceil(normal.length*coopPopulation(count))-normal.length:(count-1)*2
+   for(let i=0;i<extra&&result.length<200;i++){
+    const base=normal[i%normal.length]??source.find(s=>s.tier==='boss');if(!base)break
+    const attrs=base.tier==='boss'?{...base.attrs,maxHp:Math.max(20,base.attrs.maxHp*0.025),radius:30,armor:base.attrs.armor*0.2,block:0,speed:180,fireRate:0}:base.attrs
+    let pos:typeof base.pos|undefined
+    for(let attempt=0;attempt<160;attempt++){
+     const anchor=room.design?.patrol[(i+attempt+2)%room.design.patrol.length]??base.pos
+     const point=attempt<16||room.design?.id==='silk-den'?{x:anchor.x+(nextFloat(world.rng)-0.5)*500,y:anchor.y+(nextFloat(world.rng)-0.5)*500}:{x:room.bounds.x+160+nextFloat(world.rng)*(room.bounds.width-320),y:room.bounds.y+160+nextFloat(world.rng)*(room.bounds.height-320)}
+     const candidate=resolveSpawnPosition(point,attrs.radius+4,room.walls,room.bounds)
+     if(distance(candidate,room.entry)<360||room.walls.some(w=>circleIntersectsRect(candidate.x,candidate.y,attrs.radius+4,w))||result.some(e=>distance(e.pos,candidate)<e.attrs.radius+attrs.radius+20))continue
+     pos=candidate;break
+    }
+    if(!pos)continue
+    result.push({...base,attrs,pos,...(base.tier==='boss'?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'巢室护卫',contactDamage:attrs.damage*0.5}:{})})
+   }
+   return result
+  }
   return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave)} }
  const checkpoint=(viewer=hostId):CoopSave=>({format:'prism-coop-save',version:1,balanceVersion:CURRENT_BALANCE_VERSION,name,savedAt:new Date().toISOString(),config,hostId:viewer,roomIndex,started,world:(()=>{const data=serializeWorld(world,true);for(const p of data.projectiles){delete p.trail;delete p.segments}data.floaters=data.floaters.slice(-80);data.effects=data.effects.slice(-80);return data})(),endless:endless?.checkpoint(),plans:structuredClone(plans)})
  return {

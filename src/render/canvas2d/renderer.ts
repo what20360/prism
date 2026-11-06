@@ -2,6 +2,9 @@ import type { ControlSettings } from '../../storage/config'
 import { weaponPalette } from './weaponPalette'
 import { TRAIT_NAMES } from '../../content/monsterTraits'
 import { ARSENAL_RULES } from '../../core/rules'
+import { encounterName } from '../../content/encounters'
+import { ENCOUNTER_RULES } from '../../core/systems/encounter'
+import { firstWallHit } from '../../core/navigation'
 import { WEAVER_RULES } from '../../core/weaverRules'
 import type { EnergyTrace } from '../../core/world'
 import type { PracticeState } from '../../app/modes/practice'
@@ -149,7 +152,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(a.x, a.y, a.deflectFieldRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([12, 25]); ring(a.x, a.y, a.deflectFieldRadius, a.deflectActive ? '#b99bff' : 'rgba(155,208,255,0.16)', a.deflectActive ? 4 : 2); ctx.setLineDash([])
     }
-    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'weaver' ? '#cea3ff' : worker ? GOLD : a.spider ? '#ff8ec7' : a.behavior === 'boss' ? PURPLE : RED
+    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'relay' ? '#8ee9ce' : a.behavior === 'charger' ? '#ffb164' : a.behavior === 'weaver' ? '#cea3ff' : worker ? GOLD : a.spider ? '#ff8ec7' : a.behavior === 'boss' ? PURPLE : RED
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(player || silk ? a.aimAngle : a.behavior === 'boss' ? tick * 0.003 : 0)
     if (silk) {
       ctx.strokeStyle = color; ctx.lineWidth = a.weaver ? 5 : 3
@@ -164,7 +167,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.moveTo(r, 0); ctx.lineTo(r * 0.1, r * 0.7); ctx.lineTo(-r * 0.65, r * 0.52)
       ctx.lineTo(-r * 0.4, 0); ctx.lineTo(-r * 0.65, -r * 0.52); ctx.lineTo(r * 0.1, -r * 0.7); ctx.closePath()
     } else {
-      const count = a.behavior === 'weaver' ? 10 : worker ? 6 : a.spider ? 8 : a.behavior === 'boss' ? 6 : a.behavior === 'bomber' ? 8 : a.behavior === 'skirmish' ? 5 : a.behavior === 'turret' || a.behavior === 'lancer' ? 3 : 4
+      const count = a.behavior === 'weaver' ? 10 : worker ? 6 : a.spider ? 8 : a.behavior === 'boss' ? 6 : a.behavior === 'bomber' ? 8 : a.behavior === 'relay' ? 6 : a.behavior === 'charger' ? 3 : a.behavior === 'skirmish' ? 5 : a.behavior === 'turret' || a.behavior === 'lancer' ? 3 : 4
       for (let i = 0; i < count; i++) {
         const angle = i * Math.PI * 2 / count - Math.PI / 2
         if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r)
@@ -219,8 +222,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.setLineDash([12, 10]); ring(a.x, a.y, radius, '#ff916f', 3); ctx.setLineDash([])
       ctx.textAlign = 'center'; text(`${(a.bombTicks / 60).toFixed(1)}s`, a.x, a.y - r - 30, 22, '#ffd7ac'); ctx.textAlign = 'left'
     }
+    if (a.behavior==='relay'){ctx.setLineDash([8,6]);ring(a.x,a.y,r+12,'#93eed7',3);ctx.setLineDash([])}
     if (a.windupTicks !== null) {
-      ctx.save(); ctx.strokeStyle = 'rgba(255,124,95,0.55)'; ctx.lineWidth = 2; ctx.setLineDash([12, 12]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + Math.cos(a.windupAngle) * a.range, a.y + Math.sin(a.windupAngle) * a.range); ctx.stroke(); ctx.restore()
+      ctx.save(); ctx.strokeStyle = 'rgba(255,124,95,0.55)'; ctx.lineWidth = a.behavior==='charger'?6:2; ctx.setLineDash([12, 12]); const start={x:a.x,y:a.y},length=a.behavior==='charger'?ENCOUNTER_RULES.chargeMax:a.range,end={x:a.x+Math.cos(a.windupAngle)*length,y:a.y+Math.sin(a.windupAngle)*length},wall=a.behavior==='charger'&&lastScene?firstWallHit(lastScene,start,end,a.radius):null;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(a.x+(end.x-a.x)*(wall?.t??1),a.y+(end.y-a.y)*(wall?.t??1));ctx.stroke();ctx.restore()
+      if(a.behavior==='charger'){ctx.textAlign='center';text(`冲刺 ${(a.windupTicks/60).toFixed(1)}s`,a.x,a.y-r-30,18,'#ffcb97');ctx.textAlign='left'}
     }
     if (a.shieldDisabledSeconds > 0 && player) { ctx.textAlign = 'center'; text(`禁盾 ${Math.ceil(a.shieldDisabledSeconds)}s`, a.x, a.y + r + 67, 15, '#ff9dba'); ctx.textAlign = 'left' }
     if (a.shield > 0) ring(a.x, a.y, r + 5, 'rgba(180,210,255,0.5)', 2)
@@ -281,13 +286,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
        text(`◆ ${Math.floor(s.shards)} · ${p.weapon===1?'持续电弧':p.weapon===2?'激光':p.weapon===3?'狙击':'弹芯枪'}`,12,58,12,GOLD)
        if(p.shieldDisabledSeconds>0)text(`禁盾 ${Math.ceil(p.shieldDisabledSeconds)}s`,12,77,11,RED)
       }
-      text((s.design?.title??debug.label??'').slice(0,25),12,94,11,'#8ba9bc')
+      text(((s.design?.title??debug.label??'')+(encounterName(s.design?.encounter)?' · '+encounterName(s.design?.encounter):'')).slice(0,25),12,94,11,'#8ba9bc')
       if(s.wave?.countdown)text(`下一波 ${(s.wave.countdown/60).toFixed(1)}s`,12,111,12,GOLD)
       if(s.coop)for(const [i,m]of s.coop.members.filter(m=>m.id!==p?.id).entries()){const a=s.actors.find(a=>a.id===m.id);text(`${m.name.slice(0,8)} ${!m.connected?'离线':a?.alive?Math.ceil(a.hp)+'HP':'复活'+(m.reviveTicks/60).toFixed(1)+'s'}`,12,128+i*16,10,'#9bcabf')}
       const size=72,mapX=width>height?width/2-size/2:width-size-12,mapY=width>height?10:112,sy=size*s.bounds.height/s.bounds.width
       ctx.fillStyle='#030c17b8';ctx.fillRect(mapX,mapY,size,sy);ctx.strokeStyle='#375563';ctx.strokeRect(mapX,mapY,size,sy)
       const scale=size/s.bounds.width;ctx.fillStyle='#385467';for(const wall of s.walls)ctx.fillRect(mapX+(wall.x-s.bounds.x)*scale,mapY+(wall.y-s.bounds.y)*scale,wall.width*scale,wall.height*scale)
-      for(const a of s.actors)if(a.alive){ctx.fillStyle=a.local?CYAN:a.team==='player'?'#a4bfff':RED;ctx.fillRect(mapX+(a.x-s.bounds.x)*scale-1.5,mapY+(a.y-s.bounds.y)*scale-1.5,3,3)}
+      for(const a of s.actors)if(a.alive){ctx.fillStyle=a.local?CYAN:a.team==='player'?'#a4bfff':a.behavior==='relay'?'#8ee9ce':a.behavior==='charger'?'#ffb164':RED;ctx.fillRect(mapX+(a.x-s.bounds.x)*scale-1.5,mapY+(a.y-s.bounds.y)*scale-1.5,3,3)}
       if(s.exit){ctx.fillStyle='#9ff3ba';ctx.fillRect(mapX+(s.exit.x-s.bounds.x)*scale,mapY+(s.exit.y-s.bounds.y)*scale,5,4)}
       if(s.awaitsEntry||s.roomCleared){ctx.textAlign='center';text(s.awaitsEntry?'向前移动，进入战斗':'已清空 · 前往传送门',width/2,height*.38,12,'#99d8c5');ctx.textAlign='left'}
       return
@@ -295,7 +300,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
     const phone = width < 700, p = s.actors.find(a=>a.local===true)??s.actors.find((a) => a.team === 'player')
     text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : p.weapon === 3 ? '狙击手' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
-    if (s.design) { ctx.textAlign = 'center'; text(s.design.title, width / 2, 30, 16, s.design.theme === 'silk' ? '#d6b0ed' : '#96bbc7'); ctx.textAlign = 'left' }
+    if (s.design) { ctx.textAlign = 'center'; text(s.design.title+(encounterName(s.design.encounter)?' · '+encounterName(s.design.encounter):''), width / 2, 30, 16, s.design.theme === 'silk' ? '#d6b0ed' : '#96bbc7'); ctx.textAlign = 'left' }
     text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
     if (p) {
       const barWidth = phone ? 142 : 210
@@ -327,7 +332,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const wall of s.walls) ctx.fillRect(mx + wall.x * sx, my + wall.y * sy, wall.width * sx, wall.height * sy)
     for (const a of s.actors) {
       if (!a.alive) continue
-      ctx.fillStyle = a.team === 'player' ? CYAN : a.team === 'neutral' ? GOLD : RED; ctx.fillRect(mx + a.x * sx - 2, my + a.y * sy - 2, 4, 4)
+      ctx.fillStyle = a.team === 'player' ? CYAN : a.team === 'neutral' ? GOLD : a.behavior==='relay'?'#8ee9ce':a.behavior==='charger'?'#ffb164':RED; ctx.fillRect(mx + a.x * sx - 2, my + a.y * sy - 2, 4, 4)
     }
     if (s.exit) { ctx.fillStyle = '#97e5c2'; ctx.fillRect(mx + s.exit.x * sx, my + s.exit.y * sy, Math.max(4, s.exit.width * sx), Math.max(3, s.exit.height * sy)) }
     ctx.textAlign = 'center'
@@ -477,6 +482,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (s.coop?.resourceMode==='killer' && pickup.ownerId!==undefined) { const owner=s.coop.members.find(m=>m.id===pickup.ownerId&&m.connected);if(owner)text(owner.name,x-16,y-size-9,10,'#cdb8ef') }
       text(`${pickup.value}${(pickup.quantity ?? 1) > 1 ? '×' + pickup.quantity : ''}`, x - 10, y + size + 18, 12, pickup.kind === 'blood' ? '#ffd8e4' : '#bcfff0')
     }
+    for(const a of s.actors)if(a.alive&&a.supportRelayId){const relay=s.actors.find(r=>r.id===a.supportRelayId&&r.alive);if(relay){ctx.save();ctx.strokeStyle='#78e7c9aa';ctx.lineWidth=3;ctx.setLineDash([8,8]);ctx.beginPath();ctx.moveTo(relay.x,relay.y);ctx.lineTo(a.x,a.y);ctx.stroke();ctx.setLineDash([]);ring(a.x,a.y,a.radius+8,'#82eacb',2);ctx.restore()}}
     for (const a of s.actors) if (a.alive) drawActor(a, s.tick)
     for (const effect of quality==='low'?s.effects.slice(-16):s.effects) drawEffect(effect)
     for (const f of quality==='low'?s.floaters.slice(-12):s.floaters) drawFloater(f)

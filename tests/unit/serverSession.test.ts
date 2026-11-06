@@ -22,7 +22,7 @@ class Socket {
 const cleanup:(()=>void)[]=[]
 afterEach(()=>{cleanup.splice(0).reverse().forEach(f=>f());vi.unstubAllGlobals();vi.restoreAllMocks();document.body.replaceChildren();localStorage.clear()})
 async function setup(realTouch=false,guest=false){
- const info:ServerInfo={protocol:'prism-server-4',serverId:'test-server',version:'1.25',rooms:0,name:'测试服务器',createPolicy:'key'}
+ const info:ServerInfo={protocol:'prism-server-5',serverId:'test-server',version:'1.25',rooms:0,name:'测试服务器',createPolicy:'key'}
  const frames=new Map<number,FrameRequestCallback>();let frameId=0
  vi.stubGlobal('requestAnimationFrame',(f:FrameRequestCallback)=>{frames.set(++frameId,f);return frameId});vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id))
  vi.stubGlobal('WebSocket',Socket);vi.stubGlobal('fetch',async()=>({ok:true,text:async()=>JSON.stringify(info)}));vi.spyOn(document,'hidden','get').mockReturnValue(false)

@@ -2,7 +2,7 @@
 
 本手册依据 **2026-11-04 核对的源码**编写，代码基线为 [`828c4a9eed139ee7a54b1f7786c536680a07306f`](https://github.com/what20360/prism/tree/828c4a9eed139ee7a54b1f7786c536680a07306f)。它描述该版本**实际如何运行**；后续改代码时，需要同步维护相应章节。文中的源码链接相对于本目录，可在 GitHub 直接打开；函数名、类型名是进一步搜索的入口。
 
-**当前规则：v1.27（2026-11-06）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。联机预测、触屏与持续电弧见[第八篇](08-responsive-controls-and-electric.md)。基线链接用于追溯，当前实现以本分支源码为准。**
+**当前规则：v1.28（2026-11-06）。战斗迁移见[第四篇](04-sniper-combat-and-presentation.md)，服务器、身份与差量同步见[第五篇](05-server-and-replication.md)，等待大厅与运维见[第六篇](06-waiting-and-server-operations.md)，成长、预设与存档策略见[第七篇](07-growth-presets-and-autosave.md)。联机预测、触屏与持续电弧见[第八篇](08-responsive-controls-and-electric.md)，遭遇与敌人见[第九篇](09-encounters-and-enemies.md)。基线链接用于追溯，当前实现以本分支源码为准。**
 
 | 分册 | 内容 |
 |---|---|

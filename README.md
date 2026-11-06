@@ -14,7 +14,7 @@ GitHub Pages 地址：https://what20360.github.io/prism/ （已启用，可公�
 
 ---
 
-当前v1.27：联机本机移动预测、手机横竖屏布局与可调双摇杆、持续电弧。实时协议prism-server-4，联机需同步更新服务器。实现细节见[技术手册第八篇](docs/technical/08-responsive-controls-and-electric.md)。
+当前v1.28：闯关与无尽增加四种主题编队、突击敌人、继电站及新地图。实时协议prism-server-5，联机需同步更新服务器。实现细节见[技术手册第九篇](docs/technical/09-encounters-and-enemies.md)。
 
 ## 它是什么
 
@@ -36,9 +36,9 @@ GitHub Pages 地址：https://what20360.github.io/prism/ （已启用，可公�
 |---|---|
 | [docs/requirements.md](docs/requirements.md) | 需求规格：玩法、系统、架构约束、里程碑、开放问题（**唯一的玩法来源**） |
 | [docs/balance.md](docs/balance.md) | 数值表：属性、敌人、卡片价格、收入结构（**唯一的数值来源**） |
-| [PRISM 技术手册（共八篇）](docs/technical/01-architecture-and-simulation.md) | 当前实现详解：架构与数据结构、逐 tick 流程、战斗与模式、客户端、存档迁移、联机协议、源码定位与维护 |
+| [PRISM 技术手册（共九篇）](docs/technical/01-architecture-and-simulation.md) | 当前实现详解：架构与数据结构、逐 tick 流程、战斗与模式、客户端、存档迁移、联机协议、源码定位与维护 |
 | [docs/architecture.md](docs/architecture.md) | 架构设计：分层、`core` 内部、tick 流程、扩展点、测试策略 |
-| [遭遇升级设计](docs/design/encounter-roadmap.md) | 敌人角色、编队、房间目标、实现顺序和验收（待实现方案） |
+| [遭遇升级设计](docs/design/encounter-roadmap.md) | 敌人角色、编队、房间目标与后续验收（包含已实现和待实现项目） |
 | [docs/backlog.md](docs/backlog.md) | **未实现需求与待办**（暂停点、恢复顺序、技术债） |
 | [docs/playtest.md](docs/playtest.md) | **试玩反馈表**（玩家填写手感、数值、bug 与下一步方向） |
 | [docs/deployment.md](docs/deployment.md) | GitHub 交付约定与历史站点说明 |

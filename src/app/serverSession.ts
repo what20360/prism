@@ -38,7 +38,7 @@ export function createServerSession(options:Options) {
  const title=document.createElement('h1');title.textContent='服务器与局域网';content.append(title)
  const toast=document.createElement('p');toast.className='server__toast';toast.setAttribute('role','status');toast.hidden=true;options.root.append(toast);let toastUntil=0
  const status=document.createElement('p');status.className='server__status';status.setAttribute('role','status');content.append(status)
- const download=document.createElement('a');download.href='https://what20360.github.io/prism/server/PRISM_server.zip?v=1.27';download.textContent='下载服务器程序（Node.js 22+）';download.className='server__download';content.append(download)
+ const download=document.createElement('a');download.href='https://what20360.github.io/prism/server/PRISM_server.zip?v=1.28';download.textContent='下载服务器程序（Node.js 22+）';download.className='server__download';content.append(download)
  const note=document.createElement('p');note.className='settings__hint';note.textContent='连接服务器后选择房间。身份自动保存在此浏览器；房主只负责管理房间，战斗由服务器运行。';content.append(note)
  const connectionBadge=document.createElement('output');connectionBadge.className='network-badge';connectionBadge.setAttribute('aria-label','联机延迟与同步状态');connectionBadge.hidden=true;options.root.append(connectionBadge)
  const stage=document.createElement('aside');stage.className='server-stage';stage.setAttribute('role','status');stage.hidden=true;options.root.append(stage)

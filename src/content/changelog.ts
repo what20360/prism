@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.28',date:'2026-11-06',title:'编队与继电站',items:[
+    '闯关与无尽采用夹击、护送、引爆、电弧四种主题编队，按难度和层数解锁成员；闯关避开最近两次主题，无尽按种子与层数生成。',
+    '新增折光继电站和交错铸造场；继电器为附近至多两名可见的非首领敌人增加护甲，可被任意武器破坏。装置不提供伤害经济、治疗、击杀掉落或连杀，清完守军即可过关。',
+    '新增裂隙突击者：锁定方向预警0.9秒，直线冲刺后短暂硬直，撞墙提前停止；测试场可单独演练。敌人、装置和预警有独立外观，目标信息显示实际护甲。',
+    '无尽开放层保留无上界强怪、直接前进与递减补刷奖励；继电器占原生成槽、不复制或补刷。合作按人数扩编守军，设备数量不变。',
+    '新增状态支持存档和联机显示，旧档可读；实时协议升为prism-server-5，需同步更新服务器和客户端。',
+  ]},
   {version:'1.27',date:'2026-11-06',title:'联机反馈与移动端操作',items:[
     '加入本机移动预测、服务器执行确认和柔和校正；远端继续插值，伤害与资源仍由服务器决定。角落显示往返延迟与等待同步状态，设置可关闭预测。',
     '优化手机横竖屏HUD、目标卡、小地图、滑动目录与底部菜单操作；新增左右手、固定/浮动摇杆、尺寸/透明度/死区/边缘设置，松手保留瞄准方向。',

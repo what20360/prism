@@ -9,7 +9,7 @@ import type { EntityId, Rect, Team, Vec2 } from './types'
 
 export type RoomPhase = 'idle' | 'entered' | 'combat' | 'cleared' | 'exited'
 export type EnemyTier = 'normal' | 'elite' | 'boss'
-export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer' | 'weaver' | 'silk-worker' | 'silk-bomber'
+export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer' | 'weaver' | 'silk-worker' | 'silk-bomber' | 'charger' | 'relay'
 export type DamageType = 'physical' | 'electric' | 'heat'
 export type MonsterTrait = 'bark' | 'swift' | 'bulwark' | 'storm' | 'cinder' | 'volatile'
 export interface EnemyMechanics { readonly attackType?: DamageType; readonly traits?: readonly MonsterTrait[] }
@@ -34,6 +34,7 @@ export interface Actor extends EnemyMechanics {
   bombTicks?: number
   windupTicks?: number
   windupAngle?: number
+  charge?: { phase: 'windup' | 'dash' | 'recovery' | 'cooldown'; ticks: number; angle: number; last: Vec2 }
   electricBudget?:number
   electricTimer?:number
   laserTicks?: number
@@ -197,7 +198,7 @@ export interface Floater {
   readonly driftX: number
 }
 
-export interface RoomDesign { readonly id: string; readonly title: string; readonly theme: 'prism' | 'silk'; readonly corridorWidth?: number; readonly core?: Rect; readonly patrol: readonly Vec2[]; readonly mineAnchors: readonly Vec2[]; readonly exit: Rect; readonly skipExit?: Rect }
+export interface RoomDesign { readonly id: string; readonly title: string; readonly theme: 'prism' | 'silk'; readonly encounter?: string; readonly corridorWidth?: number; readonly core?: Rect; readonly patrol: readonly Vec2[]; readonly mineAnchors: readonly Vec2[]; readonly exit: Rect; readonly skipExit?: Rect }
 export interface RoomState {
   design?: RoomDesign
   phase: RoomPhase

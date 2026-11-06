@@ -8,6 +8,8 @@ import {startPrismServer} from '../../src/server/server'
 import {SERVER_PROTOCOL,decodeClient,socketAddress,httpAddress,type ServerCommand,type RoomOptions,type RoomInfo} from '../../src/net/serverProtocol'
 import {DEFAULT_COOP,createCoopMatch} from '../../src/app/modes/coop'
 import {createSyncDecoder} from '../../src/net/sync'
+import {createActor} from '../../src/core/world'
+import {ENEMIES} from '../../src/content/enemies'
 import {passwordHash,passwordMatches,openStore} from '../../src/server/store'
 import {createLogger} from '../../src/server/logger'
 import {createLanDiscovery,DISCOVERY_PORT} from '../../src/server/discovery'
@@ -52,6 +54,15 @@ describe('authoritative server rooms over real WebSockets',()=>{
   s.broadcast();expect(decoder.apply(await c.wait(p=>p.type==='sync'))!.inputAck).toEqual({sequence:-1,ticks:0,expired:false})
   s.tick();s.tick();s.broadcast();const state=decoder.apply(await c.wait(p=>p.type==='sync'))!
   expect(state.inputAck).toEqual({sequence:7,ticks:2,expired:false});expect('inputAck' in state.snapshot).toBe(false)
+ })
+ it('sends charger warning and relay armor links over real WebSockets',async()=>{
+  const {s,url}=await server(),c=await client(url),room=await create(c);s.tick();const w=s.rooms.get(room.id)!.waitingArena!.world
+  const relay=createActor(w,{...ENEMIES.relay!,team:'enemy',pos:{x:2500,y:450}})
+  const guard=createActor(w,{...ENEMIES.drifter!,team:'enemy',pos:{x:2550,y:450}})
+  const charger=createActor(w,{...ENEMIES.charger!,team:'enemy',pos:{x:2300,y:600}});charger.charge={phase:'windup',ticks:40,angle:.6,last:{...charger.pos}}
+  s.broadcast();const state=createSyncDecoder().apply(await c.wait(p=>p.type==='sync'))!
+  expect(state.snapshot.actors.find(a=>a.id===guard.id)?.supportRelayId).toBe(relay.id)
+  expect(state.snapshot.actors.find(a=>a.id===charger.id)).toMatchObject({behavior:'charger',windupTicks:40,windupAngle:.6})
  })
  it('refunds the actual last-level price only in the waiting arena, including during the five-second countdown',async()=>{
   const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!,wallet=()=>r.coop!.world().participants![1]!.shards
@@ -233,7 +244,7 @@ describe('connection and identity primitives',()=>{
   for(const url of ['https://user:pass@example.com','ftp://example.com','https://example.com/secret','https://example.com/?token=secret'])expect(()=>socketAddress(url)).toThrow()
  })
  it('rejects prototype payloads, extra authority packets, invalid versions and non-finite inputs',()=>{
-  expect(()=>decodeClient('{"protocol":"prism-server-4","__proto__":{}}')).toThrow()
+  expect(()=>decodeClient('{"protocol":"prism-server-5","__proto__":{}}')).toThrow()
   for(const value of [{protocol:'old',type:'hello',name:'a'},{protocol:SERVER_PROTOCOL,type:'state',hp:100},{protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:{move:{x:Infinity,y:0}}}])expect(()=>decodeClient(JSON.stringify(value))).toThrow()
  })
  it('stores bearer token hashes and salted room-password hashes, preserving identities on reopen',async()=>{

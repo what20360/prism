@@ -18,7 +18,7 @@ export function renderPracticeSection(state: PracticeState, onAction: (action: P
   const number = (value: number, min: number, max: number): HTMLInputElement => { const input = document.createElement('input'); input.type = 'number'; input.min = String(min); input.max = String(max); input.step = '1'; input.value = String(value); input.required = true; return input }
   const scenario = select([['targets', '固定靶机'], ['combat', '敌人演练']], state.config.scenario); field('场景类型', scenario)
   const layout = select([['open', '开阔场地'], ['cover', '掩体场地'], ['silk-den', '盘丝洞']], state.config.layout); field('场地布局', layout)
-  const enemy = select([['mixed', '混合敌群'], ['drifter', '游荡者'], ['turret', '哨戒炮台'], ['bark', '树皮游荡者'], ['bomber', '自爆体'], ['stalker', '游猎射手'], ['lancer', '灼线哨兵'], ['warden', '核心守卫'], ['boss', '棱镜之心'], ['weaver', '盘丝母巢']], state.config.enemy ?? 'mixed'); field('演练敌人', enemy)
+  const enemy = select([['mixed', '混合敌群'], ['drifter', '游荡者'], ['turret', '哨戒炮台'], ['bark', '树皮游荡者'], ['bomber', '自爆体'], ['stalker', '游猎射手'], ['lancer', '灼线哨兵'], ['charger', '裂隙突击者'], ['relay', '护甲继电器'], ['warden', '核心守卫'], ['boss', '棱镜之心'], ['weaver', '盘丝母巢']], state.config.enemy ?? 'mixed'); field('演练敌人', enemy)
   const block = number(state.config.block ?? 0, 0, 10000); field('目标格挡', block)
   const count = number(state.config.count, 1, 12); field('目标数量', count)
   const hp = number(state.config.hp, 1, 100000); field('目标生命', hp)

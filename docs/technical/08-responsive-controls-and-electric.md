@@ -1,10 +1,10 @@
 # PRISM 技术手册（八）：联机反馈、移动端与持续电弧
 
-当前实现：v1.27，2026-11-06。敌人与关卡的后续设计单列在[遭遇升级方案](../design/encounter-roadmap.md)，该方案尚未实装。
+当前实现：v1.27，2026-11-06。v1.28遭遇实现见[第九篇](09-encounters-and-enemies.md)。
 
 ## 1. 权威输入与本地反馈
 
-服务器仍以60Hz运行真实战斗，以10Hz发送压缩差量；`src/net/serverProtocol.ts` 的实时协议为 **prism-server-4**。客户端与服务器必须一起更新。协议新增 `PlayState.inputAck={sequence,ticks,expired}`，并在Actor字典加入 `channeling`。存档数值版本仍为7，不混用实时协议与存档版本。
+服务器仍以60Hz运行真实战斗，以10Hz发送压缩差量；`src/net/serverProtocol.ts` 在v1.27使用实时协议 **prism-server-4**（v1.28已升为prism-server-5）。客户端与服务器必须一起更新。协议新增 `PlayState.inputAck={sequence,ticks,expired}`，并在Actor字典加入 `channeling`。存档数值版本仍为7，不混用实时协议与存档版本。
 
 - `src/net/control.ts/createRemoteInput`：收包只更新待执行输入。模拟调用 `read()` 才确认该序号，并累计它实际被读取的逻辑帧数；超过350ms没有心跳返回空输入，确认标记过期。不能把“已收到”当“已执行”。
 - `src/server/server.ts`：每客户端独立确认、编码器与输入流；广播把确认放在PlayState外层，不放进世界或Snapshot。
