@@ -43,8 +43,8 @@ describe('local display prediction and authoritative acknowledgments',()=>{
   input.read(400);expect(input.ack(400)).toEqual({sequence:9,ticks:1,expired:true});input.reset();expect(input.ack(401).sequence).toBe(-1)
  })
  it('retains short mine, skill and lock taps until sent, including clearing the lock',()=>{
-  const b=createInputBuffer();b.push({...intent(),skills:[0],placeMine:true,lockTarget:12});b.push({...intent(),skills:[1]});b.push(intent())
-  expect(b.peek()).toMatchObject({skills:[0,1],placeMine:true,lockTarget:12});expect(b.peek().skills).toEqual([0,1]);b.sent();expect(b.peek()).toMatchObject({skills:[],placeMine:false})
+  const b=createInputBuffer();b.push({...intent(),fire:true,skills:[0],placeMine:true,lockTarget:12});b.push({...intent(),skills:[1]});b.push(intent())
+  expect(b.peek()).toMatchObject({fire:true,skills:[0,1],placeMine:true,lockTarget:12});expect(b.peek().skills).toEqual([0,1]);b.sent();expect(b.peek()).toMatchObject({fire:false,skills:[],placeMine:false})
   b.push({...intent(),lockTarget:null});b.push(intent());expect(b.peek().lockTarget).toBeNull();b.reset();expect(b.peek().fire).toBe(false);expect(b.peek().lockTarget).toBeUndefined()
  })
 })

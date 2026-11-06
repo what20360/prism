@@ -33,6 +33,7 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   let move = { x: 0, y: 0 }
   let aim: { x: number; y: number } | undefined
   let firing = false
+  let pendingFire=false
   let mine = false
   let skill = false
   let skill2 = false
@@ -87,7 +88,7 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
       origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
       pad.setPointerCapture(pointer)
       pad.classList.add('is-active')
-      if (kind === 'fire') firing = true
+      if (kind === 'fire') {firing = true;pendingFire=true}
       update(event)
     })
     pad.addEventListener('pointermove', update)
@@ -127,18 +128,18 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   root.append(layer)
   const reset = () => {
     for (const clear of resets) clear()
-    pendingMine = false; pendingSkill = false; pendingSkill2 = false;aim=undefined
+    pendingFire=false;pendingMine = false; pendingSkill = false; pendingSkill2 = false;aim=undefined
     paused = false
     layer.classList.remove('is-paused')
   }
   const setPaused = (value: boolean) => {
     if (paused === value) return
     for (const clear of resets) clear()
-    pendingMine = false; pendingSkill = false; pendingSkill2 = false
+    pendingFire=false;pendingMine = false; pendingSkill = false; pendingSkill2 = false
     aim=undefined;paused = value
     layer.classList.toggle('is-paused', value)
   }
-  const loseFocus = () => { for (const clear of resets) clear();aim=undefined; pendingMine = false; pendingSkill = false; pendingSkill2 = false }
+  const loseFocus = () => { for (const clear of resets) clear();aim=undefined; pendingFire=false;pendingMine = false; pendingSkill = false; pendingSkill2 = false }
   const visibility=()=>{if(document.hidden)loseFocus()};document.addEventListener('visibilitychange',visibility);cleaners.push(()=>document.removeEventListener('visibilitychange',visibility))
   window.addEventListener('blur', loseFocus)
   window.addEventListener('orientationchange', loseFocus)
@@ -150,8 +151,8 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     read: () => {
       if (paused) return { move: { x: 0, y: 0 }, fire: false }
       // A quick tap must survive until the next fixed simulation tick.
-      const intent = { move, aim, fire: firing, placeMine: mine || pendingMine, skills: [...(skill || pendingSkill ? [0] : []), ...(skill2 || pendingSkill2 ? [1] : [])] }
-      pendingMine = false; pendingSkill = false; pendingSkill2 = false
+      const intent = { move, aim, fire: firing||pendingFire, placeMine: mine || pendingMine, skills: [...(skill || pendingSkill ? [0] : []), ...(skill2 || pendingSkill2 ? [1] : [])] }
+      pendingFire=false;pendingMine = false; pendingSkill = false; pendingSkill2 = false
       return intent
     },
     reset, setPaused,

@@ -22,6 +22,11 @@ describe('mobile multi-touch and preferences',()=>{
   pointer(fire,'pointerup',2);expect(t.read()).toMatchObject({fire:false,aim:{x:0}});expect(t.read().aim!.y).toBeLessThan(-.9)
   pointer(move,'pointerup',1);pointer(mine,'pointerup',3);expect(t.read().move).toEqual({x:0,y:0});expect(t.read().placeMine).toBe(false)
  })
+ it('keeps a short fire tap until sampled once, but clears it on blur',()=>{
+  const {t,fire}=controls();pointer(fire,'pointerdown',2,60,22);pointer(fire,'pointerup',2,60,22)
+  expect(t.read().fire).toBe(true);expect(t.read().fire).toBe(false)
+  pointer(fire,'pointerdown',2,60,22);pointer(fire,'pointerup',2,60,22);window.dispatchEvent(new Event('blur'));expect(t.read().fire).toBe(false)
+ })
  it('remaps radial deadzone, buffers a quick tap once and clears everything on pause, resize and blur',()=>{
   const {root,t,move,fire}=controls({touchDeadzone:.2});pointer(move,'pointerdown',1,62,60);expect(t.read().move).toEqual({x:0,y:0})
   const mine=root.querySelector<HTMLElement>('.touch-mine')!;pointer(mine,'pointerdown',3);pointer(mine,'pointerup',3);expect(t.read().placeMine).toBe(true);expect(t.read().placeMine).toBe(false)

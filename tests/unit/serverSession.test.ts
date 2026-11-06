@@ -57,7 +57,7 @@ describe('server browser session controls',()=>{
   const mine=document.querySelector<HTMLElement>('.touch-mine')!;mine.dispatchEvent(new PointerEvent('pointerdown',{pointerId:3,bubbles:true}));mine.dispatchEvent(new PointerEvent('pointerup',{pointerId:3,bubbles:true}));t.frame(1010)
   clock.mockReturnValue(1050);t.frame(1050);const moved=t.renderer.draw.mock.calls.at(-1)![0] as import('../../src/core/snapshot').Snapshot
   expect(moved.actors.find(a=>a.local)!.x).toBeGreaterThan(x);expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{placeMine:true}})
-  t.socket.emit({type:'pong',time:Date.now()-45});t.frame(1060);expect(document.querySelector('.network-badge')!.textContent).toContain('45 ms')
+  vi.spyOn(Date,'now').mockReturnValue(1000000);t.socket.emit({type:'pong',time:999955});t.frame(1060);expect(document.querySelector('.network-badge')!.textContent).toContain('45 ms')
   t.session.toggleMenu();t.frame(1100);expect(document.querySelector<HTMLElement>('.network-badge')!.hidden).toBe(true)
  })
  it('lets guests ready/cancel from the arena and disables host start until guests are ready',async()=>{
@@ -91,6 +91,12 @@ describe('server browser session controls',()=>{
   expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{move:{x:0,y:0},fire:false}})
   t.session.toggleMenu();t.frame(1200);expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{move:{x:0,y:0}}})
   vi.spyOn(document,'hidden','get').mockReturnValue(true);document.dispatchEvent(new Event('visibilitychange'));expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({offers:false,intent:{fire:false}})
+ })
+ it('discards unsent action edges immediately when the browser loses focus',async()=>{
+  const t=await setup(true);t.frame(1000);const mine=document.querySelector<HTMLElement>('.touch-mine')!
+  mine.dispatchEvent(new PointerEvent('pointerdown',{pointerId:3,bubbles:true}));mine.dispatchEvent(new PointerEvent('pointerup',{pointerId:3,bubbles:true}));t.frame(1010)
+  window.dispatchEvent(new Event('blur'));t.frame(1050)
+  expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{move:{x:0,y:0},fire:false,placeMine:false}})
  })
  it('shows a defeat settlement and leaves navigation to the player',async()=>{
   const t=await setup();t.room.coop!.start();t.sync();t.room.coop!.world().gameOver=true;t.sync()
