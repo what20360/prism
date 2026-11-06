@@ -3,7 +3,7 @@ import { ARSENAL_RULES, COMBAT_RULES, SNIPER_RULES } from './rules'
 import type { Actor } from './world'
 import { rageProfile, dashProfile } from './rules'
 
-export function isAttacking(actor: Actor): boolean { return actor.intent.fire === true || actor.intent.placeMine === true || (actor.laserTicks ?? 0) > 0 || actor.burstRemaining > 0 }
+export function isAttacking(actor: Actor): boolean { return actor.intent.fire === true || (actor.electricBudget??0)>0 || actor.intent.placeMine === true || (actor.laserTicks ?? 0) > 0 || actor.burstRemaining > 0 }
 export function isOutOfCombat(actor: Actor): boolean { return actor.outOfCombatTicks >= COMBAT_RULES.outOfCombatTicks && !isAttacking(actor) }
 /** Temporary effects never mutate the permanent card pipeline. */
 export function combatAttrs(actor: Actor): AttrSet {

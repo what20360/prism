@@ -10,7 +10,7 @@ export interface SavesHandlers {
 export function renderSavesSection(state: SavesState, handlers: SavesHandlers): HTMLElement {
   const root = document.createElement('section'); root.className = 'saves-page'
   const title = document.createElement('h2'); title.textContent = '存档与导入导出'
-  const intro = document.createElement('p'); intro.className = 'cards__intro'; intro.textContent = '闯关和无尽模式每 10 秒自动保存，也可手动保存到三个独立槽位。读档后暂停，点击继续再出发。测试场和联网对局不存档。'
+  const intro = document.createElement('p'); intro.className = 'cards__intro'; intro.textContent = '闯关和无尽默认每关自动保存，可在设置中改为定时或关闭；另有三个手动槽。读档后暂停，点击继续再出发。测试场与1v1不写入单人存档，合作进度保存在服务器。'
   const status = document.createElement('p'); status.className = 'save-status'; status.setAttribute('role', 'status'); status.textContent = state.message
   root.append(title, intro, status)
   const exportCurrent = document.createElement('button'); exportCurrent.type = 'button'; exportCurrent.className = 'settings__option'; exportCurrent.textContent = '导出当前进度'; exportCurrent.disabled = !state.canSave; exportCurrent.onclick = handlers.onExportCurrent; root.append(exportCurrent)

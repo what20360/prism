@@ -1,8 +1,10 @@
+import { DEFAULT_SETTINGS, type ControlSettings } from '../storage/config'
 import { SKILL_NAMES } from '../content/skills'
 import type { Intent } from '../core/controller'
 import type { Snapshot } from '../core/snapshot'
 
 export interface TouchSource {
+  configure?(settings:ControlSettings):void
   read(): Intent
   reset(): void
   setPaused(paused: boolean): void
@@ -22,6 +24,12 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   menu.setAttribute('aria-label', '打开菜单')
   menu.addEventListener('click', onMenu)
   layer.append(menu)
+  const full=document.createElement('button');full.className='touch-fullscreen';full.type='button';full.textContent='全屏';full.setAttribute('aria-label','切换全屏');full.hidden=typeof document.documentElement.requestFullscreen!=='function'
+  full.onclick=()=>{loseFocus();const task=document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();void task.catch(()=>{full.title='当前浏览器不支持全屏，可在浏览器菜单添加到主屏幕'})};layer.append(full)
+
+  let settings:ControlSettings={...DEFAULT_SETTINGS}
+  const detectDevice=()=>layer.classList.toggle('touch-device',Boolean(window.matchMedia?.('(pointer:coarse)').matches||navigator.maxTouchPoints>0))
+  detectDevice()
   let move = { x: 0, y: 0 }
   let aim: { x: number; y: number } | undefined
   let firing = false
@@ -46,15 +54,17 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     text.className = 'touch-stick__label'
     text.textContent = label
     pad.append(thumb, text)
+    const surface=kind==='move'?document.createElement('div'):pad
+    if(kind==='move'){surface.className='touch-move-zone';surface.append(pad)}
     let pointer: number | null = null
     let origin = { x: 0, y: 0 }
     const clear = () => {
-      if (pointer !== null && pad.hasPointerCapture(pointer)) pad.releasePointerCapture(pointer)
-      pointer = null
-      thumb.style.transform = ''
+      const released=pointer;pointer=null
+      if (released !== null && pad.hasPointerCapture(released)) pad.releasePointerCapture(released)
+      thumb.style.transform = '';pad.style.left='';pad.style.top='';pad.style.bottom=''
       pad.classList.remove('is-active')
       if (kind === 'move') move = { x: 0, y: 0 }
-      else { firing = false; aim = undefined }
+      else firing = false
     }
     const update = (event: PointerEvent) => {
       if (pointer !== event.pointerId) return
@@ -63,14 +73,16 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
       const radius = pad.clientWidth * 0.32
       const ratio = distance > radius ? radius / distance : 1
       thumb.style.transform = `translate(${dx * ratio}px, ${dy * ratio}px)`
-      const direction = distance > 8 ? { x: dx / Math.max(distance, radius), y: dy / Math.max(distance, radius) } : { x: 0, y: 0 }
+      const deadzone=radius*(settings.touchDeadzone??.12),strength=Math.max(0,Math.min(1,(distance-deadzone)/Math.max(1,radius-deadzone)))
+      const direction = distance>deadzone ? {x:dx/distance*strength,y:dy/distance*strength}:{x:0,y:0}
       if (kind === 'move') move = direction
-      else aim = distance > 8 ? direction : undefined
+      else if(distance>deadzone)aim=direction
       event.preventDefault()
     }
-    pad.addEventListener('pointerdown', (event) => {
+    surface.addEventListener('pointerdown', (event) => {
       if (paused || pointer !== null) return
       pointer = event.pointerId
+      if(kind==='move'&&settings.touchStick==='floating'){const size=pad.getBoundingClientRect().width||pad.clientWidth;pad.style.left=`${Math.max(0,Math.min(window.innerWidth-size,event.clientX-size/2))}px`;pad.style.top=`${Math.max(0,Math.min(window.innerHeight-size,event.clientY-size/2))}px`;pad.style.bottom='auto'}
       const rect = pad.getBoundingClientRect()
       origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
       pad.setPointerCapture(pointer)
@@ -80,10 +92,10 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     })
     pad.addEventListener('pointermove', update)
     pad.addEventListener('pointerup', (event) => { if (event.pointerId === pointer) clear() })
-    pad.addEventListener('pointercancel', clear)
-    pad.addEventListener('lostpointercapture', clear)
+    pad.addEventListener('pointercancel', event=>{if(event.pointerId===pointer)clear()})
+    pad.addEventListener('lostpointercapture', event=>{if(event.pointerId===pointer)clear()})
     resets.push(clear)
-    return pad
+    return surface
   }
 
   function action(label: string, className: string, set: (value: boolean) => void): HTMLButtonElement {
@@ -91,16 +103,18 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     button.className = `touch-action ${className}`
     button.textContent = label
     button.setAttribute('aria-label', label)
+    let owner:number|null=null
     button.addEventListener('pointerdown', (event) => {
-      if (paused || button.disabled) return
-      button.setPointerCapture(event.pointerId)
+      if (paused || button.disabled || owner!==null) return
+      owner=event.pointerId;button.setPointerCapture(event.pointerId)
       set(true)
       event.preventDefault()
     })
-    const release = () => set(false)
-    button.addEventListener('pointerup', release)
-    button.addEventListener('pointercancel', release)
-    button.addEventListener('lostpointercapture', release)
+    const release = () => {owner=null;set(false)}
+    const end=(event:PointerEvent)=>{if(event.pointerId===owner)release()}
+    button.addEventListener('pointerup', end)
+    button.addEventListener('pointercancel', end)
+    button.addEventListener('lostpointercapture', end)
     resets.push(release)
     return button
   }
@@ -113,7 +127,7 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
   root.append(layer)
   const reset = () => {
     for (const clear of resets) clear()
-    pendingMine = false; pendingSkill = false; pendingSkill2 = false
+    pendingMine = false; pendingSkill = false; pendingSkill2 = false;aim=undefined
     paused = false
     layer.classList.remove('is-paused')
   }
@@ -121,14 +135,18 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     if (paused === value) return
     for (const clear of resets) clear()
     pendingMine = false; pendingSkill = false; pendingSkill2 = false
-    paused = value
+    aim=undefined;paused = value
     layer.classList.toggle('is-paused', value)
   }
-  const loseFocus = () => { for (const clear of resets) clear(); pendingMine = false; pendingSkill = false; pendingSkill2 = false }
+  const loseFocus = () => { for (const clear of resets) clear();aim=undefined; pendingMine = false; pendingSkill = false; pendingSkill2 = false }
+  const visibility=()=>{if(document.hidden)loseFocus()};document.addEventListener('visibilitychange',visibility);cleaners.push(()=>document.removeEventListener('visibilitychange',visibility))
   window.addEventListener('blur', loseFocus)
   window.addEventListener('orientationchange', loseFocus)
+  const resized=()=>{loseFocus();detectDevice()};window.addEventListener('resize',resized)
+  cleaners.push(()=>window.removeEventListener('resize',resized))
   cleaners.push(() => window.removeEventListener('blur', loseFocus), () => window.removeEventListener('orientationchange', loseFocus))
   return {
+    configure:(value)=>{settings={...DEFAULT_SETTINGS,...value};loseFocus();layer.dataset.hand=settings.touchHand;layer.dataset.stick=settings.touchStick;layer.style.setProperty('--touch-scale',String((settings.touchSize??100)/100));layer.style.setProperty('--touch-opacity',String(settings.touchOpacity??.65));layer.style.setProperty('--touch-inset',`${settings.touchInset??18}px`);layer.classList.toggle('touch-forced',settings.touchControls===true)},
     read: () => {
       if (paused) return { move: { x: 0, y: 0 }, fire: false }
       // A quick tap must survive until the next fixed simulation tick.
@@ -140,7 +158,7 @@ export function createTouchControls(root: HTMLElement, onMenu: () => void): Touc
     setVisible: (visible) => layer.classList.toggle('touch-forced', visible),
     update: (snapshot, isPaused) => {
       setPaused(isPaused || snapshot.gameOver || snapshot.victory)
-      const player = snapshot.actors.find((actor) => actor.team === 'player')
+      const player = snapshot.actors.find(actor=>actor.local===true)??snapshot.actors.find((actor) => actor.team === 'player')
       if (!player) return
       const mineRatio = Math.max(0, Math.min(1, 1 - player.mineCooldownSeconds / Math.max(0.01, player.mineCooldownTotal)))
       mineButton.style.setProperty('--ready', `${mineRatio * 360}deg`)

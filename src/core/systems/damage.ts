@@ -24,6 +24,8 @@ export interface DamageEvent {
   readonly targetId: number
   readonly sourceId: number
   readonly sourceTeam: Team
+  /** Time share of a former full electric hit; prevents repeated full block on micro-pulses. */
+  readonly blockScale?:number
   readonly raw: number
   readonly penetration: number
   readonly isCore: boolean
@@ -47,7 +49,7 @@ export function applyDamage(world: World, event: DamageEvent): void {
   if (event.shieldDisruptTicks && (target.team === 'player' || world.participants?.[target.id])) { target.shieldDisabledTicks = Math.max(target.shieldDisabledTicks ?? 0, event.shieldDisruptTicks); target.shield = 0; target.outOfCombatTicks = 0 }
   const attrs = combatAttrs(target), type = event.damageType ?? 'physical'
   const resistance = type === 'electric' ? attrs.electricResist : type === 'heat' ? attrs.heatResist : attrs.physicalResist
-  const actual = resolveDamage(event.raw, attrs.armor, event.penetration, attrs.block, resistance)
+  const actual = resolveDamage(event.raw, attrs.armor, event.penetration, attrs.block*Math.max(0,event.blockScale??1), resistance)
   if (actual <= 0) { target.damageFlashTicks = DAMAGE_FLASH_TICKS; pushEffect(world, 'block', target.pos.x, target.pos.y, target.radius + 8); return }
 
   const hpBefore = target.hp
@@ -205,6 +207,7 @@ function clearNearbyProjectiles(world: World, x: number, y: number, radius: numb
 }
 
 function pushEffect(world: World, kind: EffectKind, x: number, y: number, radius: number): void {
+  if(world.effects.length>=256)world.effects.shift()
   world.effects.push({ kind, x, y, radius, ttl: 18 })
 }
 
@@ -221,6 +224,7 @@ function pushFloater(world: World, kind: FloaterKind, value: number, x: number, 
   }
   const jitter = ((world.floaters.length % 3) - 1) * 18
 
+  if(world.floaters.length>=256)world.floaters.shift()
   world.floaters.push({
     kind,
     value,

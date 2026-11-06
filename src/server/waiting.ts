@@ -16,6 +16,7 @@ export function createWaitingArena(source: World) {
   for(const [index,m]of members.entries()){
    const original=source.actors.get(m.actorId)!,existing=world.actors.get(m.actorId),a=existing??{...structuredClone(original),team:'player' as const}
    if(!existing){a.pos={x:650+index*170,y:1000};a.intent=IDLE_INPUT;world.actors.set(a.id,a)}
+   if(a.attrs.weapon!==original.attrs.weapon){a.electricBudget=0;a.electricTimer=0;a.laserTicks=0;a.laserTimer=0;a.burstRemaining=0}
    a.attrs={...original.attrs};a.radius=original.radius;a.skillSlots=[...original.skillSlots];a.alive=m.connected;a.hp=m.connected?a.attrs.maxHp:0;a.iframesTicks=2
    if(source.participants?.[m.actorId])world.participants[m.actorId]=structuredClone(source.participants[m.actorId]!)
   }

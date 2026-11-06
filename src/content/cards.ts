@@ -153,7 +153,7 @@ export const BUILD_CARDS: readonly Card[] = [
   formulaCard('dash', '冲刺', 'skill', 18, (level) => [['dashLevel', 'add', level, '冲刺等级']], { priority: 50, tags: ['主动'], describe: (level) => describeDash(level) }),
   formulaCard('skill-cycle', '冷却回路', 'skill', 20, (level) => [['skillCooldownRate', 'multiply', 1.18 ** level, '所有技能冷却速度']], { priority: 100, tags: ['主动'], unavailable: (attrs) => attrs.deflectLevel > 0 || attrs.rageLevel > 0 || attrs.dashLevel > 0 ? null : '需要先拥有至少一种主动技能' }),
   formulaCard('weapon-electric', '电弧发生器', 'weapon', 32, () => [['weapon', 'set', 1, '主武器']], { priority: 90, maxLevel: 1, tags: ['电', '主武器'], unavailable: (a) => a.weapon !== 0 && a.weapon !== 1 ? '先出售当前主武器再切换电弧' : null,
-    describe: () => '主武器切换为全方向电弧；锁定与瞄准方向优先，霰弹增加同时目标，连发增加传递深度；每跳距离=最终射程×0.8，同链可分叉且不成环，每分叉消耗穿透；各链独立，按深度衰减；不穿墙' }),
+    describe: () => '主武器切换为持续全方向电弧；按住供能，攻速提高每秒功率，约每0.1秒结算；格挡按供能时间分摊；锁定与瞄准方向优先，霰弹增加同时目标，连发增加传递深度；每跳距离=最终射程×0.8，同链可分叉且不成环，每分叉消耗穿透；各链独立，按深度衰减；不穿墙' }),
   formulaCard('weapon-laser', '激光发射器', 'weapon', 36, () => [['weapon', 'set', 2, '主武器']], { priority: 91, maxLevel: 1, tags: ['热', '主武器'], unavailable: (a) => a.weapon !== 0 && a.weapon !== 2 ? '先出售当前主武器再切换激光' : null,
     describe: () => `主武器切换为激光；射程 ×${fmt(ARSENAL_RULES.laserRange)}，每脉冲伤害 ×${fmt(ARSENAL_RULES.laserDamage)}，间隔 ${fmt(ARSENAL_RULES.laserGap / TICK_RATE)} 秒，基础照射 ${fmt(ARSENAL_RULES.laserTicks / TICK_RATE)} 秒；连发延长照射，霰弹增加射线，弹射启用墙面折射` }),
   formulaCard('arc-coil', '电容绕组', 'weapon', 18, (n) => [['arcEfficiency', 'add', n, '传导专精']], { priority: 120, requires: [{ card: 'weapon-electric', level: 1 }], enabled: (a) => a.weapon === 1,

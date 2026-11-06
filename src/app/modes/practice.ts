@@ -71,7 +71,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
   const restore = (world: World) => {
     const p = getPlayer(world); p.hp = p.attrs.maxHp; p.shield = 0
     p.iframesTicks = 0; p.fireCooldownTicks = 0; p.mineCooldownTicks = 0
-    p.deflectWindowTicks = 0; p.deflectCooldownTicks = 0; p.rageTicks = 0; p.dashTicks = 0; p.rageCooldownTicks = 0; p.dashCooldownTicks = 0; p.burstRemaining = 0; p.laserTicks = 0; p.laserTimer = 0; p.burn = undefined; p.shockTicks = 0
+    p.deflectWindowTicks = 0; p.deflectCooldownTicks = 0; p.rageTicks = 0; p.dashTicks = 0; p.rageCooldownTicks = 0; p.dashCooldownTicks = 0; p.burstRemaining = 0; p.electricBudget=0;p.electricTimer=0;p.laserTicks = 0; p.laserTimer = 0; p.burn = undefined; p.shockTicks = 0
   }
   const resetScene = (world: World) => {
     const player = getPlayer(world)
@@ -108,7 +108,7 @@ export function createPracticeMode(initial: PracticeConfig = DEFAULT_PRACTICE): 
       else if (action.type === 'meters-reset') resetMeters(world)
       else if (action.type === 'restore') restore(world)
       else if (action.type === 'enter-core' && world.room.design?.core) { const p = getPlayer(world), core = world.room.design.core; p.pos = { x: core.x + p.radius + 24, y: core.y + core.height * 0.75 }; p.iframesTicks = 120 }
-      else if (action.type === 'clear') { world.projectiles = []; world.mines = []; world.traces = []; getPlayer(world).burstRemaining = 0; getPlayer(world).laserTicks = 0 }
+      else if (action.type === 'clear') { world.projectiles = []; world.mines = []; world.traces = []; getPlayer(world).burstRemaining = 0; getPlayer(world).electricBudget=0;getPlayer(world).electricTimer=0;getPlayer(world).laserTicks = 0 }
       else if (action.type === 'card-level') {
         const card = world.registry.get(action.id)
         if (!card || !Number.isSafeInteger(action.level) || action.level < 0 || (card.maxLevel !== undefined && action.level > card.maxLevel)) return false

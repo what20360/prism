@@ -35,8 +35,8 @@ const openTest = () => { if (game?.session().practice) { game.setUiMode('menu');
 testButton.onclick = openTest; document.body.append(testButton)
 const unlockAudio = () => audio.unlock()
 document.addEventListener('pointerdown', unlockAudio); document.addEventListener('keydown', unlockAudio)
-audio.configure(preferences); touch.setVisible(preferences.touchControls === true)
-const saveSettings = (settings: ControlSettings) => { preferences = settings; settingsStore.save(settings); audio.configure(settings); touch.setVisible(settings.touchControls === true); home?.refresh() }
+audio.configure(preferences);touch.configure?.(preferences);renderer.configure?.(preferences); touch.setVisible(preferences.touchControls === true)
+const saveSettings = (settings: ControlSettings) => { preferences = settings; settingsStore.save(settings); audio.configure(settings);touch.configure?.(settings);renderer.configure?.(settings); touch.setVisible(settings.touchControls === true); home?.refresh() }
 const onSetting = <K extends SettingKey>(key: K, value: ControlSettings[K]) => { if (game) game.setSetting(key, value); else saveSettings({ ...preferences, [key]: value }) }
 const returnHome = () => game?.setUiMode('home')
 const showMode = (mode: UiMode) => {

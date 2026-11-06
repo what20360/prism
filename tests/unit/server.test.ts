@@ -46,6 +46,13 @@ describe('authoritative server rooms over real WebSockets',()=>{
   expect(JSON.stringify(r.coop!.save().world)).toBe(saved);expect(s.inspectPlayer(clients[0]!.identity.userId)).toMatchObject({accepted:2,move:{x:0,y:0},fire:true})
   s.broadcast();const ready=(await clients[0]!.wait(p=>p.type==='room'&&Boolean((p.room as RoomInfo)?.members.length===5))).room as RoomInfo;expect(ready.members.filter(m=>m.ready).map(m=>m.userId)).toEqual([ready.ownerId])
  })
+ it('sends consumed input acknowledgments over the compressed WebSocket sync',async()=>{
+  const {s,url}=await server(),c=await client(url),room=await create(c),decoder=createSyncDecoder()
+  c.ws.send(JSON.stringify({protocol:SERVER_PROTOCOL,type:'input',roomId:room.id,epoch:room.epoch,sequence:7,intent:{move:{x:1,y:0},fire:false}}));await c.command({kind:'list'})
+  s.broadcast();expect(decoder.apply(await c.wait(p=>p.type==='sync'))!.inputAck).toEqual({sequence:-1,ticks:0,expired:false})
+  s.tick();s.tick();s.broadcast();const state=decoder.apply(await c.wait(p=>p.type==='sync'))!
+  expect(state.inputAck).toEqual({sequence:7,ticks:2,expired:false});expect('inputAck' in state.snapshot).toBe(false)
+ })
  it('refunds the actual last-level price only in the waiting arena, including during the five-second countdown',async()=>{
   const {s,url}=await server(),a=await client(url),room=await create(a),r=s.rooms.get(room.id)!,wallet=()=>r.coop!.world().participants![1]!.shards
   const action=(kind:'buy'|'sell')=>a.command({kind:'game',roomId:r.id,epoch:r.epoch,action:{kind,id:'gun-damage'}})
@@ -226,7 +233,7 @@ describe('connection and identity primitives',()=>{
   for(const url of ['https://user:pass@example.com','ftp://example.com','https://example.com/secret','https://example.com/?token=secret'])expect(()=>socketAddress(url)).toThrow()
  })
  it('rejects prototype payloads, extra authority packets, invalid versions and non-finite inputs',()=>{
-  expect(()=>decodeClient('{"protocol":"prism-server-3","__proto__":{}}')).toThrow()
+  expect(()=>decodeClient('{"protocol":"prism-server-4","__proto__":{}}')).toThrow()
   for(const value of [{protocol:'old',type:'hello',name:'a'},{protocol:SERVER_PROTOCOL,type:'state',hp:100},{protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:{move:{x:Infinity,y:0}}}])expect(()=>decodeClient(JSON.stringify(value))).toThrow()
  })
  it('stores bearer token hashes and salted room-password hashes, preserving identities on reopen',async()=>{

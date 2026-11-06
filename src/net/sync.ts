@@ -2,7 +2,7 @@ import type { ActorView, ProjectileView, Snapshot } from '../core/snapshot'
 import type { PlayState, Json } from './serverProtocol'
 import { record, integer, array } from '../core/serialization'
 // Field dictionaries are fixed by SERVER_PROTOCOL, never repeated per entity.
-const ACTOR: readonly (keyof ActorView)[] = ['id','team','tier','behavior','name','x','y','radius','coreRadius','hp','maxHp','armor','damage','fireRate','movementSpeed','rewardMultiplier','shield','moveX','moveY','alive','aimAngle','damageFlashTicks','deflectLevel','deflectActive','deflectReady','deflectCooldownSeconds','deflectCooldownTotal','deflectFieldRadius','range','fireCooldownSeconds','fireCooldownTotal','mineCooldownSeconds','mineCooldownTotal','autoAim','autoFire','vision','skills','locked','manualLocked','enraged','dashing','block','physicalResist','electricResist','heatResist','weapon','damageType','traits','bombTicks','windupTicks','windupAngle','shocked','burning','local','weaver','spider','stowed','shieldDisabledSeconds']
+const ACTOR: readonly (keyof ActorView)[] = ['id','channeling','team','tier','behavior','name','x','y','radius','coreRadius','hp','maxHp','armor','damage','fireRate','movementSpeed','rewardMultiplier','shield','moveX','moveY','alive','aimAngle','damageFlashTicks','deflectLevel','deflectActive','deflectReady','deflectCooldownSeconds','deflectCooldownTotal','deflectFieldRadius','range','fireCooldownSeconds','fireCooldownTotal','mineCooldownSeconds','mineCooldownTotal','autoAim','autoFire','vision','skills','locked','manualLocked','enraged','dashing','block','physicalResist','electricResist','heatResist','weapon','damageType','traits','bombTicks','windupTicks','windupAngle','shocked','burning','local','weaver','spider','stowed','shieldDisabledSeconds']
 const BULLET:readonly (keyof ProjectileView)[]=['id','team','x','y','radius','vx','vy','speed','rangeRatio','rangeLeft','damageType','power']
 const MINE=['id','team','x','y','bodyRadius','triggerRadius','blastRadius','slowRadius','fuseTicks','fuseTotal','grenade','ignoreBullets','child','pulsesRemaining','pulseCount','nestRole']
 const PICKUP=['id','kind','pos','value','ttl','count','ownerId','contributions','gainApplied']
@@ -43,12 +43,12 @@ export function createSyncEncoder() {
  }}
 }
 function unpack(p:Packed):PlayState {
- const {waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,restrictions,paused,label,mode,duel,...scene}=p.meta
+ const {inputAck,waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,restrictions,paused,label,mode,duel,...scene}=p.meta
  const entities=Object.fromEntries(GROUPS.map((name,g)=>[name,p.groups[g]!.map(row=>Object.fromEntries(SCHEMAS[g]!.flatMap((field,i)=>row[i]===null?[]:[[field,row[i]]])))]))
  // Fields with meaningful null (lock timers/name/exit) are retained where required.
  for(let i=0;i<p.groups[0]!.length;i++){const row=p.groups[0]![i]!,a=(entities.actors as Record<string,Json>[])[i]!;for(const field of ['name','bombTicks','windupTicks'] as const)a[field]=row[ACTOR.indexOf(field)]??null}
  for(let i=0;i<p.groups[2]!.length;i++)(entities.mines as Record<string,Json>[])[i]!.fuseTicks=p.groups[2]![i]![MINE.indexOf('fuseTicks')]??null
- return {waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,...(restrictions?{restrictions}:{}),paused,label,mode,...(duel?{duel}:{}),snapshot:{...scene,...entities,projectiles:(entities.projectiles as Record<string,Json>[]).map(p=>({...p,trail:[]}))}} as unknown as PlayState
+ return {inputAck,waiting,startCountdown,attrs,purchases,plan,notice,knownSkills,...(restrictions?{restrictions}:{}),paused,label,mode,...(duel?{duel}:{}),snapshot:{...scene,...entities,projectiles:(entities.projectiles as Record<string,Json>[]).map(p=>({...p,trail:[]}))}} as unknown as PlayState
 }
 export function createSyncDecoder() {
  let previous:Packed|undefined,serial=0

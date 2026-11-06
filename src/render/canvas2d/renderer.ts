@@ -1,3 +1,4 @@
+import type { ControlSettings } from '../../storage/config'
 import { weaponPalette } from './weaponPalette'
 import { TRAIT_NAMES } from '../../content/monsterTraits'
 import { ARSENAL_RULES } from '../../core/rules'
@@ -10,6 +11,7 @@ import type { ActorView, EffectView, FloaterView, Snapshot } from '../../core/sn
 export interface RenderDebug { readonly fps: number; readonly label?: string; readonly practice?: PracticeState; readonly endless?: EndlessState; readonly duel?: boolean; readonly seed?: number }
 export interface CameraFocus { readonly x: number; readonly y: number; readonly vision: number }
 export interface Renderer {
+  configure?(settings:ControlSettings):void
   draw(snapshot: Snapshot, debug: RenderDebug): void
   viewToWorld(clientX: number, clientY: number, focus?: CameraFocus): { x: number; y: number }
   dispose(): void
@@ -21,13 +23,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas2D context is unavailable')
   const ctx = context
+  let quality:ControlSettings['quality']='balanced'
+  const compact=()=>width<760||height<500
   let width = 1, height = 1
   let lastScene: Snapshot | undefined
   let camera: Camera = { x: 0, y: 0, width: 1920, height: 1080 }
   const resize = () => {
     width = canvas.clientWidth || window.innerWidth
     height = canvas.clientHeight || window.innerHeight
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
+    const dpr = Math.min(quality==='low'?1:quality==='high'?2:1.5, window.devicePixelRatio || 1)
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   }
@@ -42,7 +46,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const cameraFor = (s: Snapshot, focus?: CameraFocus): Camera => {
     const aspect = width / height
-    const player = focus ?? s.actors.find((a) => a.team === 'player' && a.alive) ?? s.actors.find((a) => a.team === 'player')
+    const player = focus ?? s.actors.find(a=>a.local===true) ?? s.actors.find((a) => a.team === 'player' && a.alive) ?? s.actors.find((a) => a.team === 'player')
     const viewWidth = Math.max(1080 * aspect, 1050) * (player?.vision ?? 1)
     const viewHeight = viewWidth / aspect
     const b = s.bounds
@@ -50,7 +54,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       view >= extent ? start + extent / 2 : clamp(value, start + view / 2, start + extent - view / 2)
     return { x: center(player?.x ?? b.width / 2, b.x, b.width, viewWidth) - viewWidth / 2,
       // Portrait controls occupy the bottom edge; keep the pilot near the clear centre.
-      y: width < 700 ? (player?.y ?? b.y + b.height / 2) - viewHeight * 0.46
+      y: compact() && height>width ? (player?.y ?? b.y + b.height / 2) - viewHeight * 0.46
         : center(player?.y ?? b.height / 2, b.y, b.height, viewHeight) - viewHeight / 2,
       width: viewWidth, height: viewHeight }
   }
@@ -164,7 +168,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.closePath()
     }
-    ctx.shadowColor = color; ctx.shadowBlur = player ? 16 : 9
+    ctx.shadowColor = color; ctx.shadowBlur = quality==='low'?0:player ? 16 : 9
     ctx.fillStyle = player ? '#18394b' : worker ? '#3b2b20' : '#341c32'; ctx.fill()
     ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke(); ctx.shadowBlur = 0
     if (a.coreRadius > 0) {
@@ -191,10 +195,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (player || a.weapon > 0) {
       const tint = weaponPalette(a.team, a.damageType, 1, a.damage).color
-      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); if (a.stowed) { ctx.translate(-r * 0.42, r * 0.35); ctx.rotate(-Math.PI * 0.72); ctx.scale(0.58, 0.7); ctx.globalAlpha = 0.65 } ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = 12
+      ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.aimAngle); if (a.stowed) { ctx.translate(-r * 0.42, r * 0.35); ctx.rotate(-Math.PI * 0.72); ctx.scale(0.58, 0.7); ctx.globalAlpha = 0.65 } ctx.strokeStyle = tint; ctx.fillStyle = '#102838'; ctx.lineWidth = 3; ctx.shadowColor = tint; ctx.shadowBlur = quality==='low'?0:12
       if (a.weapon === 1) {
         for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(r * 0.55, side * 10); ctx.lineTo(r + 13, side * 16); ctx.lineTo(r + 24, side * 7); ctx.stroke() }
-        ring(r + 9, 0, 7, tint, 2)
+        ring(r + 9, 0, a.channeling?8+Math.sin(tick*.9)*2:7, tint, a.channeling?3:2)
       } else if (a.weapon === 3) {
         ctx.fillRect(r * 0.25, -6, r + 13, 12); ctx.strokeRect(r * 0.25, -6, r + 13, 12)
         ctx.fillRect(r + 12, -3, 29, 6); ctx.strokeRect(r + 12, -3, 29, 6)
@@ -258,14 +262,33 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
   const drawFloater = (f: FloaterView) => {
     ctx.globalAlpha = Math.min(1, f.ttl / 20); ctx.textAlign = 'center'
-    const value = Math.round(f.value * 10) / 10
-    const label = f.kind === 'shard' ? `◆ ${value}` : f.kind === 'overflow' ? `溢 ${Math.round(value)}` : f.kind === 'taken' ? `−${Math.round(value)}` : f.kind === 'heal' ? `+${Math.round(value)}` : `${Math.round(value)}`
+    const value = Math.round(f.value * 100) / 100
+    const amount=f.value>0&&f.value<1?f.value<.01?'<0.01':String(value):String(Math.round(value))
+    const label = f.kind === 'shard' ? `◆ ${value}` : f.kind === 'overflow' ? `溢 ${Math.round(value)}` : f.kind === 'taken' ? `−${amount}` : f.kind === 'heal' ? `+${amount}` : amount
     const color = f.kind === 'shard' ? '#91eacb' : f.kind === 'overflow' ? GOLD : f.kind === 'taken' ? RED : f.kind === 'heal' ? '#9ff4c3' : '#e7f5ff'
     ctx.shadowColor = '#02050c'; ctx.shadowBlur = 5; text(label, f.x, f.y, f.kind === 'shard' ? 19 : 25, color)
     ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.globalAlpha = 1
   }
   const drawHud = (s: Snapshot, debug: RenderDebug) => {
-    const phone = width < 700, p = s.actors.find((a) => a.team === 'player')
+    if(compact()){
+      const p=s.actors.find(a=>a.local===true)??s.actors.find(a=>a.team==='player')
+      if(p){text(`HP ${Math.ceil(p.hp)}/${Math.round(p.maxHp)}${p.shield>0?' 盾'+Math.ceil(p.shield):''}`,12,27,13,p.hp<p.maxHp*.3?RED:CYAN);ctx.fillStyle='#203245';ctx.fillRect(12,35,142,4);ctx.fillStyle=CYAN;ctx.fillRect(12,35,142*clamp(p.hp/p.maxHp,0,1),4)
+       text(`◆ ${Math.floor(s.shards)} · ${p.weapon===1?'持续电弧':p.weapon===2?'激光':p.weapon===3?'狙击':'弹芯枪'}`,12,58,12,GOLD)
+       if(p.shieldDisabledSeconds>0)text(`禁盾 ${Math.ceil(p.shieldDisabledSeconds)}s`,12,77,11,RED)
+      }
+      text((s.design?.title??debug.label??'').slice(0,25),12,94,11,'#8ba9bc')
+      if(s.wave?.countdown)text(`下一波 ${(s.wave.countdown/60).toFixed(1)}s`,12,111,12,GOLD)
+      if(s.coop)for(const [i,m]of s.coop.members.filter(m=>m.id!==p?.id).entries()){const a=s.actors.find(a=>a.id===m.id);text(`${m.name.slice(0,8)} ${!m.connected?'离线':a?.alive?Math.ceil(a.hp)+'HP':'复活'+(m.reviveTicks/60).toFixed(1)+'s'}`,12,128+i*16,10,'#9bcabf')}
+      const size=72,mapX=width>height?width/2-size/2:width-size-12,mapY=width>height?10:112,sy=size*s.bounds.height/s.bounds.width
+      ctx.fillStyle='#030c17b8';ctx.fillRect(mapX,mapY,size,sy);ctx.strokeStyle='#375563';ctx.strokeRect(mapX,mapY,size,sy)
+      const scale=size/s.bounds.width;ctx.fillStyle='#385467';for(const wall of s.walls)ctx.fillRect(mapX+(wall.x-s.bounds.x)*scale,mapY+(wall.y-s.bounds.y)*scale,wall.width*scale,wall.height*scale)
+      for(const a of s.actors)if(a.alive){ctx.fillStyle=a.local?CYAN:a.team==='player'?'#a4bfff':RED;ctx.fillRect(mapX+(a.x-s.bounds.x)*scale-1.5,mapY+(a.y-s.bounds.y)*scale-1.5,3,3)}
+      if(s.exit){ctx.fillStyle='#9ff3ba';ctx.fillRect(mapX+(s.exit.x-s.bounds.x)*scale,mapY+(s.exit.y-s.bounds.y)*scale,5,4)}
+      if(s.awaitsEntry||s.roomCleared){ctx.textAlign='center';text(s.awaitsEntry?'向前移动，进入战斗':'已清空 · 前往传送门',width/2,height*.38,12,'#99d8c5');ctx.textAlign='left'}
+      return
+    }
+
+    const phone = width < 700, p = s.actors.find(a=>a.local===true)??s.actors.find((a) => a.team === 'player')
     text(`P R I S M${p ? ' · ' + (p.weapon === 1 ? '电弧' : p.weapon === 2 ? '激光' : p.weapon === 3 ? '狙击手' : '弹芯枪') : ''}`, 20, 29, 15, p ? weaponPalette('player', p.damageType, 1, p.damage).color : CYAN)
     if (s.design) { ctx.textAlign = 'center'; text(s.design.title, width / 2, 30, 16, s.design.theme === 'silk' ? '#d6b0ed' : '#96bbc7'); ctx.textAlign = 'left' }
     text(`${debug.label ?? ''}  /  ${debug.duel ? '联网对战' : debug.endless ? debug.endless.open ? '开放层' : '清场层' : debug.practice ? debug.practice.config.scenario === 'targets' ? '固定靶机' : '敌人演练' : s.roomKind === 'safe' ? '安全区' : s.roomKind === 'boss' ? '核心决战' : '探索中'}`, 20, 49, 11, '#6f90ac')
@@ -310,7 +333,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawPractice = (debug: RenderDebug) => {
     const state = debug.practice
     if (!state) return
-    if (width < 700) { text(`伤害 ${Number(state.damage.toFixed(1))} · DPS ${state.recentDps.toFixed(1)}`, 20, 133, 11, CYAN); return }
+    if (compact()) { text(`伤害 ${Number(state.damage.toFixed(1))} · DPS ${state.recentDps.toFixed(1)}`, width>height?width-215:12, width>height?82:112, 10, CYAN); return }
     ctx.fillStyle = 'rgba(5,14,25,0.88)'; ctx.fillRect(18, 150, 205, 100)
     ctx.strokeStyle = '#294f60'; ctx.lineWidth = 1; ctx.strokeRect(18, 150, 205, 100)
     text(`总伤害  ${state.damage.toFixed(1)}`, 30, 174, 12, CYAN)
@@ -320,6 +343,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawTarget = (s: Snapshot) => {
     const target = s.actors.find((a) => a.locked && a.alive)
     if (!target) return
+    if(compact()){
+      const landscape=width>height,w=landscape?Math.min(220,width-300):Math.min(238,width-24),x=landscape?(width-w)/2:12,y=landscape?height-80:s.coop?195:130
+      ctx.fillStyle='#091524ed';ctx.fillRect(x,y,w,68);ctx.strokeStyle=target.manualLocked?GOLD:CYAN;ctx.strokeRect(x,y,w,68)
+      text(`${target.manualLocked?'◆':'◇'} ${(target.name??'目标').slice(0,16)}`,x+8,y+17,11,GOLD)
+      text(`HP ${Math.ceil(target.hp)}/${Math.round(target.maxHp)} 盾${Math.ceil(target.shield)}`,x+8,y+36,11)
+      text(`甲${Math.round(target.armor)} 格挡${Number(target.block.toFixed(1))} 伤害${Number(target.damage.toFixed(1))}${target.bombTicks!==null?' ⚠引爆':target.windupTicks!==null?' ⚠蓄能':''}`,x+8,y+55,10)
+      return
+    }
     const phone = width < 700, w = phone ? 220 : 260, x = phone ? 20 : width - w - 18, y = phone ? 150 : 190
     const h = target.rewardMultiplier < 1 ? 193 : 173
     ctx.fillStyle = 'rgba(5,14,25,0.92)'; ctx.fillRect(x, y, w, h)
@@ -342,7 +373,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const r = Math.max(2.5, bullet.radius), speed = bullet.speed
     ctx.save(); ctx.globalAlpha = alpha
     // Follow the actual previous path, including bends, using a tapering filled ribbon.
-    const path = [...bullet.trail, { x: bullet.x, y: bullet.y }]
+    const path = [...(quality==='low'?bullet.trail.slice(-3):bullet.trail), { x: bullet.x, y: bullet.y }]
     let budget = Math.min(190, speed * 0.12), length = 0
     const points = [{ x: bullet.x, y: bullet.y }]
     for (let i = path.length - 2; i >= 0 && budget > 0; i--) {
@@ -390,7 +421,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const drawEnergy = (beam: EnergyTrace, tick: number) => {
     const type = beam.damageType ?? (beam.kind === 'electric' ? 'electric' : 'heat'), palette = weaponPalette(beam.team, type, beam.rangeRatio, beam.power)
     const dx = beam.to.x - beam.from.x, dy = beam.to.y - beam.from.y, length = Math.hypot(dx, dy)
-    ctx.save(); ctx.globalAlpha = Math.min(1, beam.ttl / 4) * palette.alpha; ctx.shadowColor = palette.color; ctx.shadowBlur = beam.kind === 'electric' ? 14 : 20
+    ctx.save(); ctx.globalAlpha = Math.min(1, beam.ttl / 4) * palette.alpha; ctx.shadowColor = palette.color; ctx.shadowBlur = quality==='low'?0:beam.kind === 'electric' ? 14 : 20
     ctx.lineWidth = Math.max(2, Math.min(14, beam.width * 0.3 + Math.log2(1 + beam.power) * 0.4)); ctx.strokeStyle = palette.color
     ctx.beginPath(); ctx.moveTo(beam.from.x, beam.from.y)
     const count = beam.kind === 'electric' ? Math.max(2, Math.min(40, Math.ceil(length / 30))) : 1
@@ -429,7 +460,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (const pickup of s.pickups) {
       const { x, y } = pickup.pos
       const tier = Math.max(0, Math.min(4, Math.log(Math.max(1, pickup.value)) / Math.log(5))), size = 8 + tier * 2
-      ctx.shadowBlur = 14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'
+      ctx.shadowBlur = quality==='low'?0:14; ctx.shadowColor = pickup.kind === 'blood' ? '#ffa0b4' : '#8cf0dc'
       ctx.fillStyle = pickup.kind === 'blood' ? '#f48da7' : '#8cf0dc'; ctx.beginPath()
       if (tier > 0) { const sides = 3 + Math.round(tier); for (let i = 0; i < sides; i++) { const angle = i * Math.PI * 2 / sides - Math.PI / 2; if (i === 0) ctx.moveTo(x + Math.cos(angle) * (size + 3), y + Math.sin(angle) * (size + 3)); else ctx.lineTo(x + Math.cos(angle) * (size + 3), y + Math.sin(angle) * (size + 3)) }; ctx.closePath() }
       else if (pickup.kind === 'blood') ctx.arc(x, y, size, 0, Math.PI * 2)
@@ -440,8 +471,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       text(`${pickup.value}${(pickup.quantity ?? 1) > 1 ? '×' + pickup.quantity : ''}`, x - 10, y + size + 18, 12, pickup.kind === 'blood' ? '#ffd8e4' : '#bcfff0')
     }
     for (const a of s.actors) if (a.alive) drawActor(a, s.tick)
-    for (const effect of s.effects) drawEffect(effect)
-    for (const f of s.floaters) drawFloater(f)
+    for (const effect of quality==='low'?s.effects.slice(-16):s.effects) drawEffect(effect)
+    for (const f of quality==='low'?s.floaters.slice(-12):s.floaters) drawFloater(f)
     ctx.restore()
     const vignette = ctx.createRadialGradient(width / 2, height / 2, width * 0.2, width / 2, height / 2, Math.max(width, height) * 0.7)
     vignette.addColorStop(0, 'rgba(2,5,12,0)'); vignette.addColorStop(1, 'rgba(2,5,12,0.52)')
@@ -450,7 +481,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     drawPractice(debug)
     drawTarget(s)
   }
-  return { draw, viewToWorld: (x, y, focus) => {
+  return {configure:(settings)=>{quality=settings.quality??'balanced';resize()}, draw, viewToWorld: (x, y, focus) => {
     // Pointer conversion uses this simulation tick's camera, not the previous rendered frame.
     const current = focus && lastScene ? cameraFor(lastScene, focus) : camera
     const rect = canvas.getBoundingClientRect(), zoom = width / current.width

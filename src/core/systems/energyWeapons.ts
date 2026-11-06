@@ -14,7 +14,7 @@ function trace(world: World, owner: Actor, kind: EnergyTrace['kind'], from: Vec2
     power, width: combatAttrs(owner).bulletSize, ttl: kind === 'electric' ? 10 : ARSENAL_RULES.laserGap + 1 })
 }
 /** Roots are unique; every branch owns its pierce budget and visited targets. */
-export function fireElectric(world: World, owner: Actor, angle: number): void {
+export function fireElectric(world: World, owner: Actor, angle: number,share=1): void {
   const attrs = combatAttrs(owner), direction = { x: Math.cos(angle), y: Math.sin(angle) }
   const difference = (a: Actor) => { const offset = Math.atan2(a.pos.y - owner.pos.y, a.pos.x - owner.pos.x) - angle; return Math.abs(Math.atan2(Math.sin(offset), Math.cos(offset))) }
   const candidates = [...world.actors.values()].filter((a) => a.alive && a.team !== owner.team && distance(a.pos, owner.pos) <= attrs.range && hasLineOfSight(owner.pos, a.pos, world.room.walls))
@@ -44,10 +44,10 @@ export function fireElectric(world: World, owner: Actor, angle: number): void {
     const base = finitePower(attrs.damage * profile.damageMultiplier * (1 + remaining * profile.surplus))
     for (const node of nodes) {
       const enhanced = Math.min(node.depth, reinforcedDepth) - 1
-      const raw = base * profile.boostedRetention ** enhanced * profile.retention ** (node.depth - 1 - enhanced)
+      const raw = finitePower(base * share) * profile.boostedRetention ** enhanced * profile.retention ** (node.depth - 1 - enhanced)
       const previous = node.parent < 0 ? owner.pos : nodes[node.parent]!.target.pos
-      trace(world, owner, 'electric', previous, node.target.pos, 1 - node.distance / Math.max(1, node.parent < 0 ? attrs.range : arcHopRange(attrs.range)), raw)
-      applyDamage(world, { targetId: node.target.id, sourceId: owner.id, sourceTeam: owner.team, raw, penetration: attrs.penetration, isCore: false, kind: 'electric', damageType: owner.attackType ?? 'electric', rewardMultiplier: owner.rewardMultiplier })
+      trace(world, owner, 'electric', previous, node.target.pos, 1 - node.distance / Math.max(1, node.parent < 0 ? attrs.range : arcHopRange(attrs.range)), base * profile.boostedRetention ** enhanced * profile.retention ** (node.depth - 1 - enhanced))
+      applyDamage(world, { targetId: node.target.id, sourceId: owner.id, sourceTeam: owner.team, raw, blockScale:share, penetration: attrs.penetration, isCore: false, kind: 'electric', damageType: owner.attackType ?? 'electric', rewardMultiplier: owner.rewardMultiplier })
     }
   }
   if (!roots.length) trace(world, owner, 'electric', owner.pos, { x: owner.pos.x + direction.x * Math.min(140, attrs.range), y: owner.pos.y + direction.y * Math.min(140, attrs.range) }, 0.3, attrs.damage)

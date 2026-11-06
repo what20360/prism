@@ -172,7 +172,7 @@ node dist-server/server.mjs --config /path/to/prism-server.config.json
 
 新增环境变量：PRISM_CONFIG、PRISM_LOG_LEVEL、PRISM_LOG_DIR、PRISM_MAX_ROOMS、PRISM_MAX_CONNECTIONS、PRISM_ROOM_TTL_DAYS、PRISM_STATIC_DIR。discovery可用auto/on/off；设置公网URL时auto关闭局域网发现。
 
-升级服务器前输入stop正常退出，备份数据目录，然后用新程序覆盖编译文件及前端资源，保留`.prism-server/`和自己的配置文件。不要用发行包覆盖数据目录。v1.25实时协议为prism-server-3，浏览器与服务器都需要更新；合作存档数值版本7，旧5/6可迁移，无需清档。
+升级服务器前输入stop正常退出，备份数据目录，然后用新程序覆盖编译文件及前端资源，保留`.prism-server/`和自己的配置文件。不要用发行包覆盖数据目录。v1.25实时协议为prism-server-4，浏览器与服务器都需要更新；合作存档数值版本7，旧5/6可迁移，无需清档。
 
 ## 12. 自动存档配置与版本更新
 
@@ -184,6 +184,6 @@ node dist-server/server.mjs --config /path/to/prism-server.config.json
 
 `room` 默认新局/正式开始和每次切房保存；无尽以实际层数为准。`interval` 在此基础上按秒数保存（默认60，允许5–3600）。`off` 关闭定时和进关进度快照，不关闭身份/成员/权限持久化、手动 `save` 与正常退出保存。终端 `status` 显示当前策略。浏览器设置只控制单人自动槽，不改变联机服务器配置。
 
-更新时先在终端输入 `stop`，备份数据目录，解压新版程序并保留原 `.prism-server/` 与自定义 `prism-server.config.json`，再启动。v1.25实时协议为 `prism-server-3`，服务器和浏览器都需更新；服务器自带页面与服务器版本一致。旧合作数值版本5/6可迁移到7，保留余额、实付购卡记录、名称和席位，不重新发放初始棱晶；当前盾量仅按新上限夹紧。
+更新时先在终端输入 `stop`，备份数据目录，解压新版程序并保留原 `.prism-server/` 与自定义 `prism-server.config.json`，再启动。v1.25实时协议为 `prism-server-4`，服务器和浏览器都需更新；服务器自带页面与服务器版本一致。旧合作数值版本5/6可迁移到7，保留余额、实付购卡记录、名称和席位，不重新发放初始棱晶；当前盾量仅按新上限夹紧。
 
-v1.26属性页调整沿用数值版本7与prism-server-3，v1.25服务器与客户端协议兼容；本页下载包携带同版前端。
+v1.26属性页调整沿用数值版本7与prism-server-4，v1.25服务器与客户端协议兼容；本页下载包携带同版前端。

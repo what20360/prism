@@ -36,3 +36,7 @@ export function mineSlowMultiplier(multiplier: number, ignoreBullets: boolean): 
 
 export const COMBAT_RULES = { outOfCombatTicks: 180 } as const
 export const SNIPER_RULES = { impactPerSpeed: 0.01, damageMultiplier: 2, fireRateMultiplier: 1 / 3, speedMultiplier: 0.7, travelMultiplier: 1.1 } as const
+
+/** Continuous electric supply uses the former shot period as its energy/block budget. */
+export const ELECTRIC_RULES={pulseTicks:6} as const
+export function electricPeriod(fireRate:number):number{return fireRate>0?Math.max(1,Math.round(60/fireRate)):Infinity}

@@ -22,7 +22,7 @@ class Socket {
 const cleanup:(()=>void)[]=[]
 afterEach(()=>{cleanup.splice(0).reverse().forEach(f=>f());vi.unstubAllGlobals();vi.restoreAllMocks();document.body.replaceChildren();localStorage.clear()})
 async function setup(realTouch=false,guest=false){
- const info:ServerInfo={protocol:'prism-server-3',serverId:'test-server',version:'1.25',rooms:0,name:'测试服务器',createPolicy:'key'}
+ const info:ServerInfo={protocol:'prism-server-4',serverId:'test-server',version:'1.25',rooms:0,name:'测试服务器',createPolicy:'key'}
  const frames=new Map<number,FrameRequestCallback>();let frameId=0
  vi.stubGlobal('requestAnimationFrame',(f:FrameRequestCallback)=>{frames.set(++frameId,f);return frameId});vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id))
  vi.stubGlobal('WebSocket',Socket);vi.stubGlobal('fetch',async()=>({ok:true,text:async()=>JSON.stringify(info)}));vi.spyOn(document,'hidden','get').mockReturnValue(false)
@@ -49,6 +49,16 @@ describe('server browser session controls',()=>{
   expect(document.querySelector<HTMLButtonElement>('.server-start-button')!.textContent).toBe('开始对局（5秒倒计时）');expect(t.session.active()).toBe(true)
   window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyD',bubbles:true}));t.canvas.dispatchEvent(new PointerEvent('pointerdown',{button:0,pointerType:'mouse',clientX:900,clientY:350,bubbles:true}));t.frame(1000)
   expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{move:{x:1,y:0},fire:true}})
+ })
+ it('draws local movement before the next snapshot and sends taps sampled between packet windows',async()=>{
+  const clock=vi.spyOn(performance,'now').mockReturnValue(1000),t=await setup(true)
+  window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyD',bubbles:true}));t.frame(1000)
+  const first=t.renderer.draw.mock.calls.at(-1)![0] as import('../../src/core/snapshot').Snapshot,x=first.actors.find(a=>a.local)!.x
+  const mine=document.querySelector<HTMLElement>('.touch-mine')!;mine.dispatchEvent(new PointerEvent('pointerdown',{pointerId:3,bubbles:true}));mine.dispatchEvent(new PointerEvent('pointerup',{pointerId:3,bubbles:true}));t.frame(1010)
+  clock.mockReturnValue(1050);t.frame(1050);const moved=t.renderer.draw.mock.calls.at(-1)![0] as import('../../src/core/snapshot').Snapshot
+  expect(moved.actors.find(a=>a.local)!.x).toBeGreaterThan(x);expect(t.socket.sent.filter(p=>p.type==='input').at(-1)).toMatchObject({intent:{placeMine:true}})
+  t.socket.emit({type:'pong',time:Date.now()-45});t.frame(1060);expect(document.querySelector('.network-badge')!.textContent).toContain('45 ms')
+  t.session.toggleMenu();t.frame(1100);expect(document.querySelector<HTMLElement>('.network-badge')!.hidden).toBe(true)
  })
  it('lets guests ready/cancel from the arena and disables host start until guests are ready',async()=>{
   const t=await setup(false,true),quick=document.querySelector<HTMLButtonElement>('.server-start-button')!

@@ -34,6 +34,8 @@ export interface Actor extends EnemyMechanics {
   bombTicks?: number
   windupTicks?: number
   windupAngle?: number
+  electricBudget?:number
+  electricTimer?:number
   laserTicks?: number
   laserTimer?: number
   readonly id: EntityId

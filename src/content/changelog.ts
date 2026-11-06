@@ -1,6 +1,13 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.27',date:'2026-11-06',title:'联机反馈与移动端操作',items:[
+    '加入本机移动预测、服务器执行确认和柔和校正；远端继续插值，伤害与资源仍由服务器决定。角落显示往返延迟与等待同步状态，设置可关闭预测。',
+    '优化手机横竖屏HUD、目标卡、小地图、滑动目录与底部菜单操作；新增左右手、固定/浮动摇杆、尺寸/透明度/死区/边缘设置，松手保留瞄准方向。',
+    '修正多指取消事件互相打断与网络发送间隔内的地雷/技能短按丢失；轻点战场锁定，拖动不锁定。加入独立音量、三档画质与可用浏览器的全屏按钮。',
+    '电弧改为持续供能，攻速提高供能功率；伤害与固定格挡按同一时长份额分摊，保持稳定目标DPS，不因高频分段额外吃格挡。持续嘶声与枪口动画匹配供能，属性页显示电伤功率。',
+    '实时协议升为prism-server-4，需同时更新服务器；旧单人/合作存档保持可读。敌人编队、目标房与新敌人的后续设计整理在仓库文档，尚未实装。',
+  ]},
   {version:'1.26',date:'2026-11-05',title:'角色属性与构筑雷达',items:[
     '角色属性按当前武器和已解锁机制展示，隐藏无关能量武器、未启用技能和特殊属性；狙击一弹上限仅在实际生效时显示。',
     '关键与变化的属性块优先，同类参数相邻；次要基础参数可展开，显示基础参考、单位和机制说明，包含临时技能与脱战状态。',

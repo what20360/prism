@@ -90,6 +90,8 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   for (const value of actors) {
     const a = entity(value); spawn(a); oneOf(a.team, ['player', 'enemy', 'neutral']); if (a.team === 'player') playerCount++
     numbers(a, 'radius hp shield damageFlashTicks fireCooldownTicks phase specialCooldownTicks iframesTicks mineCooldownTicks deflectWindowTicks deflectCooldownTicks outOfCombatTicks rageTicks dashTicks rageCooldownTicks dashCooldownTicks burstRemaining burstTimer')
+    if(a.electricBudget!==undefined)finite(a.electricBudget,0,6)
+    if(a.electricTimer!==undefined)integer(a.electricTimer,0,6)
     finite(a.navTimer); finite(a.aimAngle); finite(a.burstAngle); vector(a.dashDirection); vector(a.navGoal); bool(a.alive); intent(a.intent)
     if(a.contributions!==undefined)for(const [id,v] of Object.entries(record(a.contributions))){integer(Number(id),1);finite(v,0)}
     if (a.weaver !== undefined) {

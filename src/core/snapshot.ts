@@ -28,6 +28,7 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
     total: id ? skillTotal(actor, id) : 0, active: id === 'deflect' ? actor.deflectWindowTicks > 0 : id === 'rage' ? actor.rageTicks > 0 : id === 'dash' ? actor.dashTicks > 0 : false }
 }
 export interface ActorView {
+  readonly channeling?:boolean
   readonly stowed: boolean
   readonly shieldDisabledSeconds: number
   readonly local?: boolean
@@ -184,7 +185,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   for (const actor of [...world.actors.values()].sort((a,b)=>Number(b.id===viewerId)-Number(a.id===viewerId))) {
     const attrs = combatAttrs(actor)
     actors.push({
-      stowed: isOutOfCombat(actor), shieldDisabledSeconds: (actor.shieldDisabledTicks ?? 0) / TICK_RATE,
+      channeling:actor.alive&&attrs.weapon===1&&actor.intent.fire===true,stowed: isOutOfCombat(actor), shieldDisabledSeconds: (actor.shieldDisabledTicks ?? 0) / TICK_RATE,
       block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
       weapon: attrs.weapon, damageType: actor.attackType ?? (attrs.weapon === 1 ? 'electric' : attrs.weapon === 2 ? 'heat' : 'physical'),
       traits: actor.traits ?? [], bombTicks: actor.bombTicks ?? null, windupTicks: actor.windupTicks ?? null, windupAngle: actor.windupAngle ?? actor.aimAngle,
@@ -222,7 +223,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
       deflectFieldRadius: actor.attrs.deflectFieldRadius,
       range: actor.attrs.range * (attrs.weapon === 2 ? ARSENAL_RULES.laserRange : 1),
       fireCooldownSeconds: actor.burstRemaining > 0 || (actor.laserTicks ?? 0) > 0 ? 1 / Math.max(0.001, attrs.fireRate) : actor.fireCooldownTicks / TICK_RATE,
-      fireCooldownTotal: 1 / Math.max(0.001, attrs.fireRate),
+      fireCooldownTotal: attrs.weapon===1?0:1 / Math.max(0.001, attrs.fireRate),
       mineCooldownSeconds: actor.mineCooldownTicks / TICK_RATE,
       mineCooldownTotal: actor.attrs.mineCooldown / Math.max(0.01, actor.attrs.mineCooldownRate),
       autoAim: actor.attrs.autoAim > 0,

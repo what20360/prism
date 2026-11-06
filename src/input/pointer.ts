@@ -19,10 +19,11 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   let y = 0
   let seen = false
   let down = false
+  let tap:{id:number;x:number;y:number;at:number}|undefined
   let pendingLock: { x: number; y: number } | null | undefined
 
   const onMove = (event: PointerEvent): void => {
-    if (event.pointerType === 'touch') return
+    if (event.pointerType === 'touch') {if(tap&&tap.id===event.pointerId&&Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>12)tap=undefined;return}
     x = event.clientX
     y = event.clientY
     seen = true
@@ -37,7 +38,7 @@ export function createPointerInput(target: HTMLElement): PointerSource {
     }
     if (event.button !== 0) return
     if (event.pointerType === 'touch') {
-      pendingLock = { x: event.clientX, y: event.clientY }
+      tap={id:event.pointerId,x:event.clientX,y:event.clientY,at:performance.now()}
       return
     }
     down = true
@@ -45,6 +46,7 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   }
 
   const onUp = (event: PointerEvent): void => {
+    if(event.pointerType==='touch'){if(tap?.id!==event.pointerId)return;if(performance.now()-tap.at<=350&&Math.hypot(event.clientX-tap.x,event.clientY-tap.y)<=12)pendingLock={x:event.clientX,y:event.clientY};tap=undefined;return}
     if (event.button !== 0) return
     down = false
   }
@@ -54,16 +56,18 @@ export function createPointerInput(target: HTMLElement): PointerSource {
   }
 
   const onBlur = (): void => {
-    pendingLock = undefined
+    tap=undefined;pendingLock = undefined
     down = false
   }
 
+  const onCancel=(event:PointerEvent)=>{if(event.pointerType==='touch'){if(tap?.id===event.pointerId)tap=undefined}else down=false}
   const onContext = (event: Event) => event.preventDefault()
   target.addEventListener('contextmenu', onContext)
   target.addEventListener('pointermove', onMove)
   target.addEventListener('pointerdown', onDown)
   window.addEventListener('pointerup', onUp)
   target.addEventListener('pointerleave', onLeave)
+  target.addEventListener('pointercancel',onCancel)
   window.addEventListener('blur', onBlur)
 
   return {
@@ -77,6 +81,7 @@ export function createPointerInput(target: HTMLElement): PointerSource {
       target.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerup', onUp)
       target.removeEventListener('pointerleave', onLeave)
+      target.removeEventListener('pointercancel',onCancel)
       window.removeEventListener('blur', onBlur)
     },
   }

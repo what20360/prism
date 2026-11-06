@@ -4,7 +4,7 @@ import { resolveAttrs } from '../core/cards'
 import { CARD_REGISTRY } from '../content/cards'
 import { PLAYER_BASE_ATTRS } from '../content/player'
 import { formatNumber as f } from './cardInfo'
-import { arcHopRange, arcProfile, ARSENAL_RULES, broodProfile, dashProfile, homingProfile, laserProfile, mineSlowMultiplier, penetrationProfile, pulseProfile, rageProfile, SNIPER_RULES, WEAPON_RULES } from '../core/rules'
+import { ELECTRIC_RULES, arcHopRange, arcProfile, ARSENAL_RULES, broodProfile, dashProfile, homingProfile, laserProfile, mineSlowMultiplier, penetrationProfile, pulseProfile, rageProfile, SNIPER_RULES, WEAPON_RULES } from '../core/rules'
 
 export interface AttributeRow { id:string;label:string;value:string;base:string;changed:boolean;note?:string }
 export interface AttributeBlock {id:string;rows:AttributeRow[];important:boolean;changed:boolean}
@@ -43,8 +43,8 @@ export function createAttributeModel(attrs:AttrSet){
  const attr=(id:keyof AttrSet,label:string,fmt:(n:number)=>string=f,note?:string)=>value(id,label,a[id],b[id],fmt,note)
  const toggle=(id:keyof AttrSet,label:string,note?:string)=>attr(id,label,n=>n>0?'已装配':'未装配',note)
  const offense=makeGroup('offense','武器与输出')
- block(offense,'damage',true,[value('hitDamage',a.weapon===2?'每脉冲伤害':a.weapon===1?'首击基础伤害':'单发基础伤害',m.damage,bm.damage,f,a.weapon===1?'不含多余穿透增伤与传导衰减。':'未扣目标格挡、护甲、抗性或核心倍率。'),...(a.weapon===3&&a.sniperPower>0?[value('kineticHit','满速命中伤害',m.fullSpeedDamage,bm.fullSpeedDamage,f,'按当前最高弹速估算；真实命中取当时弹速，贯穿推进可进一步提高。'),attr('sniperPower','动能狙击等级')]:[]),...(different(a.damageScale,b.damageScale)?[attr('damageScale','通用伤害倍率',mult)]:[])])
- block(offense,'cadence',true,[attr('fireRate','基础攻速',rate,'持续攻击结束后开始冷却；一弹上限和索敌也可能限制实际频率。'),value('cooldown','攻击结束后冷却',m.cooldown,bm.cooldown,n=>Number.isFinite(n)?seconds(n):'无法开火'),...(m.duration>0?[value('attackDuration',a.weapon===2?'持续照射':'连发持续时间',m.duration,bm.duration,seconds),value('cycleFrequency','周期频率（估算）',m.frequency,bm.frequency,rate,'含本次持续攻击和后续冷却，按逻辑帧估算，不等于实际DPS。')]:[])])
+ block(offense,'damage',true,[value('hitDamage',a.weapon===2?'每脉冲伤害':a.weapon===1?'等效单发伤害':'单发基础伤害',m.damage,bm.damage,f,a.weapon===1?'持续供能的单发等效参考；实际按供能时间分配伤害和格挡，不含多余穿透增伤。':'未扣目标格挡、护甲、抗性或核心倍率。'),...(a.weapon===3&&a.sniperPower>0?[value('kineticHit','满速命中伤害',m.fullSpeedDamage,bm.fullSpeedDamage,f,'按当前最高弹速估算；真实命中取当时弹速，贯穿推进可进一步提高。'),attr('sniperPower','动能狙击等级')]:[]),...(different(a.damageScale,b.damageScale)?[attr('damageScale','通用伤害倍率',mult)]:[])])
+ block(offense,'cadence',true,a.weapon===1?[attr('fireRate','等效供能频率',rate),value('electricPower','基础电伤功率',m.damage*m.frequency,bm.damage*bm.frequency,rate,'未扣目标减伤，不含分叉/多余穿透增伤；攻速提高功率，不是点击发射次数。'),value('electricRefresh','电流刷新间隔',ELECTRIC_RULES.pulseTicks/TICK_RATE,ELECTRIC_RULES.pulseTicks/TICK_RATE,seconds)]:[attr('fireRate','基础攻速',rate,'持续攻击结束后开始冷却；一弹上限和索敌也可能限制实际频率。'),value('cooldown','攻击结束后冷却',m.cooldown,bm.cooldown,n=>Number.isFinite(n)?seconds(n):'无法开火'),...(m.duration>0?[value('attackDuration',a.weapon===2?'持续照射':'连发持续时间',m.duration,bm.duration,seconds),value('cycleFrequency','周期频率（估算）',m.frequency,bm.frequency,rate,'含本次持续攻击和后续冷却，按逻辑帧估算，不等于实际DPS。')]:[])])
  block(offense,'salvo',false,[physical?attr('multishot','每轮散射弹数'):value('multishot',a.weapon===1?'最大独立电弧起点数':'最大激光束数',m.energyRays,bm.energyRays,f,'每次最多64路；实际命中数量取决于目标和遮挡。'),...(physical&&a.burstCount>1?[attr('burstCount','同向连发轮数')]:[])])
  if(a.penetration>0||physical)block(offense,'armorHit',false,[attr('penetration','护甲穿透'),...(physical?[attr('innerDamageMult','核心命中倍率',mult)]:[])])
  const path=makeGroup('trajectory',physical?'弹道与命中':'射程与传递')
@@ -89,9 +89,9 @@ export function createAttributeModel(attrs:AttrSet){
  block(extra,'geometry',false,[attr('radius','角色碰撞半径'),attr('coreRadiusMult','核心半径比例',percent),attr('chainCap','连杀收入上限')])
  const radars:AttributeRadar[]=[]
  const axis=(id:string,label:string,n:number,base:number,scale:number=base,unit=''):RadarAxis=>({id,label,value:n,base,scale:scale>0?scale:1,unit})
- radars.push({id:'weapon',title:'武器概览',note:a.weapon===1?'电弧按首击与独立树预算展示，不累加分叉伤害。':a.weapon===2?'脉冲与完整照射周期分别展示，不代表实战DPS。':'按完整齐射周期展示；命中、射程耗尽和一弹限制另行影响输出。',axes:[
-  axis('damage',a.weapon===3&&a.sniperPower>0?'满速命中伤害':a.weapon===2?'脉冲伤害':a.weapon===1?'首击基础伤害':'单发伤害',a.weapon===3?m.fullSpeedDamage:m.damage,a.weapon===3?bm.fullSpeedDamage:bm.damage),
-  axis('frequency','周期频率',m.frequency,bm.frequency,bm.frequency,'/秒'),axis('range','有效射程',m.range,bm.range),axis('pierce',a.weapon===1?'树穿透预算':'穿透层数',a.pierce,b.pierce),
+ radars.push({id:'weapon',title:'武器概览',note:a.weapon===1?'持续供能：功率按原伤害与攻速换算；格挡按时间分摊，不累加分叉伤害。':a.weapon===2?'脉冲与完整照射周期分别展示，不代表实战DPS。':'按完整齐射周期展示；命中、射程耗尽和一弹限制另行影响输出。',axes:[
+  axis('damage',a.weapon===3&&a.sniperPower>0?'满速命中伤害':a.weapon===2?'脉冲伤害':a.weapon===1?'基础电伤功率':'单发伤害',a.weapon===3?m.fullSpeedDamage:a.weapon===1?m.damage*m.frequency:m.damage,a.weapon===3?bm.fullSpeedDamage:a.weapon===1?bm.damage*bm.frequency:bm.damage),
+  axis('frequency',a.weapon===1?'等效供能频率':'周期频率',m.frequency,bm.frequency,bm.frequency,'/秒'),axis('range','有效射程',m.range,bm.range),axis('pierce',a.weapon===1?'树穿透预算':'穿透层数',a.pierce,b.pierce),
   a.weapon===1?axis('depth','传递层数上限',m.arcDepth,bm.arcDepth):a.weapon===2?axis('pulses','脉冲次数',m.pulseCount,bm.pulseCount):axis('velocity','最高弹速',a.bulletSpeed,b.bulletSpeed,b.bulletSpeed,'/秒'),
   axis('coverage',a.weapon===1?'电弧起点':a.weapon===2?'光束数量':'齐射总弹数',physical?m.coverage:m.energyRays,physical?bm.coverage:bm.energyRays)]})
  radars.push({id:'survival',title:'生存与机动',note:'护盾、护甲减伤和吸血的50%半径参考分别为50、50%、10%；其余取基础值。',axes:[axis('hp','最大生命',a.maxHp,b.maxHp),axis('shield','护盾上限',shieldCap(a),shieldCap(b),50),axis('armor','护甲减伤',armorToMitigation(a.armor),armorToMitigation(b.armor),0.5,'%'),axis('speed','当前移速',a.speed,b.speed,b.speed,'/秒'),axis('lifesteal','吸血',a.lifesteal,b.lifesteal,0.1,'%'),axis('vision','视野倍率',a.vision,b.vision,b.vision,'倍')]})

@@ -6,6 +6,7 @@ import { validateQuickMode, validateTargets } from '../app/upgradePlans'
 export const IDLE_INPUT: Intent = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: false, placeMine: false, skills: [], autoAim: false }
 /** Consume edge events once while held buttons survive until the input heartbeat expires. */
 export function createRemoteInput() {
+  let consumed=-1,consumedTicks=0
   let sequence = -1, receivedAt = -Infinity, intent: Intent = IDLE_INPUT, offers = false
   return {
     accept: (packet: { sequence: number; round: number; intent: Intent; offers?: boolean }, round: number, now: number) => {
@@ -14,9 +15,10 @@ export function createRemoteInput() {
       intent = { ...packet.intent, skills: [...new Set([...(intent.skills ?? []), ...(packet.intent.skills ?? [])])], lockTarget: packet.intent.lockTarget === undefined ? intent.lockTarget : packet.intent.lockTarget }; return true
     },
     inspect: (now: number) => ({sequence,ageMs:Number.isFinite(receivedAt)?Math.max(0,now-receivedAt):null,expired:now-receivedAt>350,move:{...intent.move},fire:intent.fire===true,offers}),
-    read: (now: number): Intent => { if (now - receivedAt > 350) return IDLE_INPUT; const value = intent; intent = { ...intent, skills: [], lockTarget: undefined }; return value },
+    ack: (now:number) => ({sequence:consumed,ticks:consumedTicks,expired:now-receivedAt>350}),
+    read: (now: number): Intent => { if (now - receivedAt > 350) return IDLE_INPUT; if(consumed!==sequence){consumed=sequence;consumedTicks=0};consumedTicks++;const value = intent; intent = { ...intent, skills: [], lockTarget: undefined }; return value },
     offersVisible: (now: number) => offers && now - receivedAt <= 350,
-    reset: () => { intent = IDLE_INPUT; receivedAt = -Infinity; sequence = -1 },
+    reset: () => { consumed=-1;consumedTicks=0;intent = IDLE_INPUT; receivedAt = -Infinity; sequence = -1 },
   }
 }
 function direction(value: unknown) {

@@ -1,7 +1,7 @@
 import { combatAttrs } from '../combat'
 import { hasLineOfSight } from '../navigation'
 import { TICK_RATE } from '../types'
-import { ARSENAL_RULES, homingProfile, penetrationProfile, WEAPON_RULES, SNIPER_RULES } from '../rules'
+import { ELECTRIC_RULES,electricPeriod, ARSENAL_RULES, homingProfile, penetrationProfile, WEAPON_RULES, SNIPER_RULES } from '../rules'
 import { fireElectric, fireLaserPulse } from './energyWeapons'
 import type { Vec2 } from '../types'
 import type { Actor, World } from '../world'
@@ -17,9 +17,18 @@ function startCooldown(actor: Actor): void {
 }
 export function updateWeapons(world: World): void {
   for (const actor of world.actors.values()) {
-    if (!actor.alive) continue
+    if (!actor.alive) {actor.electricBudget=0;actor.electricTimer=0;continue}
     const attrs = combatAttrs(actor), angle = resolveAimAngle(world, actor)
     if (angle !== undefined) actor.aimAngle = angle
+    if(attrs.weapon===1){
+      actor.burstRemaining=0;actor.burstTimer=0;actor.fireCooldownTicks=0
+      if(actor.intent.fire!==false&&attrs.fireRate>0&&angle!==undefined){
+        actor.electricBudget=(actor.electricBudget??0)+1/electricPeriod(attrs.fireRate)
+        actor.electricTimer=(actor.electricTimer??0)-1
+        if(actor.electricTimer<=0){flushElectric(world,actor);actor.electricTimer=ELECTRIC_RULES.pulseTicks}
+      }else {flushElectric(world,actor);actor.electricTimer=0}
+      continue
+    }
     const active = actor.burstRemaining > 0 || (actor.laserTicks ?? 0) > 0
     if (actor.intent.automaticFire && actor.intent.fire === false && active) {
       actor.burstRemaining = 0; actor.burstTimer = 0; actor.laserTicks = 0; actor.laserTimer = 0; startCooldown(actor); continue
@@ -28,12 +37,11 @@ export function updateWeapons(world: World): void {
       actor.burstRemaining = 0; actor.burstTimer = 0; startCooldown(actor); continue
     }
     if (!active && actor.fireCooldownTicks > 0) actor.fireCooldownTicks--
-    if (attrs.weapon === 1 || attrs.weapon === 2) {
+    if (attrs.weapon === 2) {
       actor.burstRemaining = 0; actor.burstTimer = 0
       if (attrs.weapon === 2 && (actor.laserTicks ?? 0) > 0) { updateLaser(world, actor); continue }
       if (actor.fireCooldownTicks > 0 || attrs.fireRate <= 0 || actor.intent.fire === false || angle === undefined) continue
-      if (attrs.weapon === 1) { fireElectric(world, actor, angle); startCooldown(actor) }
-      else { actor.laserTicks = Math.max(1, Math.round(ARSENAL_RULES.laserTicks * attrs.burstCount)); actor.laserTimer = 0; actor.fireCooldownTicks = 0; updateLaser(world, actor) }
+      { actor.laserTicks = Math.max(1, Math.round(ARSENAL_RULES.laserTicks * attrs.burstCount)); actor.laserTimer = 0; actor.fireCooldownTicks = 0; updateLaser(world, actor) }
       continue
     }
     if (actor.burstTimer > 0) actor.burstTimer--
@@ -59,6 +67,11 @@ export function updateWeapons(world: World): void {
       else actor.fireCooldownTicks = 0
     }
   }
+}
+function flushElectric(world:World,actor:Actor):void {
+ const share=actor.electricBudget??0;if(share<=0)return
+ actor.electricBudget=0;world.traces=world.traces?.filter(t=>t.ownerId!==actor.id||t.kind!=='electric')
+ fireElectric(world,actor,actor.aimAngle,share)
 }
 function updateLaser(world: World, actor: Actor): void {
   actor.fireCooldownTicks = 0

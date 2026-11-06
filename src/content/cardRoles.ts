@@ -3,7 +3,7 @@ export const RETIRED_CARDS: Readonly<Record<string, string>> = {
   'shield-cap': 'shield', 'mine-detection': 'mine-radius', 'mine-field': 'mine-radius', 'field-power': 'deflect', 'core-stability': 'armor',
 }
 export const CARD_PURPOSES: Readonly<Record<string, string>> = {
-  'weapon-electric': '瞬时电弧连锁；穿透决定传导和剩余增伤。',
+  'weapon-electric': '持续电弧供能；攻速提高功率，穿透决定传导与剩余增伤。',
   'weapon-laser': '长程直线热射线，持续照射适合锁定路径。',
   'arc-coil': '提高电弧基础伤害，减缓跨跳衰减并强化剩余穿透。',
   'laser-focus': '收束激光散射，提高每次脉冲的伤害。',

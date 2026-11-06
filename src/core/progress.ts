@@ -135,6 +135,7 @@ export function reapplyAttrs(world: World, player: Actor, actorId?: number): voi
   player.attrs = next
   enforceMineLimits(world, player)
   if (previous.weapon !== next.weapon) {
+    player.electricBudget=0;player.electricTimer=0;
     if (player.burstRemaining > 0 || (player.laserTicks ?? 0) > 0) player.fireCooldownTicks = Math.max(player.fireCooldownTicks, Math.max(1, Math.round(60 / Math.max(0.001, previous.fireRate))))
     player.laserTicks = 0; player.laserTimer = 0; player.burstRemaining = 0; player.burstTimer = 0
   }

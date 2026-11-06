@@ -8,16 +8,16 @@ import type { PurchasePlan } from '../app/upgradePlans'
 import type { PurchaseNotice } from '../app/purchaseQueue'
 import { record, integer } from '../core/serialization'
 import { cleanAction, cleanIntent } from './control'
-export const SERVER_PROTOCOL = 'prism-server-3'
+export const SERVER_PROTOCOL = 'prism-server-4'
 export const NETWORK_INTERVAL = 100
 export type RoomMode = 'dungeon' | 'endless' | 'duel'
 export type RoomRole = 'owner' | 'moderator' | 'player'
 export interface RoomOptions { name: string; mode: RoomMode; duelMode: DuelMode; coop: CoopConfig; hidden: boolean; password: string }
 export interface RoomMember { userId: string; name: string; actorId: number; role: RoomRole; connected: boolean; ready: boolean }
 export interface RoomSummary { id: string; name: string; mode: RoomMode; duelMode: DuelMode; count: number; capacity: number; locked: boolean; running: boolean }
-export interface RoomInfo extends RoomSummary { waiting: boolean; startCountdown: number; epoch: number; members: RoomMember[]; ownerId: string; hidden: boolean; config: CoopConfig }
+export interface RoomInfo extends RoomSummary { inputAck?: {sequence:number;ticks:number;expired:boolean};waiting: boolean; startCountdown: number; epoch: number; members: RoomMember[]; ownerId: string; hidden: boolean; config: CoopConfig }
 export interface PlayState {
- waiting: boolean; startCountdown: number; snapshot: Snapshot; attrs: AttrSet; purchases: Purchase[]; plan: PurchasePlan; notice: PurchaseNotice | null
+ inputAck?: {sequence:number;ticks:number;expired:boolean};waiting: boolean; startCountdown: number; snapshot: Snapshot; attrs: AttrSet; purchases: Purchase[]; plan: PurchasePlan; notice: PurchaseNotice | null
  knownSkills: SkillView[]; restrictions?: Record<string,string>; paused: boolean; label: string; mode: RoomMode
  duel?: Omit<DuelState,'plans'|'notices'>
 }

@@ -19,7 +19,7 @@ export function createAudioEngine() {
   let previousTraces = new Set<string>()
   let lastHealth: number | undefined
   let ended = false
-  let lastShotTime = -1
+  const lastAttackTimes:Record<string,number>={shot:-1,electric:-1,laser:-1}
 
   const tone = (frequency: number, duration: number, volume: number, type: OscillatorType,
     when: number, bus: GainNode, endFrequency = frequency) => {
@@ -53,9 +53,9 @@ export function createAudioEngine() {
     const now = context.currentTime
     const play = (f: number, d: number, v: number, wave: OscillatorType = 'sine', end = f, delay = 0) =>
       tone(f, d, v, wave, now + delay, effects!, end)
-    if (sound === 'shot') { if (now - lastShotTime < 0.045) return; lastShotTime = now; play(180, 0.11, 0.24, 'triangle', 60); hiss(now,0.08,3000,900,0.18) }
-    else if (sound === 'electric') { if(now-lastShotTime<0.09)return;lastShotTime=now; for(let i=0;i<3;i++)hiss(now+i*0.035,0.13,5600,2500,0.24) }
-    else if (sound === 'laser') { if(now-lastShotTime<0.09)return;lastShotTime=now;play(3200,0.16,0.10,'sine',850);hiss(now,0.18,6500,1400,0.16) }
+    if (sound === 'shot') { if (now - lastAttackTimes.shot! < 0.045) return; lastAttackTimes.shot = now; play(180, 0.11, 0.24, 'triangle', 60); hiss(now,0.08,3000,900,0.18) }
+    else if (sound === 'electric') { if(now-lastAttackTimes.electric!<0.09)return;lastAttackTimes.electric=now;hiss(now,0.15,5600,2800,0.24) }
+    else if (sound === 'laser') { if(now-lastAttackTimes.laser!<0.09)return;lastAttackTimes.laser=now;play(3200,0.16,0.10,'sine',850);hiss(now,0.18,6500,1400,0.16) }
     else if (sound === 'hit') play(1500,0.04,0.035,'sine',900)
     else if (sound === 'coreHit') { play(1200, 0.15, 0.16); play(1800, 0.1, 0.09, 'sine', 1800, 0.04) }
     else if (sound === 'explosion') { play(110, 0.32, 0.32, 'sawtooth', 24); play(47, 0.36, 0.3) }
@@ -75,8 +75,8 @@ export function createAudioEngine() {
 
   const applyVolume = () => {
     if (!context || !music || !effects) return
-    music.gain.setTargetAtTime(settings?.music === false ? 0 : paused ? 0.075 : 0.22, context.currentTime, 0.1)
-    effects.gain.setTargetAtTime(settings?.sfx === false ? 0 : 0.6, context.currentTime, 0.04)
+    music.gain.setTargetAtTime(settings?.music === false ? 0 : (paused?0.15:0.44)*(settings?.musicVolume??0.5), context.currentTime, 0.1)
+    effects.gain.setTargetAtTime(settings?.sfx === false ? 0 : (settings?.sfxVolume??0.65)*0.6/0.65, context.currentTime, 0.04)
   }
 
   const unlock = () => {
@@ -158,7 +158,7 @@ export function createAudioEngine() {
         }
       }
       previousEffects = keys
-      const player = snapshot.actors.find((actor) => actor.team === 'player')
+      const player = snapshot.actors.find(actor=>actor.local===true)??snapshot.actors.find((actor) => actor.team === 'player')
       if (player) {
         const health = player.hp + player.shield
         if (lastHealth !== undefined && health < lastHealth) notify('hurt')

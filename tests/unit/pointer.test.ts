@@ -36,7 +36,17 @@ describe('independent shooting and target lock pointer controls', () => {
     const input = createPointerInput(surface as HTMLElement)
     press(surface, 0, 'touch')
     expect(input.firing()).toBe(false); expect(input.position()).toBeNull()
+    expect(input.consumeLock!()).toBeUndefined()
+    windowEvents.dispatchEvent(Object.assign(new Event('pointerup'), { button:0,pointerType:'touch',clientX:300,clientY:200 }))
     expect(input.consumeLock!()).toEqual({ x: 300, y: 200 }); input.dispose()
+  })
+  it('ignores drags, cancellation and other fingers when selecting a target',()=>{
+    const input=createPointerInput(surface as HTMLElement)
+    const touch=(type:string,id:number,x=300,y=200)=>Object.assign(new Event(type),{pointerType:'touch',pointerId:id,button:0,clientX:x,clientY:y})
+    surface.dispatchEvent(touch('pointerdown',1));windowEvents.dispatchEvent(touch('pointerup',2));windowEvents.dispatchEvent(touch('pointerup',1))
+    expect(input.consumeLock!()).toEqual({x:300,y:200})
+    surface.dispatchEvent(touch('pointerdown',1));surface.dispatchEvent(touch('pointermove',1,340));windowEvents.dispatchEvent(touch('pointerup',1,340));expect(input.consumeLock!()).toBeUndefined()
+    surface.dispatchEvent(touch('pointerdown',1));surface.dispatchEvent(touch('pointercancel',1));windowEvents.dispatchEvent(touch('pointerup',1));expect(input.consumeLock!()).toBeUndefined();input.dispose()
   })
   it('releases both queued selection and held fire on blur and removes handlers on dispose', () => {
     const input = createPointerInput(surface as HTMLElement)

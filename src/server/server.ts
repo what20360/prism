@@ -27,7 +27,7 @@ export async function startPrismServer(options:ServerOptions) {
  const autoSave=createAutoSaveSchedule(),autoMode=options.autoSaveMode??'room',autoSeconds=options.autoSaveSeconds??60
  const progressKey=()=>[...rooms.values()].filter(r=>r.coop).map(r=>r.id+':'+r.epoch+':'+r.coop!.started()+':'+r.coop!.progress()).sort().join('|')||null
  const saveProgress=async()=>{const key=progressKey();if(autoSave.due(key,autoMode,autoSeconds,Date.now())){await persist();if(!persistError&&key)autoSave.saved(key,Date.now())}}
- const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.26'})
+ const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.27'})
  const validHost=(req:IncomingMessage)=>{try{return localNames.has(new URL('http://'+req.headers.host).hostname)}catch{return false}}
  const validOrigin=(req:IncomingMessage)=>{const origin=req.headers.origin;if(!origin)return true;return origins.has(origin)||origin===`http://${req.headers.host}`||origin===`https://${req.headers.host}`}
  const discovery=options.discovery===false?undefined:createLanDiscovery(info,()=>port)
@@ -141,7 +141,7 @@ export async function startPrismServer(options:ServerOptions) {
   if(tickRoom(room,inputs)){log('info','room.phase_changed',{roomId:room.id,waiting:isWaiting(room),epoch:room.epoch});for(const c of clients)if(c.roomId===room.id){c.input.reset();c.inputEpoch=room.epoch};changed(room);void saveProgress()}
   for(const member of room.members)if(!member.connected&&now-(droppedAt.get(member.userId)??now)>60000){if(room.duel&&['countdown','fighting'].includes(room.duel.state().phase))room.duel.forfeit((member.actorId-1) as 0|1);if(room.ownerId===member.userId){const next=room.members.find(m=>m.connected&&m.role==='moderator')??room.members.find(m=>m.connected);if(next){transferOwner(room,next);changed(room)}}}
  }}
- const broadcast=(now=Date.now())=>{for(const c of clients){if(!c.user||!c.roomId||c.ws.readyState!==WebSocket.OPEN||c.ws.bufferedAmount>128*1024)continue;const room=rooms.get(c.roomId);if(!room)continue;const next=JSON.stringify(roomInfo(room));if(next!==c.lastRoom){send(c,{type:'room',room:JSON.parse(next) as RoomInfo});c.lastRoom=next};try{send(c,c.encoder.encode(playState(room,c.user.id),now))}catch(error){log('error','sync.failed',{connection:c.id,userId:c.user.id,roomId:room.id,error});send(c,{type:'error',message:'同步失败，请离开后重试'})}}}
+ const broadcast=(now=Date.now())=>{for(const c of clients){if(!c.user||!c.roomId||c.ws.readyState!==WebSocket.OPEN||c.ws.bufferedAmount>128*1024)continue;const room=rooms.get(c.roomId);if(!room)continue;const next=JSON.stringify(roomInfo(room));if(next!==c.lastRoom){send(c,{type:'room',room:JSON.parse(next) as RoomInfo});c.lastRoom=next};try{send(c,c.encoder.encode({...playState(room,c.user.id),inputAck:c.input.ack(now)},now))}catch(error){log('error','sync.failed',{connection:c.id,userId:c.user.id,roomId:room.id,error});send(c,{type:'error',message:'同步失败，请离开后重试'})}}}
  const inspectPlayer=(query:string)=>{
   const matches=[...byUser.entries()].filter(([id])=>id===query||id.startsWith(query));if(matches.length!==1)throw new Error(matches.length?'玩家ID前缀不唯一':'玩家不在线')
   const [userId,c]=matches[0]!;return {userId,name:c.user!.name,roomId:c.roomId,connection:c.id,received:c.receivedInputs,accepted:c.acceptedInputs,rejected:c.rejectedInputs,bytesOut:c.bytesOut,...c.input.inspect(Date.now())}

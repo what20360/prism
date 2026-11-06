@@ -28,21 +28,15 @@ export function updateMovement(world: World, dt: number = TICK_DT): void {
  * which gives free wall sliding without a physics engine.
  */
 function moveActor(world: World, actor: Actor, dx: number, dy: number): void {
-  const { bounds, walls } = world.room
-  const r = actor.radius
-  let { x, y } = actor.pos
+  actor.pos = moveCircle(actor.pos, actor.radius, dx, dy, world.room.bounds, world.room.walls)
+}
 
-  if (dx !== 0) {
-    const nextX = clamp(x + dx, bounds.x + r, bounds.x + bounds.width - r)
-    if (!collidesAny(nextX, y, r, walls)) x = nextX
-  }
-
-  if (dy !== 0) {
-    const nextY = clamp(y + dy, bounds.y + r, bounds.y + bounds.height - r)
-    if (!collidesAny(x, nextY, r, walls)) y = nextY
-  }
-
-  actor.pos = { x, y }
+/** Shared collision geometry for authoritative movement and display-only client prediction. */
+export function moveCircle(pos:{x:number;y:number},r:number,dx:number,dy:number,bounds:Rect,walls:readonly Rect[]):{x:number;y:number} {
+ let {x,y}=pos
+ if(dx!==0){const next=clamp(x+dx,bounds.x+r,bounds.x+bounds.width-r);if(!collidesAny(next,y,r,walls))x=next}
+ if(dy!==0){const next=clamp(y+dy,bounds.y+r,bounds.y+bounds.height-r);if(!collidesAny(x,next,r,walls))y=next}
+ return {x,y}
 }
 
 export function collidesAny(x: number, y: number, radius: number, walls: readonly Rect[]): boolean {
