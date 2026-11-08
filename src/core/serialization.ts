@@ -64,10 +64,11 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
   const numbers = (r: RecordData, names: string, min = 0) => { for (const key of names.split(' ')) finite(r[key], min) }
   const spawn = (value: unknown) => {
     const s = record(value); vector(s.pos); validateAttrs(s.attrs, attrKeys)
-    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer', 'weaver', 'silk-worker', 'silk-bomber', 'charger', 'relay']);
+    oneOf(s.tier, ['normal', 'elite', 'boss']); oneOf(s.behavior, ['chase', 'turret', 'boss', 'skirmish', 'bomber', 'lancer', 'weaver', 'silk-worker', 'silk-bomber', 'charger', 'relay', 'blocker', 'summoner']);
     if (s.attackType !== undefined) oneOf(s.attackType, ['physical', 'electric', 'heat'])
     if (s.traits !== undefined) { const traits = array(s.traits, 6); for (const t of traits) oneOf(t, ['bark', 'swift', 'bulwark', 'storm', 'cinder', 'volatile']); if (new Set(traits).size !== traits.length) throw new Error('重复词条') } finite(s.contactDamage, 0); bool(s.hasCore)
     if (s.name !== undefined) text(s.name)
+    if (s.summoned !== undefined) bool(s.summoned)
     if (s.rewardMultiplier !== undefined) finite(s.rewardMultiplier, 0, 1)
     if (s.damageIframesTicks !== undefined) integer(s.damageIframesTicks, 0, 600)
     return s
@@ -83,6 +84,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     const patrol = array(design.patrol, 64); if (!patrol.length) throw new Error('关卡巡游点为空')
     patrol.forEach(vector); array(design.mineAnchors, 6).forEach(vector); rect(design.exit); if (design.skipExit !== undefined) rect(design.skipExit)
   }
+  if(room.objective!==undefined){const o=record(room.objective);oneOf(o.kind,['gate','mine']);oneOf(o.phase,['await','warning','engaged','complete']);const nodes=array(o.nodes,2);if(nodes.length!==(o.kind==='gate'?2:1))throw new Error('目标节点无效');nodes.forEach(vector);for(const sp of array(o.spawns,200))spawn(sp);finite(o.reward,0,625);integer(o.timer,0,90);integer(o.hold,0,120);if(o.holder!==null)integer(o.holder,1);integer(o.selected,0,nodes.length-1);for(const id of array(o.targets,200))integer(id,1);bool(o.claimed)}
   if (room.exit !== null) rect(room.exit)
   validateAttrs(d.basePlayerAttrs, attrKeys)
   const actors = array(d.actors, 2000)
@@ -107,6 +109,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
       for (const key of ['pursuing', 'dashUsed', 'task']) bool(s[key]); integer(s.expiresAt)
       if (a.behavior !== (s.role === 'worker' ? 'silk-worker' : 'silk-bomber')) throw new Error('蜘蛛状态归属错误')
     }
+    for(const key of ['blocker','summoner'])if(a[key]!==undefined){const v=record(a[key]);if(a.behavior!==key)throw new Error('支援状态归属错误');oneOf(v.phase,['windup','cooldown']);integer(v.ticks,0,240);vector(v.target);if(key==='summoner')integer(v.charges,0,2)}
     if(a.charge!==undefined){const c=record(a.charge);if(a.behavior!=='charger')throw new Error('冲刺状态归属错误');oneOf(c.phase,['windup','dash','recovery','cooldown']);integer(c.ticks,0,150);finite(c.angle);vector(c.last)}
     for (const key of ['shockTicks', 'bombTicks', 'windupTicks', 'laserTicks', 'laserTimer']) if (a[key] !== undefined) integer(a[key], 0, 1000000)
     if (a.windupAngle !== undefined) finite(a.windupAngle)
@@ -129,6 +132,7 @@ export function restoreWorld(value: unknown, registry: CardRegistry, economy: Ec
     if (Number(waves.index) + remaining.length !== waves.total) throw new Error('波次进度无效')
     for (const wave of remaining) { const enemies = array(wave, 200); if (!enemies.length) throw new Error('敌人波次为空'); for (const spec of enemies) spawn(spec) }
   }
+  if(d.hazards!==undefined)for(const value of array(d.hazards,4)){const h=entity(value);integer(h.ownerId,1);vector(h.pos);finite(h.radius,0,1000);finite(h.damage,0);integer(h.ttl,1,180);finite(h.rewardMultiplier,0,1)}
   for (const value of array(d.projectiles, 4000)) {
     const p = entity(value); if (p.damageType !== undefined) oneOf(p.damageType, ['physical', 'electric', 'heat']); oneOf(p.team, ['player', 'enemy', 'neutral']); integer(p.ownerId, 1); vector(p.pos); vector(p.prevPos); vector(p.vel)
     numbers(p, 'radius damage penetration innerMult travelLeft'); integer(p.pierceLeft)

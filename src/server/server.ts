@@ -27,7 +27,7 @@ export async function startPrismServer(options:ServerOptions) {
  const autoSave=createAutoSaveSchedule(),autoMode=options.autoSaveMode??'room',autoSeconds=options.autoSaveSeconds??60
  const progressKey=()=>[...rooms.values()].filter(r=>r.coop).map(r=>r.id+':'+r.epoch+':'+r.coop!.started()+':'+r.coop!.progress()).sort().join('|')||null
  const saveProgress=async()=>{const key=progressKey();if(autoSave.due(key,autoMode,autoSeconds,Date.now())){await persist();if(!persistError&&key)autoSave.saved(key,Date.now())}}
- const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.28'})
+ const info=():ServerInfo=>({protocol:SERVER_PROTOCOL,serverId:store.data.serverId,name:options.name??'PRISM 服务器',createPolicy:policy,rooms:rooms.size,version:'1.29'})
  const validHost=(req:IncomingMessage)=>{try{return localNames.has(new URL('http://'+req.headers.host).hostname)}catch{return false}}
  const validOrigin=(req:IncomingMessage)=>{const origin=req.headers.origin;if(!origin)return true;return origins.has(origin)||origin===`http://${req.headers.host}`||origin===`https://${req.headers.host}`}
  const discovery=options.discovery===false?undefined:createLanDiscovery(info,()=>port)

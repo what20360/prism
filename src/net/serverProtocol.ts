@@ -8,7 +8,7 @@ import type { PurchasePlan } from '../app/upgradePlans'
 import type { PurchaseNotice } from '../app/purchaseQueue'
 import { record, integer } from '../core/serialization'
 import { cleanAction, cleanIntent } from './control'
-export const SERVER_PROTOCOL = 'prism-server-5'
+export const SERVER_PROTOCOL = 'prism-server-6'
 export const NETWORK_INTERVAL = 100
 export type RoomMode = 'dungeon' | 'endless' | 'duel'
 export type RoomRole = 'owner' | 'moderator' | 'player'

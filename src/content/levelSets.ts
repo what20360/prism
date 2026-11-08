@@ -36,6 +36,8 @@ export const STANDARD_WALLS: readonly (readonly { x: number; y: number; width: n
     { x: 550, y: 900, width: 170, height: 350 }, { x: 2480, y: 900, width: 170, height: 350 },
     { x: 1450, y: 790, width: 300, height: 120 },
   ],
+  [ { x: 1250, y: 500, width: 120, height: 600 }, { x: 1830, y: 500, width: 120, height: 600 }, { x: 1450, y: 700, width: 300, height: 120 } ],
+  [ { x: 650, y: 380, width: 160, height: 340 }, { x: 2390, y: 380, width: 160, height: 340 }, { x: 1450, y: 560, width: 300, height: 140 } ],
 ]
 
 export interface LevelSet { readonly id: string; readonly title: string; readonly kind: 'combat' | 'boss'; readonly modes: readonly ('dungeon' | 'endless')[]; room(): RoomTemplate }
@@ -87,7 +89,7 @@ export function silkDenRoom(): RoomTemplate {
   return { id: 'silk-den', kind: 'boss', bounds: LEVEL_BOUNDS, walls: wallsOutsideFloor(LEVEL_BOUNDS, floor), entry, design,
     spawns: [{ ...ENEMIES.weaver!, pos: coreCentre }] }
 }
-const names = [['prism-gallery', '折光回廊'], ['cross-bastion', '交错屏障'], ['four-pillars', '四柱工坊'], ['relay-station', '折光继电站'], ['split-foundry', '交错铸造场']] as const
+const names = [['prism-gallery', '折光回廊'], ['cross-bastion', '交错屏障'], ['four-pillars', '四柱工坊'], ['relay-station', '折光继电站'], ['split-foundry', '交错铸造场'], ['cross-gate', '交错闸廊'], ['unstable-mine', '不稳定矿室']] as const
 export const LEVEL_SETS: readonly LevelSet[] = [
   ...names.map(([id, title], index): LevelSet => ({ id, title, kind: 'combat', modes: ['dungeon', 'endless'], room: () => ({ id, kind: 'combat', bounds: LEVEL_BOUNDS, walls: STANDARD_WALLS[index]!, entry: { x: 1600, y: 1560 }, spawns: [],
     design: { id, title, theme: 'prism', patrol: [{ x: 400, y: 400 }, { x: 2800, y: 400 }, { x: 1600, y: 1200 }], mineAnchors: [], exit: { x: 1480, y: 60, width: 240, height: 140 } } }) })),

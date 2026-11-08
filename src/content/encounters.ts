@@ -1,9 +1,9 @@
 import {nextInt,type Rng} from '../core/rng'
 export const ENCOUNTERS = [
- {id:'flank',name:'掩体夹击',roles:['stalker','turret','charger','drifter']},
- {id:'escort',name:'重甲护送',roles:['bulwark','lancer','drifter','turret']},
- {id:'volatile',name:'引爆窗口',roles:['bomber','stalker','drifter','turret']},
- {id:'arc',name:'电弧拉扯',roles:['arc-rider','charger','drifter','stalker']},
+ {id:'flank',name:'掩体夹击',roles:['stalker','turret','charger','blocker','drifter']},
+ {id:'escort',name:'重甲护送',roles:['bulwark','lancer','summoner','drifter','turret']},
+ {id:'volatile',name:'引爆窗口',roles:['bomber','summoner','stalker','drifter','turret']},
+ {id:'arc',name:'电弧拉扯',roles:['arc-rider','charger','blocker','drifter','stalker']},
 ] as const
 export type EncounterId=typeof ENCOUNTERS[number]['id']
 export const encounterName=(id:string|undefined)=>ENCOUNTERS.find(e=>e.id===id)?.name

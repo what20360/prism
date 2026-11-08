@@ -1,6 +1,6 @@
 # 05 · 权威服务器、身份与显示差量
 
-当前实现：v1.28，2026-11-06。数值存档版本为7，实时协议为 `prism-server-5`。新遭遇、设备与状态同步见[第九篇](09-encounters-and-enemies.md)。新增输入执行确认与显示预测详见[第八篇](08-responsive-controls-and-electric.md)。玩家运行说明见[服务器指南](../server-guide.md)。此前手工信令、RTC通道与浏览器房主模拟已经移除，本篇描述现在的实现。
+当前实现：v1.29，2026-11-08。数值存档版本为7，实时协议为 `prism-server-6`。目标房与支援敌人同步见[第十篇](10-objectives-and-support.md)。新遭遇、设备与状态同步见[第九篇](09-encounters-and-enemies.md)。新增输入执行确认与显示预测详见[第八篇](08-responsive-controls-and-electric.md)。玩家运行说明见[服务器指南](../server-guide.md)。此前手工信令、RTC通道与浏览器房主模拟已经移除，本篇描述现在的实现。
 
 ## 1. 模块边界
 

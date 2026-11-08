@@ -30,6 +30,7 @@ export function toSkillView(actor: Actor, id: SkillId | null): SkillView {
 }
 export interface ActorView {
   readonly supportRelayId?:number
+  readonly supportWarning?: {readonly pos:{x:number;y:number};readonly kind:'blocker'|'summoner';readonly ticks:number}
   readonly channeling?:boolean
   readonly stowed: boolean
   readonly shieldDisabledSeconds: number
@@ -154,6 +155,8 @@ export interface HudStats {
 
 /** Read-only view handed to render/ and ui/. Never mutated by consumers. */
 export interface Snapshot {
+  readonly objective?: {readonly kind:'gate'|'mine';readonly nodes:readonly {x:number;y:number}[];readonly phase:'await'|'warning'|'engaged'|'complete';readonly timer:number;readonly hold:number;readonly spawns:readonly {x:number;y:number;radius:number}[]}
+  readonly hazards?: readonly {readonly pos:{x:number;y:number};readonly radius:number;readonly ttl:number}[]
   readonly coop?: World['coop']
   readonly design?: RoomDesign
   readonly traces?: readonly EnergyTrace[]
@@ -189,6 +192,7 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
     const attrs = combatAttrs(actor), relay=relays.get(actor.id)
     actors.push({
       supportRelayId:relay?.id,
+      supportWarning:actor.blocker?.phase==='windup'?{kind:'blocker',pos:{...actor.blocker.target},ticks:actor.blocker.ticks}:actor.summoner?.phase==='windup'?{kind:'summoner',pos:{...actor.summoner.target},ticks:actor.summoner.ticks}:undefined,
       channeling:actor.alive&&attrs.weapon===1&&actor.intent.fire===true,stowed: isOutOfCombat(actor), shieldDisabledSeconds: (actor.shieldDisabledTicks ?? 0) / TICK_RATE,
       block: attrs.block, physicalResist: attrs.physicalResist, electricResist: attrs.electricResist, heatResist: attrs.heatResist,
       weapon: attrs.weapon, damageType: actor.attackType ?? (attrs.weapon === 1 ? 'electric' : attrs.weapon === 2 ? 'heat' : 'physical'),
@@ -290,6 +294,8 @@ export function toSnapshot(world: World, viewerId?: number): Snapshot {
   }))
 
   return {
+    objective:world.room.objective?{kind:world.room.objective.kind,nodes:world.room.objective.nodes,phase:world.room.objective.phase,timer:world.room.objective.timer,hold:world.room.objective.hold,spawns:world.room.objective.phase==='warning'?world.room.objective.spawns.map(sp=>({x:world.room.objective!.kind==='gate'&&world.room.objective!.selected===1?world.room.bounds.x+world.room.bounds.width-(sp.pos.x-world.room.bounds.x):sp.pos.x,y:sp.pos.y,radius:sp.attrs.radius})):[]}:undefined,
+    hazards:world.hazards?.map(h=>({pos:{...h.pos},radius:h.radius,ttl:h.ttl}))??[],
     traces: world.traces?.map((t) => ({ ...t, from: { ...t.from }, to: { ...t.to }, team: viewTeam(t.team) })) ?? [],
     wave: world.waves ? { index: world.waves.index, total: world.waves.total, countdown: world.waves.countdown,
       spawns: world.waves.countdown ? (world.waves.remaining[0] ?? []).map((s) => ({ ...s.pos, radius: s.attrs.radius })) : [] } : undefined,

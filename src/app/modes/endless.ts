@@ -1,3 +1,4 @@
+import { buildRoomObjective } from '../../content/objectives'
 import { ENEMIES } from '../../content/enemies'
 import { endlessEncounter, encounterEnemy, RELAY_ANCHORS, type EncounterId } from '../../content/encounters'
 import { withMonsterTraits, clampMonsterStats } from '../../content/monsterTraits'
@@ -94,13 +95,13 @@ export function createEndlessMode(): EndlessMode {
     rng = createRng((seed ^ Math.imul(floor, 0x9e3779b1)) >>> 0)
     population = Math.ceil(endlessCount(floor) * (world.coop ? 1+0.7*(Math.max(1,world.coop.members.filter(m=>m.connected).length)-1) : 1)); if(world.coop)world.coop.roomPartySize=Math.max(1,world.coop.members.filter(m=>m.connected).length); respawned = 0; queue = []
     const selected = pickLevelSet(rng, 'endless', floor < 5 ? 'combat' : undefined), encounter=endlessEncounter(seed,floor)
-    const allowed=['drifter','turret','stalker','bomber',...(floor>=2?['arc-rider','charger']:[]),...(floor>=3?['bulwark','lancer','warden']:[])]
+    const allowed=['drifter','turret','stalker','bomber',...(floor>=2?['arc-rider','charger','blocker']:[]),...(floor>=3?['bulwark','lancer','warden','summoner']:[])]
     currentEntry = selected.entry; currentPatrol = selected.design?.patrol ?? []
     const geometry = { ...selected, design:selected.design?{...selected.design,encounter}:undefined, kind: 'combat' as const, id: `endless-${floor}` }, walls = geometry.walls
-    let chargers=0
+    const specialCounts:Record<string,number>={}
     const occupied:{pos:Vec2;radius:number}[]=[]
     const spawns = Array.from({ length: population }, (_, index) => {
-      let type=encounterEnemy(encounter,Math.max(0,index-(selected.design?.id==='relay-station'?2:0)),allowed);if(type==='charger'&&chargers>=2)type='drifter';if(type==='charger')chargers++
+      let type=encounterEnemy(encounter,Math.max(0,index-(selected.design?.id==='relay-station'?2:0)),allowed);if(['charger','blocker','summoner'].includes(type)){if((specialCounts[type]??0)>=2)type='drifter';else specialCounts[type]=(specialCounts[type]??0)+1}
       const spec = rollEndlessEnemy(floor, rng, floor%5===0, type)
       if(selected.design?.id==='relay-station'&&index<2){const relay=ENEMIES.relay!,pos=RELAY_ANCHORS[index]!;occupied.push({pos,radius:relay.attrs.radius});return {...relay,attrs:{...relay.attrs,maxHp:Math.min(spec.attrs.maxHp,90*1.18**(floor-1))},pos,rewardMultiplier:0}}
       if (index === 0 && selected.design?.id === 'silk-den') {
@@ -116,7 +117,8 @@ export function createEndlessMode(): EndlessMode {
     })
     const scale = finite(1.13 ** (floor - 1))
     const pickups = createRoomPickups(rng, geometry).map((pickup) => ({ ...pickup, value: pickup.kind === 'shard' ? finite(pickup.value * scale) : pickup.value }))
-    applyRoom(world, { ...geometry, spawns, pickups })
+    const objective=floor%5===0?undefined:buildRoomObjective(selected.design?.id,spawns,floor-1)
+    applyRoom(world, { ...geometry, spawns, pickups, objective })
     if (floor % 5 === 0) world.room.exit = exitForRoom(world, true)
   }
   const advance = (world: World) => { floor += 1; enter(world) }
@@ -129,15 +131,15 @@ export function createEndlessMode(): EndlessMode {
       const open = floor % 5 === 0
       for (const [id, actor] of world.actors) if (actor.team === 'enemy' && !actor.alive) {
         world.actors.delete(id)
-        if (open && !actor.spider && actor.behavior!=='relay') queue.push(world.tick + ENDLESS_RULES.respawnTicks)
+        if (open && !actor.spider && !actor.summoned && actor.behavior!=='relay') queue.push(world.tick + ENDLESS_RULES.respawnTicks)
       }
       if (!open) return
       const due = queue.filter((tick) => tick <= world.tick); queue = queue.filter((tick) => tick > world.tick)
       for (let i = 0; i < due.length; i++) {
         const encounter=world.room.design?.encounter as EncounterId|undefined
-        const allowed=['drifter','turret','stalker','bomber','arc-rider','charger','bulwark','lancer','warden']
+        const allowed=['drifter','turret','stalker','bomber','arc-rider','charger','blocker','summoner','bulwark','lancer','warden']
         let type=encounter?encounterEnemy(encounter,respawned,allowed):undefined
-        if(type==='charger'&&[...world.actors.values()].filter(a=>a.alive&&a.behavior==='charger').length>=2)type='drifter'
+        if(['charger','blocker','summoner'].includes(type??'')&&[...world.actors.values()].filter(a=>a.alive&&a.behavior===type).length>=2)type='drifter'
         const spec = rollEndlessEnemy(floor, rng, true,type)
         respawned += 1
         const players=[...world.actors.values()].filter(a=>a.alive&&a.team==='player').map(a=>a.pos),occupied=[...world.actors.values()].filter(a=>a.alive).map(a=>({pos:a.pos,radius:a.radius}))
@@ -148,7 +150,7 @@ export function createEndlessMode(): EndlessMode {
     },
     state: (world) => ({ seed, floor, open: floor % 5 === 0, initialCount: population-(world.room.design?.id==='relay-station'?2:0),
       alive: [...world.actors.values()].filter((actor) => actor.team === 'enemy' && actor.alive && actor.behavior!=='relay').length,
-      pending: world.pendingSpawns.filter(s=>s.behavior!=='relay').length + queue.length, respawned, nextReward: endlessReward(respawned + 1, population),
+      pending: world.pendingSpawns.filter(s=>s.behavior!=='relay').length + queue.length + (world.room.objective && (world.room.objective.phase==='warning'||world.room.objective.kind==='gate'&&world.room.objective.phase==='await') ? world.room.objective.spawns.length : 0), respawned, nextReward: endlessReward(respawned + 1, population),
       rngState: rng.state, spawnQueue: [...queue] }),
   }
 }

@@ -1,3 +1,4 @@
+import { buildRoomObjective } from './objectives'
 import type { RoomSpec } from '../core/dungeon'
 import type { Rect } from '../core/types'
 import type { EnemySpawnSpec } from '../core/world'
@@ -79,7 +80,7 @@ function legacyDungeon(): RoomSpec[] {
   for (let floor = 0; floor < 5; floor += 1) {
     for (let room = 0; room < 5; room += 1) {
       const id = `f${floor + 1}r${room + 1}`
-      const walls = WALL_SETS[(floor * 5 + room) % WALL_SETS.length] ?? []
+      const walls = WALL_SETS[(floor * 5 + room) % 5] ?? []
 
       if (room === 0) {
         rooms.push(safeRoom(id))
@@ -101,8 +102,8 @@ export const ROOMS_PER_FLOOR = 5
 export interface DungeonOptions { seed: number; difficulty: DungeonDifficulty }
 export function dungeonEnemyPalette(difficulty:DungeonDifficulty,depth:number):string[] {
  const types=['drifter','turret','stalker','bomber']
- if(difficulty>=2||depth>=0.8)types.push('arc-rider','charger')
- if(difficulty>=3||depth>=1.2)types.push('bulwark')
+ if(difficulty>=2||depth>=0.8)types.push('arc-rider','charger','blocker')
+ if(difficulty>=3||depth>=1.2)types.push('bulwark','summoner')
  if(difficulty>=4||depth>=2)types.push('lancer','warden')
  return types
 }
@@ -112,7 +113,7 @@ function populateWave(original: readonly EnemySpawnSpec[], count: number, depth:
     const originalSource = original[i % original.length]!
     const options = dungeonEnemyPalette(difficulty,depth)
     let source = relays && i < RELAY_ANCHORS.length ? spawn('relay',RELAY_ANCHORS[i]!) : encounter ? spawn(encounterEnemy(encounter,i-(relays?2:0),options),originalSource.pos) : originalSource.tier !== 'boss' && !(originalSource.tier==='elite'&&i===0) && nextFloat(rng) < 0.78 ? spawn(options[nextInt(rng, 0, options.length)]!, originalSource.pos) : originalSource
-    if(source.behavior==='charger'&&placed.filter(s=>s.behavior==='charger').length>=2)source=spawn('drifter',originalSource.pos)
+    if(['charger','blocker','summoner'].includes(source.behavior)&&placed.filter(s=>s.behavior===source.behavior).length>=2)source=spawn('drifter',originalSource.pos)
     const factor = difficulty === 1 ? 1 : 0.88 + nextFloat(rng) * 0.24
     const attrs = { ...source.attrs, maxHp: source.attrs.maxHp * profile.hp * factor, damage: source.attrs.damage * profile.damage * factor,
       armor: source.attrs.armor + profile.armor, block: source.attrs.block + 0.7 * (difficulty - 1) * (1 + depth / 3), speed: source.attrs.speed * profile.speed, bulletSpeed: source.attrs.bulletSpeed * profile.bulletSpeed,
@@ -160,6 +161,7 @@ export function buildDungeon(options?: DungeonOptions): RoomSpec[] {
         } else waves.push(populateWave(guardSpawns(4), Math.ceil(3 * profile.count), depth, difficulty, walls, rng))
       } else waves.push(populateWave(room.spawns, count, depth, difficulty, walls, rng,[],room.entry,encounter,wave===0&&selected.design?.id==='relay-station'))
     }
-    return { ...room, design: selected.design?{...selected.design,encounter}:undefined, walls, spawns: waves[0]!, waves: waves.slice(1) }
+    const objective=buildRoomObjective(selected.design?.id,waves[0]!,depth)
+    return { ...room, objective, design: selected.design?{...selected.design,encounter}:undefined, walls, spawns: waves[0]!, waves: waves.slice(1) }
   })
 }

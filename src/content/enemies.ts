@@ -162,6 +162,8 @@ export const ENEMIES: Readonly<Record<string, EnemyType>> = {
   'arc-rider': {name:'电弧游骑',tier:'normal',behavior:'skirmish',contactDamage:0,hasCore:false,attackType:'electric',
     attrs:enemyAttrs({maxHp:54,armor:5,speed:155,radius:34,damage:9,fireRate:0.65,range:650,weapon:1,pierce:2,burstCount:2})},
   relay: {name:'护甲继电器',tier:'normal',behavior:'relay',contactDamage:0,hasCore:false,attrs:enemyAttrs({maxHp:90,radius:38})},
+  blocker: {name:'封路者',tier:'normal',behavior:'blocker',contactDamage:0,hasCore:false,attackType:'electric',attrs:enemyAttrs({maxHp:80,speed:145,radius:34,damage:12,range:700})},
+  summoner: {name:'召援者',tier:'normal',behavior:'summoner',contactDamage:0,hasCore:false,attrs:enemyAttrs({maxHp:95,armor:15,speed:120,radius:38,damage:8,range:700})},
   charger: {name:'裂隙突击者',tier:'normal',behavior:'charger',contactDamage:13,hasCore:false,attackType:'physical',attrs:enemyAttrs({maxHp:75,armor:10,speed:200,radius:34,damage:13})},
   bomber: { name: '自爆体', tier: 'normal', behavior: 'bomber', contactDamage: 0, hasCore: false, attackType: 'heat', traits: ['volatile'],
     attrs: enemyAttrs({ maxHp: 42, speed: 230, radius: 32, damage: 16, bulletSpeed: 330, range: 850 }) },

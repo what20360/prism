@@ -1,6 +1,6 @@
 import { shieldCap } from './attrs'
 import type { RoomTemplate, World } from './world'
-import { getPlayer, spawnEnemy, configureRoomWaves } from './world'
+import { getPlayer, spawnEnemy, configureRoomWaves, makeObjective } from './world'
 import { populateRoomPickups } from './roomResources'
 
 export type RoomSpec = RoomTemplate
@@ -18,6 +18,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
     if (actor.team === 'enemy') world.actors.delete(id)
   }
 
+  world.hazards = []
   world.projectiles = []
   world.mines = []
   world.pickups = []
@@ -27,6 +28,7 @@ export function applyRoom(world: World, room: RoomSpec): void {
   world.room.kind = room.kind
   world.room.bounds = room.bounds
   world.room.design = room.design
+  world.room.objective=room.objective?makeObjective(room.objective):undefined
   world.room.walls = room.walls
   world.room.entry = room.entry
   world.room.phase = 'entered'

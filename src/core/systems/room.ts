@@ -12,6 +12,8 @@ export function updateRoom(world: World): void {
   if (world.participants && !world.coop) return
   if (world.roomCleared) return
   if (world.room.phase === 'entered') return
+  const objective=world.room.objective
+  if(objective && (objective.phase==='warning'||objective.kind==='gate'&&objective.phase==='await'))return
 
   for (const actor of world.actors.values()) {
     if (actor.alive && actor.team === 'enemy' && actor.behavior !== 'relay') return

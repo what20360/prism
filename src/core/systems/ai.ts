@@ -4,7 +4,7 @@ import { selfDestruct } from './damage'
 import { normalize } from '../math'
 import { findPath, hasLineOfSight, firstWallHit } from '../navigation'
 import type { World } from '../world'
-import { tryGetPlayer } from '../world'
+import { tryGetPlayer, allocateId, spawnEnemy } from '../world'
 import { updateWeaver, updateNestSpider } from './weaver'
 import { ENCOUNTER_RULES } from './encounter'
 import { combatAttrs } from '../combat'
@@ -48,6 +48,7 @@ export function updateAi(world: World, controlled: ReadonlySet<number> = new Set
         continue
       }
     }
+    if ((actor.behavior==='blocker'||actor.behavior==='summoner') && updateSupport(world,actor,player,visible,separation)) continue
     if (actor.behavior === 'charger' && updateCharge(world,actor,player,visible,separation)) continue
     const lead = visible ? Math.min(0.25, Math.hypot(player.pos.x - actor.pos.x, player.pos.y - actor.pos.y) / Math.max(1, actor.attrs.bulletSpeed)) : 0
     if (actor.behavior === 'lancer') {
@@ -86,4 +87,37 @@ function updateCharge(world:World,actor:Actor,player:Actor,visible:boolean,separ
   const angle=Math.atan2(player.pos.y-actor.pos.y,player.pos.x-actor.pos.x);actor.charge={phase:'windup',ticks:rules.chargeWindup,angle,last:{...actor.pos}};actor.intent={move:{x:0,y:0},fire:false};actor.aimAngle=angle;return true
  }
  return false
+}
+
+/** Fixed telegraphs and finite stock make support enemies readable and bounded. */
+function updateSupport(world:World,actor:Actor,player:Actor,visible:boolean,separation:number):boolean {
+ const stop=()=>{actor.intent={move:{x:0,y:0},fire:false}}
+ if(actor.behavior==='blocker'){
+  const state=actor.blocker
+  if(state?.phase==='cooldown'){if(--state.ticks<=0)actor.blocker=undefined;return false}
+  if(state?.phase==='windup'){
+   stop();if(--state.ticks<=0){world.hazards??=[];if(world.hazards.length<4)world.hazards.push({id:allocateId(world),ownerId:actor.id,pos:{...state.target},radius:130,damage:actor.attrs.damage*.5,ttl:180,rewardMultiplier:actor.rewardMultiplier??1});actor.blocker={phase:'cooldown',ticks:240,target:state.target}}
+   return true
+  }
+  if(visible&&separation<=700&&(world.hazards?.length??0)<4){actor.blocker={phase:'windup',ticks:60,target:{...player.pos}};stop();return true}
+  return false
+ }
+ let state=actor.summoner
+ if(!state){state=actor.summoner={phase:'cooldown',ticks:0,charges:2,target:{...actor.pos}}}
+ if(state.phase==='cooldown'){
+  if(state.ticks>0)state.ticks--
+  if(state.ticks===0&&state.charges>0&&visible&&separation<=700&&[...world.actors.values()].filter(a=>a.alive&&a.summoned).length<6){
+   const dir=normalize({x:player.pos.x-actor.pos.x,y:player.pos.y-actor.pos.y})
+   state.phase='windup';state.ticks=60;state.target=resolveSpawnPosition({x:actor.pos.x+dir.x*125,y:actor.pos.y+dir.y*125},28,world.room.walls,world.room.bounds);stop();return true
+  }
+  return false
+ }
+ stop();if(--state.ticks<=0){
+  if([...world.actors.values()].filter(a=>a.alive&&a.summoned).length<6){
+   const attrs={...actor.attrs,maxHp:Math.max(1,actor.attrs.maxHp*.4),damage:actor.attrs.damage*.4,radius:28,armor:0,block:0,shield:0,shieldCapMult:0,shieldRegen:0,fireRate:0,weapon:0}
+   spawnEnemy(world,{pos:state.target,attrs,tier:'normal',behavior:'chase',contactDamage:attrs.damage,hasCore:false,name:'召援体',summoned:true,rewardMultiplier:0});state.charges--
+  }
+  state.phase='cooldown';state.ticks=240
+ }
+ return true
 }

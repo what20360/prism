@@ -47,7 +47,7 @@ describe('cooperative campaign and endless authority',()=>{
   expect(m.world().paused).toBe(true);expect(m.world().gameOver).toBe(true);m.join('新人');expect(m.start()).toBe(false)
  })
  it('scales the next room population once and transitions the complete party',()=>{
-  const {m,w,ids}=party(5);w.exitReached=true;m.tick(new Map(ids.map(id=>[id,idle])));expect(m.roomIndex()).toBe(1);expect(w.pendingSpawns.length).toBeGreaterThan(10)
+  const {m,w,ids}=party(5);w.exitReached=true;m.tick(new Map(ids.map(id=>[id,idle])));expect(m.roomIndex()).toBe(1);expect(w.pendingSpawns.length+(w.room.objective?.kind==='gate'?w.room.objective.spawns.length:0)).toBeGreaterThanOrEqual(10)
   expect(w.coop!.roomPartySize).toBe(5);const count=w.pendingSpawns.length;m.disconnect(ids[4]!);expect(w.pendingSpawns).toHaveLength(count)
   expect(ids.every(id=>Math.hypot(w.actors.get(id)!.pos.x-w.room.entry.x,w.actors.get(id)!.pos.y-w.room.entry.y)<80)).toBe(true)
  })
@@ -121,7 +121,7 @@ describe('cooperative campaign and endless authority',()=>{
   applyDamage(w,{targetId:e.id,sourceId:b.id,sourceTeam:'player',raw:10,penetration:0,isCore:false});expect(b.hp).toBe(0);expect(b.alive).toBe(false)
  })
  it('supports cooperative endless generation and preserves its random state on resume',()=>{
-  const m=createCoopMatch({...DEFAULT_COOP,mode:'endless'});for(let i=0;i<4;i++)m.join('队员'+i);m.world().coop!.members.forEach(p=>m.ready(p.id));m.start();expect(m.world().pendingSpawns.length).toBe(23);m.world().exitReached=true;m.tick(new Map());expect(m.save().endless!.floor).toBe(2);expect(m.world().pendingSpawns.length).toBeGreaterThan(15)
+  const m=createCoopMatch({...DEFAULT_COOP,mode:'endless'});for(let i=0;i<4;i++)m.join('队员'+i);m.world().coop!.members.forEach(p=>m.ready(p.id));m.start();expect(m.world().pendingSpawns.length+(m.world().room.objective?.kind==='gate'?m.world().room.objective!.spawns.length:0)).toBe(23);m.world().exitReached=true;m.tick(new Map());expect(m.save().endless!.floor).toBe(2);expect(m.world().pendingSpawns.length+(m.world().room.objective?.kind==='gate'?m.world().room.objective!.spawns.length:0)).toBeGreaterThan(15)
   const save=readCoopSave(JSON.stringify(m.save())),loaded=createCoopMatch(save.config,save);expect(loaded.save().endless).toEqual(save.endless)
  })
 })

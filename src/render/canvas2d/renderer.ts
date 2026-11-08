@@ -152,7 +152,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(a.x, a.y, a.deflectFieldRadius, 0, Math.PI * 2); ctx.fill()
       ctx.setLineDash([12, 25]); ring(a.x, a.y, a.deflectFieldRadius, a.deflectActive ? '#b99bff' : 'rgba(155,208,255,0.16)', a.deflectActive ? 4 : 2); ctx.setLineDash([])
     }
-    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'relay' ? '#8ee9ce' : a.behavior === 'charger' ? '#ffb164' : a.behavior === 'weaver' ? '#cea3ff' : worker ? GOLD : a.spider ? '#ff8ec7' : a.behavior === 'boss' ? PURPLE : RED
+    const color = player ? a.enraged ? GOLD : CYAN : a.team === 'neutral' ? GOLD : a.behavior === 'blocker' ? '#ff816c' : a.behavior === 'summoner' ? '#c7a1ff' : a.behavior === 'relay' ? '#8ee9ce' : a.behavior === 'charger' ? '#ffb164' : a.behavior === 'weaver' ? '#cea3ff' : worker ? GOLD : a.spider ? '#ff8ec7' : a.behavior === 'boss' ? PURPLE : RED
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(player || silk ? a.aimAngle : a.behavior === 'boss' ? tick * 0.003 : 0)
     if (silk) {
       ctx.strokeStyle = color; ctx.lineWidth = a.weaver ? 5 : 3
@@ -449,6 +449,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx.fillStyle = '#050a13'; ctx.fillRect(0, 0, width, height)
     ctx.save(); const zoom = width / camera.width; ctx.scale(zoom, zoom); ctx.translate(-camera.x, -camera.y)
     drawArena(s)
+    const objective=s.objective
+    if(objective && objective.phase!=='complete'){
+      for(const [i,node] of objective.nodes.entries()){
+        ring(node.x,node.y,objective.kind==='gate'?75:85,objective.kind==='gate'?CYAN:GOLD,4)
+        ctx.textAlign='center';text(objective.kind==='gate'?'靠近选择路线':s.roomCleared?`站立挑战 ${(objective.hold/60).toFixed(1)}/2s`:'清场后可挑战',node.x,node.y-105,19,objective.kind==='gate'?CYAN:GOLD);ctx.textAlign='left'
+        void i
+      }
+      for(const spawn of objective.spawns){ctx.setLineDash([12,10]);ring(spawn.x,spawn.y,spawn.radius+24,GOLD,3);ctx.setLineDash([]);ctx.textAlign='center';text(`${(objective.timer/60).toFixed(1)}s`,spawn.x,spawn.y+5,20,GOLD);ctx.textAlign='left'}
+    }
+    for(const h of s.hazards??[]){ctx.fillStyle='rgba(255,90,65,0.15)';ctx.beginPath();ctx.arc(h.pos.x,h.pos.y,h.radius,0,Math.PI*2);ctx.fill();ring(h.pos.x,h.pos.y,h.radius,'#ff886c',4)}
+    for(const a of s.actors)if(a.alive&&a.supportWarning){const w=a.supportWarning;ctx.setLineDash([10,8]);ring(w.pos.x,w.pos.y,w.kind==='blocker'?130:42,w.kind==='blocker'?'#ff886c':'#c7a1ff',4);ctx.setLineDash([]);ctx.textAlign='center';text(`${w.kind==='blocker'?'封锁':'召援'} ${(w.ticks/60).toFixed(1)}s`,w.pos.x,w.pos.y,19,w.kind==='blocker'?'#ffb0a1':'#ded0ff');ctx.textAlign='left'}
     for (const spawn of s.wave?.spawns ?? []) {
       ctx.setLineDash([12, 10]); ring(spawn.x, spawn.y, spawn.radius + 24 + Math.sin(s.tick * 0.15) * 5, GOLD, 3); ctx.setLineDash([])
       ctx.textAlign = 'center'; text(`${((s.wave?.countdown ?? 0) / 60).toFixed(1)}s`, spawn.x, spawn.y + 5, 21, GOLD); ctx.textAlign = 'left'

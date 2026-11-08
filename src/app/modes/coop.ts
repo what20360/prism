@@ -71,10 +71,12 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
  const rally=()=>{for(const m of world.coop!.members){const a=world.actors.get(m.id)!;a.pos=teamPosition(m.id);a.lockTargetId=null;a.manualLockId=null;a.burstRemaining=0;a.laserTicks=0;a.burn=undefined;a.rageTicks=0;a.dashTicks=0;a.shockTicks=0;a.deflectWindowTicks=0;a.intent={move:{x:0,y:0},fire:false};if(a.alive){a.iframesTicks=120;a.shield=Math.min(a.shield,shieldCap(a.attrs))} }}
  const scaleRoom=(index:number)=>{const room=rooms[index]!,count=Math.max(1,world.coop!.members.filter(m=>m.connected).length);world.coop!.roomPartySize=count
   const wave=(source:readonly EnemySpawnSpec[])=>{
-   const result=[...source],normal=source.filter(s=>s.tier!=='boss'&&s.behavior!=='relay'&&s.behavior!=='charger')
-   const extra=normal.length?Math.ceil(normal.length*coopPopulation(count))-normal.length:(count-1)*2
+   const result=[...source],normal=source.filter(s=>s.tier!=='boss'&&s.behavior!=='relay'&&s.behavior!=='charger'&&s.behavior!=='blocker'&&s.behavior!=='summoner')
+   const population=source.filter(s=>s.behavior!=='relay'&&s.tier!=='boss').length
+   const extra=population?Math.ceil(population*coopPopulation(count))-population:(count-1)*2
    for(let i=0;i<extra&&result.length<200;i++){
-    const base=normal[i%normal.length]??source.find(s=>s.tier==='boss');if(!base)break
+    const base=normal[i%normal.length]??source.find(s=>s.behavior!=='relay');if(!base)break
+    const replaceSpecial=['blocker','summoner','charger'].includes(base.behavior)
     const attrs=base.tier==='boss'?{...base.attrs,maxHp:Math.max(20,base.attrs.maxHp*0.025),radius:30,armor:base.attrs.armor*0.2,block:0,speed:180,fireRate:0}:base.attrs
     let pos:typeof base.pos|undefined
     for(let attempt=0;attempt<160;attempt++){
@@ -85,11 +87,11 @@ export function createCoopMatch(config:CoopConfig=DEFAULT_COOP,saved?:CoopSave) 
      pos=candidate;break
     }
     if(!pos)continue
-    result.push({...base,attrs,pos,...(base.tier==='boss'?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'巢室护卫',contactDamage:attrs.damage*0.5}:{})})
+    result.push({...base,attrs,pos,...(base.tier==='boss'||replaceSpecial?{tier:'normal' as const,behavior:'chase' as const,hasCore:false,name:'协同护卫',contactDamage:attrs.damage*0.5}:{})})
    }
    return result
   }
-  return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave)} }
+  return {...room,spawns:wave(room.spawns),waves:room.waves?.map(wave),objective:room.objective?{...room.objective,spawns:wave(room.objective.spawns)}:undefined} }
  const checkpoint=(viewer=hostId):CoopSave=>({format:'prism-coop-save',version:1,balanceVersion:CURRENT_BALANCE_VERSION,name,savedAt:new Date().toISOString(),config,hostId:viewer,roomIndex,started,world:(()=>{const data=serializeWorld(world,true);for(const p of data.projectiles){delete p.trail;delete p.segments}data.floaters=data.floaters.slice(-80);data.effects=data.effects.slice(-80);return data})(),endless:endless?.checkpoint(),plans:structuredClone(plans)})
  return {
   world:()=>world,config:()=>({...config}),hostId:()=>hostId,started:()=>started,roomIndex:()=>roomIndex,progress:()=>endless?.floor()??roomIndex,plan,

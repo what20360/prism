@@ -9,10 +9,10 @@ import type { EntityId, Rect, Team, Vec2 } from './types'
 
 export type RoomPhase = 'idle' | 'entered' | 'combat' | 'cleared' | 'exited'
 export type EnemyTier = 'normal' | 'elite' | 'boss'
-export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer' | 'weaver' | 'silk-worker' | 'silk-bomber' | 'charger' | 'relay'
+export type EnemyBehavior = 'chase' | 'turret' | 'boss' | 'skirmish' | 'bomber' | 'lancer' | 'weaver' | 'silk-worker' | 'silk-bomber' | 'charger' | 'relay' | 'blocker' | 'summoner'
 export type DamageType = 'physical' | 'electric' | 'heat'
 export type MonsterTrait = 'bark' | 'swift' | 'bulwark' | 'storm' | 'cinder' | 'volatile'
-export interface EnemyMechanics { readonly attackType?: DamageType; readonly traits?: readonly MonsterTrait[] }
+export interface EnemyMechanics { readonly attackType?: DamageType; readonly traits?: readonly MonsterTrait[]; readonly summoned?:boolean }
 export interface Burn { sourceId: number; sourceTeam: Team; raw: number; remaining: number; timer: number; rewardMultiplier?: number }
 export interface WeaverState {
   mineStock: number; mineRegen: number; spiderStock: number; spiderRegen: number; spawnTimer: number
@@ -35,6 +35,8 @@ export interface Actor extends EnemyMechanics {
   windupTicks?: number
   windupAngle?: number
   charge?: { phase: 'windup' | 'dash' | 'recovery' | 'cooldown'; ticks: number; angle: number; last: Vec2 }
+  blocker?: {phase:'windup'|'cooldown';ticks:number;target:Vec2}
+  summoner?: {phase:'windup'|'cooldown';ticks:number;charges:number;target:Vec2}
   electricBudget?:number
   electricTimer?:number
   laserTicks?: number
@@ -199,7 +201,11 @@ export interface Floater {
 }
 
 export interface RoomDesign { readonly id: string; readonly title: string; readonly theme: 'prism' | 'silk'; readonly encounter?: string; readonly corridorWidth?: number; readonly core?: Rect; readonly patrol: readonly Vec2[]; readonly mineAnchors: readonly Vec2[]; readonly exit: Rect; readonly skipExit?: Rect }
+export interface ObjectiveSpec {kind:'gate'|'mine';nodes:readonly Vec2[];spawns:readonly EnemySpawnSpec[];reward:number}
+export interface ObjectiveState {kind:'gate'|'mine';nodes:readonly Vec2[];spawns:readonly EnemySpawnSpec[];reward:number;phase:'await'|'warning'|'engaged'|'complete';timer:number;hold:number;holder:number|null;selected:number;targets:number[];claimed:boolean}
+export interface Hazard {id:number;ownerId:number;pos:Vec2;radius:number;damage:number;ttl:number;rewardMultiplier:number}
 export interface RoomState {
+  objective?:ObjectiveState
   design?: RoomDesign
   phase: RoomPhase
   kind: RoomKind
@@ -227,6 +233,7 @@ export interface WaveState { index: number; total: number; remaining: EnemySpawn
 
 export interface World {
   coop?: CoopState
+  hazards?:Hazard[]
   traces?: EnergyTrace[]
   tick: number
   readonly seed: number
@@ -272,6 +279,7 @@ export function progressOf(world: World, actorId?: number): PlayerProgress {
 
 export interface RoomTemplate {
   readonly design?: RoomDesign
+  readonly objective?:ObjectiveSpec
   readonly id: string
   readonly kind: RoomKind
   readonly bounds: Rect
@@ -316,6 +324,7 @@ export function createWorld(options: CreateWorldOptions): World {
     rng: createRng(options.seed),
     room: {
       design: options.room.design,
+      objective: options.room.objective?makeObjective(options.room.objective):undefined,
       phase: 'combat',
       kind: options.room.kind,
       bounds: options.room.bounds,
@@ -376,6 +385,8 @@ export function createWorld(options: CreateWorldOptions): World {
   return world
 }
 
+export function makeObjective(spec:ObjectiveSpec):ObjectiveState {return {...structuredClone(spec),phase:'await',timer:0,hold:0,holder:null,selected:0,targets:[],claimed:false}}
+
 export function configureRoomWaves(world: World, room: RoomTemplate): void {
   world.waves = room.waves === undefined ? undefined : { index: 1, total: room.waves.length + 1, remaining: room.waves.map((wave) => [...wave]), countdown: 0, delayTicks: 90 }
 }
@@ -398,7 +409,7 @@ export function createActor(world: World, spec: CreateActorSpec): Actor {
   world.nextEntityId += 1
 
   const actor: Actor = {
-    attackType: spec.attackType, traits: spec.traits,
+    attackType: spec.attackType, traits: spec.traits, summoned:spec.summoned,
     id,
     team: spec.team,
     tier: spec.tier,

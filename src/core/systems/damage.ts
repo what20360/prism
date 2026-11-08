@@ -64,10 +64,11 @@ export function applyDamage(world: World, event: DamageEvent): void {
   target.outOfCombatTicks = 0
   target.damageFlashTicks = DAMAGE_FLASH_TICKS
 
+  if(target.blocker?.phase==='windup')target.blocker={phase:'cooldown',ticks:240,target:target.blocker.target}
   const player = tryGetPlayer(world)
   const effectiveDamage = absorbed + hpLost
   // Devices are tactical objectives, not renewable damage or kill income.
-  if(target.behavior==='relay'){
+  if(target.behavior==='relay'||target.summoned){
     pushFloater(world,'damage',effectiveDamage,target.pos.x,target.pos.y);pushEffect(world,'hit',target.pos.x,target.pos.y,26)
     if(target.hp<=0){target.alive=false;target.burn=undefined;pushEffect(world,'death',target.pos.x,target.pos.y,target.radius*2)}
     return

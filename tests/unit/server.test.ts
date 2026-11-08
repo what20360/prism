@@ -244,7 +244,7 @@ describe('connection and identity primitives',()=>{
   for(const url of ['https://user:pass@example.com','ftp://example.com','https://example.com/secret','https://example.com/?token=secret'])expect(()=>socketAddress(url)).toThrow()
  })
  it('rejects prototype payloads, extra authority packets, invalid versions and non-finite inputs',()=>{
-  expect(()=>decodeClient('{"protocol":"prism-server-5","__proto__":{}}')).toThrow()
+  expect(()=>decodeClient('{"protocol":"prism-server-6","__proto__":{}}')).toThrow()
   for(const value of [{protocol:'old',type:'hello',name:'a'},{protocol:SERVER_PROTOCOL,type:'state',hp:100},{protocol:SERVER_PROTOCOL,type:'input',roomId:'ABC123',epoch:1,sequence:1,intent:{move:{x:Infinity,y:0}}}])expect(()=>decodeClient(JSON.stringify(value))).toThrow()
  })
  it('stores bearer token hashes and salted room-password hashes, preserving identities on reopen',async()=>{

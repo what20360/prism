@@ -1,3 +1,4 @@
+import { updateObjectives,updateHazards } from './systems/objectives'
 import { updateCoopRevives } from './coop'
 import { updateTargetLocks } from './systems/targeting'
 import { updatePickups } from './systems/pickups'
@@ -71,6 +72,8 @@ export function step(world: World, intents: ReadonlyMap<EntityId, Intent>): void
   updatePickups(world)
 
   // 11. room state
+  updateHazards(world)
+  updateObjectives(world)
   updateRoom(world)
   updateExit(world)
   world.effects = world.effects.slice(-512); world.floaters = world.floaters.slice(-1024)

@@ -1,6 +1,11 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.29',date:'2026-11-08',title:'闸廊与矿室',items:[
+    '交错闸廊可选左右路线并触发预警增援；不稳定矿室可在清场后选择挑战额外守军，完成获得一次性棱晶。',
+    '封路者布置可打断的伤害区域，召援者有限次数召唤不产生经济的援军；支持合作及存档。',
+    '无尽开放层仍可直接进入下一层；实时协议升级为 prism-server-6，服务器和客户端需要一起更新。',
+  ]},
   {version:'1.28',date:'2026-11-06',title:'编队与继电站',items:[
     '闯关与无尽采用夹击、护送、引爆、电弧四种主题编队，按难度和层数解锁成员；闯关避开最近两次主题，无尽按种子与层数生成。',
     '新增折光继电站和交错铸造场；继电器为附近至多两名可见的非首领敌人增加护甲，可被任意武器破坏。装置不提供伤害经济、治疗、击杀掉落或连杀，清完守军即可过关。',

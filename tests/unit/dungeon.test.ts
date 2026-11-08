@@ -242,7 +242,7 @@ describe('seeded seven-level dungeon', () => {
   it('increases base populations with depth and keeps single waves on standard difficulty while drawing seeded archetypes and traits', () => {
     const baseline = buildDungeon(), easy = buildDungeon({ seed: 4123, difficulty: 1 })
     for (let i = 0; i < easy.length; i++) {
-      expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length).toBe(easy[i]!.kind === 'boss' ? 1 : Math.ceil(baseline[i]!.spawns.length * (1.15 + 0.14 * i / ROOMS_PER_FLOOR))); expect(easy[i]!.waves ?? []).toHaveLength(0)
+      expect(easy[i]!.kind).toBe(baseline[i]!.kind); expect(easy[i]!.spawns.length+(easy[i]!.objective?.kind==='gate'?easy[i]!.objective!.spawns.length:0)).toBe(easy[i]!.kind === 'boss' ? 1 : Math.ceil(baseline[i]!.spawns.length * (1.15 + 0.14 * i / ROOMS_PER_FLOOR))); expect(easy[i]!.waves ?? []).toHaveLength(0)
       for (const enemy of easy[i]!.spawns) {
         const type = Object.values(ENEMIES).find((type) => enemy.name?.endsWith(type.name))!
         expect(type).toBeDefined(); expect(enemy.attrs.maxHp).toBeGreaterThanOrEqual(type.attrs.maxHp)
