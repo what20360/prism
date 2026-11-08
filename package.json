@@ -6,7 +6,7 @@
   "description": "PRISM - a top-down geometric dungeon roguelike shooter",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/write-build-info.mjs",
+    "build": "npm run balance:report && tsc --noEmit && vite build && node scripts/write-build-info.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -17,7 +17,8 @@
     "server": "node dist-server/server.mjs",
     "build:all": "npm run build && npm run server:build",
     "server:package": "npm run build:all && node scripts/package-server.mjs",
-    "bench:sync": "vite-node scripts/benchmark-sync.ts"
+    "bench:sync": "vite-node scripts/benchmark-sync.ts",
+    "balance:report": "vite-node scripts/balance-report.ts"
   },
   "devDependencies": {
     "@types/node": "^18.19.130",

@@ -14,7 +14,9 @@ GitHub Pages 地址：https://what20360.github.io/prism/ （已启用，可公�
 
 ---
 
-当前v1.29：闯关与无尽新增闸廊、矿室与支援敌人。实时协议prism-server-6，联机需同步更新服务器。实现细节见[技术手册第十篇](docs/technical/10-objectives-and-support.md)。
+当前v1.30：提供[固定预算伤害曲线](https://what20360.github.io/prism/balance/)，每次构建由现行规则自动重新生成；
+
+此前v1.29：闯关与无尽新增闸廊、矿室与支援敌人。实时协议prism-server-6，联机需同步更新服务器。实现细节见[技术手册第十篇](docs/technical/10-objectives-and-support.md)。
 
 ## 它是什么
 
@@ -40,7 +42,7 @@ GitHub Pages 地址：https://what20360.github.io/prism/ （已启用，可公�
 | [docs/architecture.md](docs/architecture.md) | 架构设计：分层、`core` 内部、tick 流程、扩展点、测试策略 |
 | [遭遇升级设计](docs/design/encounter-roadmap.md) | 敌人角色、编队、房间目标与后续验收（包含已实现和待实现项目） |
 | [docs/backlog.md](docs/backlog.md) | **未实现需求与待办**（暂停点、恢复顺序、技术债） |
-| [平衡验证方案](docs/design/balance-evidence.md) | 固定预算理论曲线与可选服务器对局统计的设计（尚未采集） |
+| [平衡验证方案](docs/design/balance-evidence.md) | 固定预算实验的用法和限制；可选服务器统计仍未采集 |
 | [docs/playtest.md](docs/playtest.md) | **试玩反馈表**（玩家填写手感、数值、bug 与下一步方向） |
 | [docs/deployment.md](docs/deployment.md) | GitHub 交付约定与历史站点说明 |
 | [docs/adr/0001-tech-stack.md](docs/adr/0001-tech-stack.md) | 技术选型与取舍记录 |

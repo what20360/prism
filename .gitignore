@@ -10,3 +10,6 @@ dist-server/
 
 prism-server.config.json
 *.log
+
+# Generated balance reports are rebuilt from current source.
+public/balance/

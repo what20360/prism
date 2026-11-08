@@ -1,0 +1,276 @@
+{
+  "budgets": [
+    50,
+    100,
+    200,
+    400,
+    800,
+    1600
+  ],
+  "warmupSeconds": 5,
+  "measurementSeconds": 30,
+  "seed": 20261108,
+  "builds": [
+    {
+      "id": "bullet",
+      "name": "弹芯：连发穿透",
+      "action": "shoot",
+      "opening": [],
+      "cycle": [
+        "gun-damage",
+        "gun-firerate",
+        "burst",
+        "gun-pierce",
+        "gun-damage",
+        "gun-penetration",
+        "scatter"
+      ]
+    },
+    {
+      "id": "sniper",
+      "name": "狙击：动能强化",
+      "action": "shoot",
+      "opening": [
+        "precision-stance"
+      ],
+      "cycle": [
+        "gun-damage",
+        "sniper-specialty",
+        "gun-bulletspeed",
+        "gun-damage",
+        "scatter",
+        "gun-penetration"
+      ]
+    },
+    {
+      "id": "arc",
+      "name": "电弧：传导",
+      "action": "shoot",
+      "opening": [
+        "weapon-electric"
+      ],
+      "cycle": [
+        "arc-coil",
+        "gun-damage",
+        "gun-firerate",
+        "gun-pierce",
+        "burst",
+        "scatter"
+      ]
+    },
+    {
+      "id": "laser",
+      "name": "激光：聚焦",
+      "action": "shoot",
+      "opening": [
+        "weapon-laser"
+      ],
+      "cycle": [
+        "laser-focus",
+        "gun-damage",
+        "gun-firerate",
+        "burst",
+        "gun-pierce",
+        "scatter"
+      ]
+    },
+    {
+      "id": "mine",
+      "name": "地雷：持续布雷",
+      "action": "mine",
+      "opening": [],
+      "cycle": [
+        "mine-power",
+        "mine-cooldown",
+        "mine-radius",
+        "mine-echo",
+        "mine-brood"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "single",
+      "name": "单体 · 无防御",
+      "targets": [
+        {
+          "x": 300,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "single-block",
+      "name": "单体 · 格挡 6",
+      "defense": {
+        "block": 6
+      },
+      "targets": [
+        {
+          "x": 300,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "single-armor",
+      "name": "单体 · 护甲 80",
+      "defense": {
+        "armor": 80
+      },
+      "targets": [
+        {
+          "x": 300,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "single-resistant",
+      "name": "单体 · 三类抗性 50",
+      "defense": {
+        "physicalResist": 50,
+        "electricResist": 50,
+        "heatResist": 50
+      },
+      "targets": [
+        {
+          "x": 300,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "single-near",
+      "name": "单体 · 近距离",
+      "targets": [
+        {
+          "x": 100,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "group-fan",
+      "name": "群体 · 扇形五靶",
+      "targets": [
+        {
+          "x": 240,
+          "y": 0
+        },
+        {
+          "x": 320,
+          "y": -90
+        },
+        {
+          "x": 320,
+          "y": 90
+        },
+        {
+          "x": 410,
+          "y": -165
+        },
+        {
+          "x": 410,
+          "y": 165
+        }
+      ]
+    },
+    {
+      "id": "group-line",
+      "name": "群体 · 直列五靶，格挡 4",
+      "defense": {
+        "block": 4
+      },
+      "targets": [
+        {
+          "x": 130,
+          "y": 0
+        },
+        {
+          "x": 220,
+          "y": 0
+        },
+        {
+          "x": 310,
+          "y": 0
+        },
+        {
+          "x": 400,
+          "y": 0
+        },
+        {
+          "x": 490,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "group-near",
+      "name": "群体 · 近距离五靶",
+      "targets": [
+        {
+          "x": 100,
+          "y": 0
+        },
+        {
+          "x": 135,
+          "y": 80
+        },
+        {
+          "x": 135,
+          "y": -80
+        },
+        {
+          "x": 210,
+          "y": 50
+        },
+        {
+          "x": 210,
+          "y": -50
+        }
+      ]
+    },
+    {
+      "id": "group-mixed",
+      "name": "群体 · 混合防御五靶",
+      "targets": [
+        {
+          "x": 240,
+          "y": 0,
+          "defense": {
+            "block": 4
+          }
+        },
+        {
+          "x": 320,
+          "y": -90,
+          "defense": {
+            "armor": 80
+          }
+        },
+        {
+          "x": 320,
+          "y": 90,
+          "defense": {
+            "electricResist": 50
+          }
+        },
+        {
+          "x": 410,
+          "y": -165,
+          "defense": {
+            "heatResist": 50
+          }
+        },
+        {
+          "x": 410,
+          "y": 165,
+          "defense": {
+            "physicalResist": 50
+          }
+        }
+      ]
+    }
+  ]
+}

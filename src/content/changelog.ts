@@ -1,6 +1,10 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.30',date:'2026-11-08',title:'固定预算伤害实验',items:[
+    '新增独立固定预算靶场报告：比较五类构筑在单体、群体和不同防御下的有效伤害；每次网站构建使用当前规则重新生成。',
+    '报告显示靶场条件、预算、实际花费与逐级购卡顺序，可导出详细结果；模拟场景不代表实战或全局最优。',
+  ]},
   {version:'1.29',date:'2026-11-08',title:'闸廊与矿室',items:[
     '交错闸廊可选左右路线并触发预警增援；不稳定矿室可在清场后选择挑战额外守军，完成获得一次性棱晶。',
     '封路者布置可打断的伤害区域，召援者有限次数召唤不产生经济的援军；支持合作及存档。',
