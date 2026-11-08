@@ -1,6 +1,7 @@
 export interface ReleaseNotes { readonly version: string; readonly date: string; readonly title: string; readonly items: readonly string[] }
 /** Release history is shown only on the dedicated changelog page. */
 export const RELEASE_NOTES: readonly ReleaseNotes[] = [
+  {version:'1.31',date:'2026-11-08',title:'伤害曲线调整',items:['伤害曲线只比较主武器构筑；地雷的触发和使用方式不同，已移出该报告。']},
   {version:'1.30',date:'2026-11-08',title:'固定预算伤害实验',items:[
     '新增独立固定预算靶场报告：比较五类构筑在单体、群体和不同防御下的有效伤害；每次网站构建使用当前规则重新生成。',
     '报告显示靶场条件、预算、实际花费与逐级购卡顺序，可导出详细结果；模拟场景不代表实战或全局最优。',

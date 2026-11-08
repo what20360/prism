@@ -8,7 +8,7 @@ import {createActor,createWorld,getPlayer} from '../core/world'
 import {TICK_RATE} from '../core/types'
 import type {AttrSet} from '../core/attrs'
 
-export interface BuildConfig {id:string;name:string;action:'shoot'|'mine';opening:string[];cycle:string[]}
+export interface BuildConfig {id:string;name:string;action:'shoot';opening:string[];cycle:string[]}
 export interface Defense {armor?:number;block?:number;physicalResist?:number;electricResist?:number;heatResist?:number}
 export interface Target {x:number;y:number;radius?:number;defense?:Defense}
 export interface Scenario {id:string;name:string;defense?:Defense;targets:Target[]}
@@ -31,7 +31,7 @@ export function validateConfig(input:unknown):ReportConfig {
  const seenBuilds=new Set<string>(),seenScenes=new Set<string>()
  for(const b of c.builds){
   assert(b&&typeof b.id==='string'&&/^[a-z0-9-]+$/.test(b.id)&&!seenBuilds.has(b.id)&&typeof b.name==='string'&&b.name.length>0&&b.name.length<=80,'构筑标识或名称无效');seenBuilds.add(b.id)
-  assert(b.action==='shoot'||b.action==='mine','攻击方式应为 shoot 或 mine')
+  assert(b.action==='shoot','伤害曲线仅支持主武器射击（shoot）')
   assert(Array.isArray(b.opening)&&Array.isArray(b.cycle)&&b.cycle.length>0&&b.opening.length<=30&&b.cycle.length<=30,'购卡顺序无效')
   for(const id of [...b.opening,...b.cycle])assert(typeof id==='string'&&CARD_REGISTRY.get(id),`未知卡片 ${id}`)
   for(const id of b.cycle)assert(CARD_REGISTRY.get(id)!.maxLevel===undefined,`循环购卡不能包含限级卡 ${id}`)
@@ -66,10 +66,10 @@ export function runExperiment(config:ReportConfig,build:BuildConfig,scenario:Sce
  const p=getPlayer(world),hp=1e9
  const targets=scenario.targets.map((t,i)=>createActor(world,{team:'enemy',behavior:'turret',tier:'normal',contactDamage:0,hasCore:false,damageIframesTicks:0,pos:{x:p.pos.x+t.x,y:p.pos.y+t.y},attrs:{...PLAYER_BASE_ATTRS,maxHp:hp,speed:0,fireRate:0,weapon:0,shield:0,shieldCapMult:0,shieldRegen:0,radius:t.radius??34,...scenario.defense,...t.defense} as AttrSet,name:`实验靶${i+1}`}))
  const first=scenario.targets[0]!,aim={x:first.x,y:first.y};p.lockTargetId=targets[0]!.id;p.manualLockId=targets[0]!.id
- const input={...zeroIntent,aim,fire:build.action==='shoot',placeMine:build.action==='mine'}
+ const input={...zeroIntent,aim,fire:true}
  // Slow builds need several cooldowns: a short fixed window can report zero
  // even though a shot is merely waiting. Cap runtime and flag truncation.
- const cycleSeconds=build.action==='mine'?p.attrs.mineCooldown/Math.max(.01,p.attrs.mineCooldownRate):1/Math.max(.000001,p.attrs.fireRate)
+ const cycleSeconds=1/Math.max(.000001,p.attrs.fireRate)
  const wantedSeconds=Math.max(config.measurementSeconds,10*cycleSeconds),actualTicks=Math.ceil(Math.min(1200,wantedSeconds)*TICK_RATE)
  const warmTicks=Math.round(config.warmupSeconds*TICK_RATE),testTicks=actualTicks,actualSeconds=actualTicks/TICK_RATE
  for(let i=0;i<warmTicks;i++)step(world,new Map([[p.id,input]]))

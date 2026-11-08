@@ -73,19 +73,6 @@
         "gun-pierce",
         "scatter"
       ]
-    },
-    {
-      "id": "mine",
-      "name": "地雷：持续布雷",
-      "action": "mine",
-      "opening": [],
-      "cycle": [
-        "mine-power",
-        "mine-cooldown",
-        "mine-radius",
-        "mine-echo",
-        "mine-brood"
-      ]
     }
   ],
   "scenarios": [

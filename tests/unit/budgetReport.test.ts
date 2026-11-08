@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest'
 import {readFileSync} from 'node:fs'
-import {buyBuild,runExperiment,validateConfig,type ReportConfig} from '../../src/analysis/budget'
+import {buyBuild,runExperiment,runReport,validateConfig,type ReportConfig} from '../../src/analysis/budget'
 import {CARD_REGISTRY} from '../../src/content/cards'
 import {electricPeriod} from '../../src/core/rules'
 import {PLAYER_BASE_ATTRS} from '../../src/content/player'
@@ -25,11 +25,14 @@ describe('fixed-budget battle experiments',()=>{
   const expected=PLAYER_BASE_ATTRS.damage*60/electricPeriod(PLAYER_BASE_ATTRS.fireRate)
   expect(u.dps!).toBeCloseTo(expected,1);expect(v.dps!/u.dps!).toBeCloseTo(.4,2)
  })
- it('responds to the target geometry and computes total from individual targets',()=>{
+ it('computes group total from each target and excludes mines from the default curves',()=>{
   const group=config.scenarios.find(s=>s.id==='group-near')!
-  const far=runExperiment(config,b('mine'),one,50),near=runExperiment(config,b('mine'),group,50)
-  expect(far.dps).toBe(0);expect(near.dps!).toBeGreaterThan(0);expect(near.perTarget).toHaveLength(5)
+  const near=runExperiment(config,b('bullet'),group,100)
+  expect(near.dps!).toBeGreaterThan(0);expect(near.perTarget).toHaveLength(5)
   expect(near.averageTargetDps).toBeCloseTo(near.dps!/5)
+  expect(cfg.builds.map(x=>x.id)).toEqual(['bullet','sniper','arc','laser'])
+  const results=runReport({...config,budgets:[50],scenarios:[group]});expect(results).toHaveLength(4);expect(results.every(r=>r.buildId!=='mine')).toBe(true)
+  expect(()=>validateConfig({...config,builds:[{...b('bullet'),action:'mine'}]})).toThrow(/仅支持主武器/)
  })
  it('extends slow sniper measurement beyond a single cooldown',()=>{
   const slow=runExperiment(config,b('sniper'),one,800)
